@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useLayoutEffect, type ReactNode } from 'react';
 import { useSettings } from '../app/settingsStore';
 import { useActivePage } from '../dashboard/store';
 import { hexToTriple, readableOn } from '../lib/color';
@@ -11,7 +11,8 @@ import { FONTS, modeOf, THEMES } from './themes';
  * Writes the theme tokens to CSS variables on <html>; every component reads those. A textured
  * background (of the page being shown) brings its own chrome colours for the current mode,
  * except in high contrast. `data-theme`, `data-mode` and `data-background` on <html> let CSS
- * pick each texture's light or dark variant.
+ * pick each texture's light or dark variant. index.html paints the same from the saved settings
+ * before the app loads; this runs before the first paint, so the two hand over without a flash.
  */
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const resolved = useResolvedTheme();
@@ -21,7 +22,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const background = getBackground(usePageLook(page).background);
   const textured = Boolean(background.tokens) && resolved !== 'high-contrast';
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const root = document.documentElement;
     const tokens = { ...(textured ? background.tokens![mode] : THEMES[resolved]) };
     const custom = accent && hexToTriple(accent);

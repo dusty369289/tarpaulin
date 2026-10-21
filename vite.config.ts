@@ -15,6 +15,7 @@ import {
   tokenHint,
   tokenLookupPath,
 } from './src/canvas/token';
+import { PREPAINT_PLACEHOLDER, prepaintData } from './src/theme/prepaint';
 
 const PROXY_PREFIX = '/canvas-proxy';
 
@@ -109,8 +110,20 @@ function fontSubsets(): Plugin {
   };
 }
 
+/** Fills the theme colours into the pre-paint script in index.html. */
+function prepaintTheme(): Plugin {
+  return {
+    name: 'tarpaulin-prepaint-theme',
+    transformIndexHtml(html) {
+      if (!html.includes(PREPAINT_PLACEHOLDER))
+        throw new Error('index.html has lost its pre-paint script');
+      return html.replace(PREPAINT_PLACEHOLDER, JSON.stringify(prepaintData()));
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), canvasDevProxy(), fontSubsets()],
+  plugins: [react(), canvasDevProxy(), fontSubsets(), prepaintTheme()],
   clearScreen: false,
   server: {
     port: 1420,
