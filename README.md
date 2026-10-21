@@ -162,11 +162,17 @@ The widget sweep fails on horizontal scrolling, elements escaping the widget, te
 squashed by its container, and fit-to-box widgets (clock, countdown) that would need to scroll.
 Every run also asserts that no request tried to write to Canvas.
 
-To record the product demo (human-paced, with captions, on the dummy `showcase` term):
+To render the product demo (captioned, human-paced, on the invented `showcase` term):
 
 ```sh
-pnpm demo:video      # → screenshots/demo/tarpaulin-demo.mp4 (needs ffmpeg)
+pnpm demo:video              # → screenshots/demo/tarpaulin-demo.mp4 (needs ffmpeg)
+pnpm demo:video --fps=60 --workers=3
 ```
+
+Rendering is deterministic rather than screen-recorded. The page runs on a virtual clock
+(`scripts/virtual-time.js`) that advances exactly one frame per step, so pacing is perfect
+whatever the machine. Unchanged frames are reused, the pointer is drawn by ffmpeg, and several
+browsers render interleaved chunks in parallel. An 88-second video takes about 80 seconds.
 
 Against a live account:
 

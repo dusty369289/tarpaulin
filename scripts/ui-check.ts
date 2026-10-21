@@ -108,6 +108,38 @@ await page.goto(stack.appUrl);
 await page.evaluate(() => localStorage.clear());
 await page.reload();
 
+await step('first launch: pick a look (plain by default) and layout', async () => {
+  await page.getByRole('heading', { name: 'Make it yours' }).waitFor({ timeout: 20_000 });
+  await settled();
+  const checked = await page.getByRole('radio', { checked: true }).allTextContents();
+  assert(
+    checked.some((t) => t.startsWith('Match system')),
+    `default look is not plain/system: ${checked}`,
+  );
+  assert(
+    checked.some((t) => t.startsWith('Deadline Focus')),
+    'default layout is not Deadline Focus',
+  );
+  await shot('00-setup');
+  // Choices apply live.
+  await page.getByRole('radio', { name: /^Dark/ }).click();
+  await settled();
+  assert(
+    (await page.evaluate(() => document.documentElement.dataset.theme)) === 'dark',
+    'Dark did not apply live',
+  );
+  await page.getByRole('radio', { name: /^Match system/ }).click();
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await settled();
+  const saved = await page.evaluate(
+    () => JSON.parse(localStorage.getItem('tarpaulin.settings') ?? '{}').state,
+  );
+  assert(
+    saved?.onboarded === true && saved?.theme === 'system',
+    `setup not saved: ${JSON.stringify(saved)}`,
+  );
+});
+
 await step('dashboard loads with data', async () => {
   await page.getByRole('tab', { name: /Home/ }).waitFor({ timeout: 20_000 });
   await settled();

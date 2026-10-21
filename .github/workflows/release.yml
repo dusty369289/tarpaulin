@@ -81,6 +81,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          # One cache per platform/target so the matrix jobs don't evict each other.
+          key: ${{ matrix.os }}-${{ matrix.rust-targets }}
       - run: pnpm install --frozen-lockfile
       - uses: tauri-apps/tauri-action@v0
         env:

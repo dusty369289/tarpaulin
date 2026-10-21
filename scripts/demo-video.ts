@@ -1,23 +1,42 @@
-// Records a product demo: a student connecting Canvas, then using, rearranging, resizing,
-// filtering and theming their dashboard, at human speed with short captions on top. It runs the
-// real app against the mock Canvas (the dummy "showcase" term), so no personal data appears.
+// Renders the product demo (scripts/demo/story.ts) to video: a student connecting Canvas, then
+// using, rearranging, resizing, filtering and theming their dashboard, with captions on top. It
+// runs the real app against the mock Canvas (the invented "showcase" term).
 //
-//   pnpm demo:video     # → screenshots/demo/tarpaulin-demo.mp4
+//   pnpm demo:video                 # → screenshots/demo/tarpaulin-demo.mp4 (30fps)
+//   pnpm demo:video --fps=60 --workers=3
+//
+// How it stays smooth and fast:
+//   - Deterministic: the page runs on a virtual clock (scripts/virtual-time.js) that advances
+//     exactly one frame per step, and network requests complete in zero video time. Frame
+//     pacing is perfect no matter how long a capture takes.
+//   - Frames where nothing changed reuse the previous capture.
+//   - The pointer is drawn by ffmpeg from logged positions, so pointer-only motion is free.
+//   - Several browsers render in parallel: each plays the whole story but only captures its own
+//     interleaved chunks, which are stitched back together in order.
 import { execFileSync } from 'node:child_process';
+import { cpus } from 'node:os';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import type { Locator } from 'playwright';
+import type { Browser, CDPSession, Locator, Page } from 'playwright';
 import { launch, startStack } from './browser';
+import { story } from './demo/story';
 
+const startedAt = Date.now();
+const arg = (name: string) => process.argv.find((a) => a.startsWith(`--${name}=`))?.split('=')[1];
+const FPS = Number(arg('fps') ?? 30);
+const FRAME_MS = 1000 / FPS;
+const WORKERS = Number(arg('workers') ?? Math.max(1, Math.min(4, cpus().length - 1)));
+const CHUNK = FPS * 2; // frames per interleaved chunk
 const OUT = 'screenshots/demo';
 const SIZE = { width: 1440, height: 900 };
+const CURSOR_TIP = 5; // the pointer's tip, in the cursor image
 
-// Visible cursor, click ripple and caption banner (Playwright videos don't show the pointer).
+// Click ripple and caption banner. The pointer itself is drawn by ffmpeg from the logged positions,
+// so frames where only the pointer moves don't need re-rendering.
 const OVERLAY = () => {
   const install = () => {
-    if (document.getElementById('demo-cursor')) return;
+    if (document.getElementById('demo-caption')) return;
     const style = document.createElement('style');
     style.textContent = `
-      #demo-cursor{position:fixed;left:0;top:0;width:22px;height:22px;z-index:2147483647;pointer-events:none;transform:translate(-100px,-100px);transition:transform 40ms linear;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))}
       .demo-ripple{position:fixed;width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;border:3px solid #6366f1;z-index:2147483646;pointer-events:none;animation:demo-ripple 450ms ease-out forwards}
       @keyframes demo-ripple{from{transform:scale(.3);opacity:1}to{transform:scale(1.4);opacity:0}}
       #demo-caption{position:fixed;left:50%;bottom:34px;transform:translate(-50%,8px);z-index:2147483645;pointer-events:none;opacity:0;transition:opacity 300ms ease,transform 300ms ease;
@@ -25,19 +44,9 @@ const OVERLAY = () => {
       #demo-caption small{display:block;font-weight:400;font-size:15px;opacity:.8;margin-top:3px}
       #demo-caption.show{opacity:1;transform:translate(-50%,0)}`;
     document.head.appendChild(style);
-    const cursor = document.createElement('div');
-    cursor.id = 'demo-cursor';
-    cursor.innerHTML =
-      '<svg viewBox="0 0 24 24" width="22" height="22"><path d="M3 2l7 19 2.6-7.4L20 11z" fill="#111" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>';
-    document.body.appendChild(cursor);
     const caption = document.createElement('div');
     caption.id = 'demo-caption';
     document.body.appendChild(caption);
-    document.addEventListener(
-      'mousemove',
-      (e) => (cursor.style.transform = `translate(${e.clientX - 3}px,${e.clientY - 2}px)`),
-      true,
-    );
     document.addEventListener(
       'mousedown',
       (e) => {
@@ -69,253 +78,223 @@ const OVERLAY = () => {
   else install();
 };
 
+interface Render {
+  total: number;
+  /** Captured frames this worker owns (index → JPEG); reused frames share a buffer. */
+  frames: Map<number, Buffer>;
+  pointer: Array<[number, number]>;
+  rendered: number;
+}
+
+const owner = (i: number) => Math.floor(i / CHUNK) % WORKERS;
+
+async function render(browser: Browser, appUrl: string, worker: number): Promise<Render> {
+  const context = await browser.newContext({ viewport: SIZE });
+  // tsx (esbuild keepNames) wraps inner functions in __name(); give the page a no-op for it.
+  await context.addInitScript({ content: 'window.__name = (f) => f;' });
+  await context.addInitScript({ path: new URL('./virtual-time.js', import.meta.url).pathname });
+  await context.addInitScript(OVERLAY);
+  const page: Page = await context.newPage();
+  const cdp: CDPSession = await context.newCDPSession(page);
+
+  // Network completes in zero video time: before each frame, wait (in real time) for requests
+  // in flight, so every worker sees identical frames.
+  let inflight = 0;
+  page.on('request', () => inflight++);
+  page.on('requestfinished', () => inflight--);
+  page.on('requestfailed', () => inflight--);
+  const networkIdle = async () => {
+    while (inflight > 0) await new Promise((r) => setTimeout(r, 2));
+  };
+
+  const out: Render = { total: 0, frames: new Map(), pointer: [], rendered: 0 };
+  let recording = false;
+  let last: Buffer | null = null;
+  let mouse = { x: SIZE.width / 2, y: SIZE.height / 2 };
+
+  async function frame() {
+    await networkIdle();
+    const changed = await page.evaluate(
+      (ms) =>
+        (window as unknown as { __vt: { tick: (ms: number) => Promise<boolean> } }).__vt.tick(ms),
+      FRAME_MS,
+    );
+    if (!recording) return;
+    const i = out.total++;
+    out.pointer.push([Math.round(mouse.x), Math.round(mouse.y)]);
+    if (owner(i) !== worker) {
+      last = null; // the next owned frame must be captured fresh
+      return;
+    }
+    if (changed || !last) {
+      const shot = await cdp.send('Page.captureScreenshot', {
+        format: 'jpeg',
+        quality: 90,
+        optimizeForSpeed: true,
+      });
+      last = Buffer.from(shot.data, 'base64');
+      out.rendered++;
+    }
+    out.frames.set(i, last);
+  }
+  const frames = (ms: number) => Math.max(1, Math.round(ms / FRAME_MS));
+  const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
+
+  async function pause(ms: number) {
+    for (let n = frames(ms); n > 0; n--) await frame();
+  }
+  async function moveTo(x: number, y: number) {
+    const dist = Math.hypot(x - mouse.x, y - mouse.y);
+    const n = frames(260 + dist * 0.55); // longer moves take longer, like a hand
+    const from = mouse;
+    for (let k = 1; k <= n; k++) {
+      const e = ease(k / n);
+      mouse = { x: from.x + (x - from.x) * e, y: from.y + (y - from.y) * e };
+      await page.mouse.move(mouse.x, mouse.y);
+      await frame();
+    }
+  }
+  async function point(target: Locator, dx = 0.5, dy = 0.5) {
+    await target.scrollIntoViewIfNeeded();
+    const box = (await target.boundingBox())!;
+    await moveTo(box.x + box.width * dx, box.y + box.height * dy);
+    return box;
+  }
+  async function click(target: Locator, wait = 450) {
+    await point(target);
+    await pause(140);
+    await page.mouse.down();
+    await pause(70);
+    await page.mouse.up();
+    await pause(wait);
+  }
+  async function type(target: Locator, text: string) {
+    await click(target, 150);
+    for (const ch of text) {
+      await page.keyboard.type(ch);
+      await pause(45);
+    }
+    await pause(300);
+  }
+  async function drag(from: Locator, dx: number, dy: number, at = { x: 0.5, y: 0.5 }) {
+    const box = await point(from, at.x, at.y);
+    const start = { x: box.x + box.width * at.x, y: box.y + box.height * at.y };
+    await pause(200);
+    await page.mouse.down();
+    const n = frames(1100);
+    for (let k = 1; k <= n; k++) {
+      const e = ease(k / n);
+      mouse = { x: start.x + dx * e, y: start.y + dy * e };
+      await page.mouse.move(mouse.x, mouse.y);
+      await frame();
+    }
+    await pause(150);
+    await page.mouse.up();
+    await pause(700);
+  }
+  async function caption(title: string, sub?: string, hold = 0) {
+    await page.evaluate(
+      ([t, s]) =>
+        (window as unknown as { __demoCaption: (t: string, s?: string) => void }).__demoCaption(
+          t,
+          s,
+        ),
+      [title, sub] as const,
+    );
+    if (hold) await pause(hold);
+  }
+  async function until(target: Locator) {
+    for (let n = frames(15_000); n > 0; n--) {
+      await networkIdle();
+      if (await target.isVisible()) return;
+      await frame();
+    }
+    throw new Error(`Timed out waiting for ${target}`);
+  }
+
+  await story({
+    page,
+    appUrl,
+    pause,
+    point,
+    click,
+    type,
+    drag,
+    caption,
+    until,
+    settle: () => pause(500),
+    startRecording: () => {
+      recording = true;
+    },
+    widget: (t) => page.locator(`[data-widget-type="${t}"]`).first(),
+  });
+  await context.close();
+  return out;
+}
+
+// ---- run ---------------------------------------------------------------------------------------
 const stack = await startStack(false);
 stack.useScenario('showcase');
-const browser = await launch({ uncapped: false });
-rmSync(`${OUT}/frames`, { recursive: true, force: true });
-mkdirSync(`${OUT}/frames`, { recursive: true });
-const context = await browser.newContext({ viewport: SIZE });
-// tsx (esbuild keepNames) wraps inner functions in __name(); give the page a no-op for it.
-await context.addInitScript({ content: 'window.__name = (f) => f;' });
-await context.addInitScript(OVERLAY);
-const page = await context.newPage();
+mkdirSync(OUT, { recursive: true });
+const browsers = await Promise.all(
+  Array.from({ length: WORKERS }, () => launch({ uncapped: true })),
+);
 
-// Record with Chrome's screencast: every changed frame arrives with its timestamp, and ffmpeg
-// later turns the sequence into constant-frame-rate video with the real timing.
-const frames: Array<{ file: string; t: number }> = [];
-const cdp = await context.newCDPSession(page);
-cdp.on('Page.screencastFrame', async ({ data, metadata, sessionId }) => {
-  const file = `${OUT}/frames/${String(frames.length).padStart(6, '0')}.jpg`;
-  writeFileSync(file, Buffer.from(data, 'base64'));
-  frames.push({ file, t: metadata.timestamp ?? Date.now() / 1000 });
-  await cdp.send('Page.screencastFrameAck', { sessionId }).catch(() => {});
-});
-const startRecording = () =>
-  cdp.send('Page.startScreencast', {
-    format: 'jpeg',
-    quality: 92,
-    maxWidth: SIZE.width,
-    maxHeight: SIZE.height,
-    everyNthFrame: 1,
-  });
-
-// ---- human-speed helpers ---------------------------------------------------------------------
-let mouse = { x: SIZE.width / 2, y: SIZE.height / 2 };
-const pause = (ms: number) => page.waitForTimeout(ms);
-async function moveTo(x: number, y: number) {
-  const dist = Math.hypot(x - mouse.x, y - mouse.y);
-  const steps = Math.max(6, Math.round(dist / 28));
-  for (let i = 1; i <= steps; i++) {
-    // Ease in-out so it doesn't look robotic.
-    const t = i / steps;
-    const e = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
-    await page.mouse.move(mouse.x + (x - mouse.x) * e, mouse.y + (y - mouse.y) * e);
-    await pause(12);
-  }
-  mouse = { x, y };
-}
-async function point(target: Locator, dx = 0.5, dy = 0.5) {
-  await target.scrollIntoViewIfNeeded();
-  const box = (await target.boundingBox())!;
-  await moveTo(box.x + box.width * dx, box.y + box.height * dy);
-  return box;
-}
-async function click(target: Locator, wait = 450) {
-  await point(target);
-  await pause(180);
-  await page.mouse.down();
-  await pause(70);
-  await page.mouse.up();
-  await pause(wait);
-}
-async function type(target: Locator, text: string) {
-  await click(target, 150);
-  await target.pressSequentially(text, { delay: 42 });
-  await pause(300);
-}
-async function drag(from: Locator, dx: number, dy: number, at = { x: 0.5, y: 0.5 }) {
-  const box = await point(from, at.x, at.y);
-  const start = { x: box.x + box.width * at.x, y: box.y + box.height * at.y };
-  await pause(200);
-  await page.mouse.down();
-  const steps = 36;
-  for (let i = 1; i <= steps; i++) {
-    const t = i / steps;
-    const e = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
-    await page.mouse.move(start.x + dx * e, start.y + dy * e);
-    await pause(16);
-  }
-  mouse = { x: start.x + dx, y: start.y + dy };
-  await pause(150);
-  await page.mouse.up();
-  await pause(700);
-}
-async function caption(title: string, sub?: string, hold = 0) {
-  await page.evaluate(
-    ([t, s]) =>
-      (window as unknown as { __demoCaption: (t: string, s?: string) => void }).__demoCaption(t, s),
-    [title, sub] as const,
+// The pointer image, rendered once with a transparent background.
+const CURSOR_PNG = `${OUT}/.cursor.png`;
+{
+  const p = await browsers[0].newPage();
+  await p.setContent(
+    `<div id="c" style="width:34px;height:34px;padding:2px"><svg viewBox="0 0 24 24" width="24" height="24" style="filter:drop-shadow(0 2px 2px rgba(0,0,0,.4))"><path d="M3 2l7 19 2.6-7.4L20 11z" fill="#111" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg></div>`,
   );
-  if (hold) await pause(hold);
+  await p.locator('#c').screenshot({ path: CURSOR_PNG, omitBackground: true });
+  await p.close();
 }
-const settled = () => page.evaluate(() => window.__tarpaulin!.settled({ timeoutMs: 15_000 }));
-const widget = (type: string) => page.locator(`[data-widget-type="${type}"]`).first();
 
-// ---- the story ---------------------------------------------------------------------------------
-await page.goto(`${stack.appUrl}/?demo`);
-await page.evaluate(() => {
-  localStorage.clear();
-  sessionStorage.clear();
-});
-await page.reload();
-await page.getByLabel('Canvas address').waitFor();
-await startRecording();
-await pause(400);
-await caption(
-  'Meet Tarpaulin',
-  'A calmer dashboard for Canvas — built from widgets you arrange yourself',
-  2600,
-);
-
-await caption(
-  'Connect your Canvas account',
-  'Paste your university’s Canvas address and an access token',
-  600,
-);
-await type(page.getByLabel('Canvas address'), 'canvas.youruni.edu');
-await type(page.getByLabel('Access token'), '7~DemoTokenForTheVideo');
-await caption(
-  'Your token goes straight into the system keychain',
-  'Tarpaulin only ever reads from Canvas — it never submits or changes anything',
-  400,
-);
-await click(page.getByRole('button', { name: 'Test & connect' }), 300);
-await page.getByRole('tab', { name: /Home/ }).waitFor();
-await settled();
-await caption(
-  'Everything that matters, at a glance',
-  'Next deadline, what’s due, your to-dos, calendar and announcements',
-  1200,
-);
-await point(widget('countdown'), 0.5, 0.45);
-await pause(900);
-await point(page.getByTestId('due-item').first(), 0.3, 0.5);
-await pause(700);
-await point(page.getByTestId('due-item').nth(2), 0.3, 0.5);
-await pause(900);
-
-await caption('Rearrange anything', 'Edit mode lets you drag widgets around the grid', 300);
-await click(page.getByRole('button', { name: 'Edit' }), 700);
-await drag(widget('countdown').locator('.widget-drag-handle'), 1060, 0, { x: 0.3, y: 0.5 });
-await settled();
-await pause(500);
-
-await caption('…and resize them', 'Widgets adapt their layout to whatever size you give them', 300);
-await drag(widget('calendar').locator('.react-resizable-handle-se'), 230, 170);
-await settled();
-await caption('A bigger calendar switches to a full month view', undefined, 300);
-await click(widget('calendar').getByRole('button', { name: /^Settings for/ }), 600);
-await page.getByLabel('View').selectOption('month');
-await pause(900);
-await page.keyboard.press('Escape');
-await settled();
-await pause(1400);
-
-await caption('Add more widgets', 'Grades, courses, notes, a clock — nine to choose from', 300);
-await click(page.getByRole('button', { name: 'Add widget' }), 800);
-await point(page.getByRole('button', { name: /^Grades/ }));
-await pause(500);
-await click(page.getByRole('button', { name: /^Grades/ }), 900);
-await settled();
-await pause(900);
-
-await caption(
-  'Every widget has its own settings',
-  'Filter by course, change the time window, group and sort',
-  300,
-);
-await click(widget('due-soon').getByRole('button', { name: /^Settings for/ }), 700);
-const panel = page.getByRole('dialog', { name: /settings$/ });
-await type(panel.getByLabel('Title'), 'Databases & ML');
-const slider = panel.getByLabel(/Look ahead/);
-await click(slider, 200);
-for (let i = 0; i < 10; i++) {
-  await page.keyboard.press('ArrowRight');
-  await pause(70);
-}
-await pause(400);
-await point(panel.getByLabel('Group by'));
-await pause(300);
-await panel.getByLabel('Group by').selectOption('course');
-await pause(600);
-await caption('Show only the courses you care about', undefined, 200);
-// Two modules with work coming up, so the filtered list is never empty mid-demo.
-await click(panel.getByRole('checkbox', { name: /Database Systems/ }), 350);
-await click(panel.getByRole('checkbox', { name: /Machine Learning/ }), 350);
-await click(panel.getByLabel('Show points'), 500);
-await pause(800);
-await click(panel.getByRole('button', { name: 'Close' }), 600);
-await settled();
-await pause(1200);
-
-await caption('Done editing', 'Your layout is saved automatically', 300);
-await click(page.getByRole('button', { name: 'Done' }), 1600);
-
-await caption(
-  'Pages and presets',
-  'Start from Deadline Focus, Weekly Planner or Minimal — or a blank page',
-  300,
-);
-await click(page.getByRole('button', { name: 'Add page' }), 700);
-await point(page.getByRole('button', { name: /Weekly Planner/ }));
-await pause(600);
-await click(page.getByRole('button', { name: /Weekly Planner/ }), 900);
-await settled();
-await pause(1500);
-await caption('Jot things down too', 'Notes and checklists stay on your device', 300);
-await type(widget('todo').getByLabel('New task'), 'Book a library study room');
-await page.keyboard.press('Enter');
-await pause(500);
-await type(widget('todo').getByLabel('New task'), 'Email tutor about essay feedback');
-await page.keyboard.press('Enter');
-await pause(600);
-await click(widget('todo').getByRole('checkbox', { name: 'Book a library study room' }), 900);
-
-await caption('Make it yours', 'Themes, accent colours, fonts, course colours and nicknames', 300);
-await click(page.getByRole('button', { name: 'Settings', exact: true }), 900);
-await point(page.getByRole('combobox').first());
-await pause(300);
-await page.getByRole('combobox').first().selectOption('dark');
-await pause(1200);
-const nickname = page.getByLabel(/^Nickname for/).first();
-await type(nickname, 'Algorithms');
-await page.keyboard.press('Tab');
-await pause(800);
-await click(page.getByRole('button', { name: 'Dashboard' }), 900);
-await settled();
-await click(page.getByRole('tab', { name: /Home/ }), 1200);
-await settled();
-await caption('Tarpaulin', 'Your Canvas, your way — and it never changes anything in Canvas', 3200);
-await caption('');
-await pause(600);
-
-await cdp.send('Page.stopScreencast');
-await context.close();
-await browser.close();
+const renders = await Promise.all(browsers.map((b, w) => render(b, stack.appUrl, w)));
+await Promise.all(browsers.map((b) => b.close()));
 await stack.close();
+const renderedAt = Date.now();
 
-// ---- encode ------------------------------------------------------------------------------------
-// ffconcat with per-frame durations from the screencast timestamps, resampled to 30fps.
-const lines = ['ffconcat version 1.0'];
-for (const [i, f] of frames.entries()) {
-  const next = frames[i + 1]?.t ?? f.t + 1;
-  lines.push(
-    `file '${f.file.split('/').pop()}'`,
-    `duration ${Math.max(0.001, next - f.t).toFixed(4)}`,
+// Every worker must have played the identical story.
+const total = renders[0].total;
+if (renders.some((r) => r.total !== total)) {
+  throw new Error(
+    `Workers disagree on length (${renders.map((r) => r.total).join(', ')} frames); rerun with --workers=1`,
   );
 }
-lines.push(`file '${frames.at(-1)!.file.split('/').pop()}'`);
-writeFileSync(`${OUT}/frames/list.ffconcat`, lines.join('\n'));
+
+// One encode: the stitched frames, with the pointer drawn on at its logged positions.
+const CMDS = `${OUT}/.pointer.cmd`;
+const lines: string[] = [];
+let prev = '';
+renders[0].pointer.forEach(([x, y], i) => {
+  const pos = `${x - CURSOR_TIP} ${y - CURSOR_TIP}`;
+  if (pos === prev) return;
+  prev = pos;
+  lines.push(
+    `${(i / FPS).toFixed(4)} overlay@pointer x ${x - CURSOR_TIP}, overlay@pointer y ${y - CURSOR_TIP};`,
+  );
+});
+writeFileSync(CMDS, lines.join('\n'));
+// Each run of identical frames is written once with its duration, so ffmpeg decodes ~1 image per
+// change instead of one per frame; the fps filter turns it back into constant 30fps.
+const FRAMES_DIR = `${OUT}/.frames`;
+rmSync(FRAMES_DIR, { recursive: true, force: true });
+mkdirSync(FRAMES_DIR, { recursive: true });
+const list = ['ffconcat version 1.0'];
+let file = '';
+for (let i = 0, n = 0; i < total; n++) {
+  const buf = renders[owner(i)].frames.get(i)!;
+  let run = 1;
+  while (i + run < total && renders[owner(i + run)].frames.get(i + run) === buf) run++;
+  file = `${String(n).padStart(5, '0')}.jpg`;
+  writeFileSync(`${FRAMES_DIR}/${file}`, buf);
+  list.push(`file '${file}'`, `duration ${(run / FPS).toFixed(6)}`);
+  i += run;
+}
+list.push(`file '${file}'`); // the concat demuxer needs the last file repeated
+writeFileSync(`${FRAMES_DIR}/list.ffconcat`, list.join('\n'));
 execFileSync('ffmpeg', [
   '-y',
   '-loglevel',
@@ -325,19 +304,35 @@ execFileSync('ffmpeg', [
   '-safe',
   '0',
   '-i',
-  `${OUT}/frames/list.ffconcat`,
-  '-vf',
-  'fps=30,format=yuv420p',
+  `${FRAMES_DIR}/list.ffconcat`,
+  '-loop',
+  '1',
+  '-framerate',
+  String(FPS),
+  '-i',
+  CURSOR_PNG,
+  '-filter_complex',
+  `[0:v]fps=${FPS},sendcmd=f=${CMDS}[v];[v][1:v]overlay@pointer=x=-100:y=-100:eval=frame:shortest=1,format=yuv420p[out]`,
+  '-map',
+  '[out]',
+  '-frames:v',
+  String(total),
   '-c:v',
   'libx264',
   '-preset',
-  'slow',
+  'superfast',
   '-crf',
-  '20',
+  '19',
   '-movflags',
   '+faststart',
   `${OUT}/tarpaulin-demo.mp4`,
 ]);
-rmSync(`${OUT}/frames`, { recursive: true, force: true });
-const seconds = frames.at(-1)!.t - frames[0].t;
-console.log(`Wrote ${OUT}/tarpaulin-demo.mp4 (${frames.length} frames, ${seconds.toFixed(1)}s)`);
+rmSync(FRAMES_DIR, { recursive: true, force: true });
+for (const f of [CMDS, CURSOR_PNG]) rmSync(f, { force: true });
+
+const rendered = renders.reduce((n, r) => n + r.rendered, 0);
+console.log(
+  `Wrote ${OUT}/tarpaulin-demo.mp4: ${(total / FPS).toFixed(1)}s at ${FPS}fps — ${total} frames ` +
+    `(${rendered} rendered, ${total - rendered} reused) on ${WORKERS} workers; ` +
+    `render ${((renderedAt - startedAt) / 1000).toFixed(1)}s + encode ${((Date.now() - renderedAt) / 1000).toFixed(1)}s`,
+);

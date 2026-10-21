@@ -3,6 +3,8 @@ import { Loader2 } from 'lucide-react';
 import { useCanvas } from '../canvas/CanvasProvider';
 import { Dashboard } from '../dashboard/Dashboard';
 import { Onboarding } from '../onboarding/Onboarding';
+import { Personalize } from '../onboarding/Personalize';
+import { useSettings } from './settingsStore';
 import { SettingsPage } from './SettingsPage';
 
 const WidgetLab = import.meta.env.DEV
@@ -21,6 +23,7 @@ function routeFromHash(): Route {
 export function App() {
   const { connection, connectionLoading, connectionError } = useCanvas();
   const [route, setRoute] = useState<Route>(routeFromHash);
+  const onboarded = useSettings((s) => s.onboarded);
 
   useEffect(() => {
     const onHash = () => setRoute(routeFromHash());
@@ -54,6 +57,7 @@ export function App() {
       </Suspense>
     );
   }
+  if (!onboarded) return <Personalize />;
   if (route === 'settings') return <SettingsPage onBack={() => go('dashboard')} />;
   return <Dashboard onOpenSettings={() => go('settings')} />;
 }
