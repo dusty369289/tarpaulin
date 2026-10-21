@@ -42,11 +42,17 @@ const OVERLAY = () => {
       #demo-caption{position:fixed;left:50%;bottom:34px;transform:translate(-50%,8px);z-index:2147483645;pointer-events:none;opacity:0;transition:opacity 300ms ease,transform 300ms ease;
         background:rgba(17,24,39,.88);color:#fff;padding:12px 22px;border-radius:14px;font:600 20px/1.3 ui-sans-serif,system-ui,sans-serif;text-align:center;max-width:780px;box-shadow:0 12px 40px -10px rgba(0,0,0,.5);backdrop-filter:blur(6px)}
       #demo-caption small{display:block;font-weight:400;font-size:15px;opacity:.8;margin-top:3px}
-      #demo-caption.show{opacity:1;transform:translate(-50%,0)}`;
+      #demo-caption.show{opacity:1;transform:translate(-50%,0)}
+      html.demo-fade *,html.demo-fade *::before,html.demo-fade *::after{transition:background-color 800ms ease,color 800ms ease,border-color 800ms ease,fill 800ms ease,stroke 800ms ease,box-shadow 800ms ease!important}
+      #demo-dip{position:fixed;inset:0;z-index:2147483644;pointer-events:none;opacity:0;transition:opacity 300ms ease;backdrop-filter:blur(18px) saturate(1.15);background:rgba(128,128,128,.12)}
+      #demo-dip.on{opacity:1}`;
     document.head.appendChild(style);
     const caption = document.createElement('div');
     caption.id = 'demo-caption';
     document.body.appendChild(caption);
+    const dip = document.createElement('div');
+    dip.id = 'demo-dip';
+    document.body.appendChild(dip);
     document.addEventListener(
       'mousedown',
       (e) => {
@@ -143,52 +149,91 @@ async function render(browser: Browser, appUrl: string, worker: number): Promise
   async function pause(ms: number) {
     for (let n = frames(ms); n > 0; n--) await frame();
   }
-  async function moveTo(x: number, y: number) {
-    const dist = Math.hypot(x - mouse.x, y - mouse.y);
-    const n = frames(260 + dist * 0.55); // longer moves take longer, like a hand
+  // Human pointer motion, after the motor-control literature: a Fitts's-law duration, a
+  // minimum-jerk speed profile that peaks a little before halfway, a gently curved path, and on
+  // long moves a slight overshoot with a corrective sub-movement. Seeded, so every worker draws
+  // the same path.
+  let seed = 0x2f6b7a1d;
+  const rand = () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const between = (lo: number, hi: number) => lo + (hi - lo) * rand();
+  /** Roughly normal, mostly within ±1. */
+  const jitter = () => (rand() + rand() + rand() - 1.5) / 1.5;
+  const minJerk = (t: number) => t * t * t * (10 - 15 * t + 6 * t * t);
+
+  async function stroke(x: number, y: number, ms: number, bow: number) {
     const from = mouse;
+    const len = Math.hypot(x - from.x, y - from.y);
+    // Perpendicular unit vector, for the arc's bow.
+    const nx = len ? -(y - from.y) / len : 0;
+    const ny = len ? (x - from.x) / len : 0;
+    const n = frames(ms);
     for (let k = 1; k <= n; k++) {
-      const e = ease(k / n);
-      mouse = { x: from.x + (x - from.x) * e, y: from.y + (y - from.y) * e };
+      const s = minJerk((k / n) ** 0.88); // skewed: quicker start, longer homing in
+      const arc = 4 * s * (1 - s) * bow;
+      mouse = {
+        x: from.x + (x - from.x) * s + nx * arc,
+        y: from.y + (y - from.y) * s + ny * arc,
+      };
       await page.mouse.move(mouse.x, mouse.y);
       await frame();
     }
+  }
+  /** Moves the pointer to (x, y); `size` is the target's smaller side, for Fitts's law. */
+  async function moveTo(x: number, y: number, size = 40) {
+    const dist = Math.hypot(x - mouse.x, y - mouse.y);
+    if (dist < 2) return;
+    const ms = (180 + 150 * Math.log2(dist / Math.max(8, size) + 1)) * between(0.9, 1.12);
+    const bow = dist * between(0.03, 0.09) * (rand() < 0.5 ? -1 : 1);
+    if (dist < 260) return stroke(x, y, ms, bow);
+    const over = Math.min(16, dist * between(0.02, 0.045));
+    const ux = (x - mouse.x) / dist;
+    const uy = (y - mouse.y) / dist;
+    await stroke(x + ux * over + jitter() * 3, y + uy * over + jitter() * 3, ms * 0.85, bow);
+    await stroke(x, y, between(120, 190), 0);
   }
   async function point(target: Locator, dx = 0.5, dy = 0.5) {
     await target.scrollIntoViewIfNeeded();
     const box = (await target.boundingBox())!;
-    await moveTo(box.x + box.width * dx, box.y + box.height * dy);
+    // People land near the middle of what they aim at, not on its exact centre.
+    const spreadX = Math.min(6, box.width * 0.08);
+    const spreadY = Math.min(4, box.height * 0.12);
+    await moveTo(
+      box.x + box.width * dx + jitter() * spreadX,
+      box.y + box.height * dy + jitter() * spreadY,
+      Math.min(box.width, box.height),
+    );
     return box;
   }
   async function click(target: Locator, wait = 450) {
     await point(target);
-    await pause(140);
+    await pause(between(90, 210));
     await page.mouse.down();
-    await pause(70);
+    await pause(between(60, 110));
     await page.mouse.up();
     await pause(wait);
   }
   async function type(target: Locator, text: string) {
-    await click(target, 150);
+    await click(target, between(120, 220));
     for (const ch of text) {
       await page.keyboard.type(ch);
-      await pause(45);
+      // Uneven keystrokes, with a beat at word breaks.
+      await pause(ch === ' ' || ch === '.' ? between(90, 160) : between(35, 95));
     }
     await pause(300);
   }
   async function drag(from: Locator, dx: number, dy: number, at = { x: 0.5, y: 0.5 }) {
-    const box = await point(from, at.x, at.y);
-    const start = { x: box.x + box.width * at.x, y: box.y + box.height * at.y };
-    await pause(200);
+    await point(from, at.x, at.y);
+    const start = { ...mouse };
+    await pause(between(160, 260));
     await page.mouse.down();
-    const n = frames(1100);
-    for (let k = 1; k <= n; k++) {
-      const e = ease(k / n);
-      mouse = { x: start.x + dx * e, y: start.y + dy * e };
-      await page.mouse.move(mouse.x, mouse.y);
-      await frame();
-    }
-    await pause(150);
+    const len = Math.hypot(dx, dy);
+    await stroke(start.x + dx, start.y + dy, between(950, 1200), len * between(0.02, 0.05));
+    await pause(between(120, 200));
     await page.mouse.up();
     await pause(700);
   }

@@ -54,6 +54,31 @@ export async function story({
     await click(page.getByTestId(`look-${id}`), 250);
     await dashboard(hold);
   };
+  type Mode = 'light' | 'dark';
+  /** Light ↔ dark as an on-screen effect: every colour cross-fades (see src/dev/demoHooks.ts). */
+  const fadeTo = async (mode: Mode, hold = 1400) => {
+    await page.evaluate(() => document.documentElement.classList.add('demo-fade'));
+    await pause(34);
+    await page.evaluate((m) => window.__tarpaulinDemo!.setMode(m), mode);
+    await pause(900);
+    await page.evaluate(() => document.documentElement.classList.remove('demo-fade'));
+    await pause(hold);
+  };
+  /** A new look (textures can't cross-fade) swapped in behind a brief frosted blur. */
+  const dipTo = async (id: string, mode: Mode, hold = 1400) => {
+    await page.evaluate(() => document.getElementById('demo-dip')!.classList.add('on'));
+    await pause(300);
+    await page.evaluate(
+      ([l, m]) => {
+        window.__tarpaulinDemo!.setMode(m as Mode);
+        window.__tarpaulinDemo!.applyLook(l);
+      },
+      [id, mode],
+    );
+    await pause(200);
+    await page.evaluate(() => document.getElementById('demo-dip')!.classList.remove('on'));
+    await pause(380 + hold);
+  };
 
   await page.goto(`${appUrl}/?demo`);
   await page.evaluate(() => {
@@ -86,9 +111,8 @@ export async function story({
 
   // ── First run: looks apply live ─────────────────────────────────────────────────────────────
   await caption('Pick a look', 'Every choice applies live, and can be changed any time', 500);
-  await click(page.getByTestId('look-cork'), 900);
-  await click(page.getByTestId('look-blueprint'), 900);
-  await click(page.getByTestId('look-terminal'), 900);
+  await click(page.getByTestId('look-cork'), 1000);
+  await click(page.getByTestId('look-terminal'), 1000);
   await click(page.getByTestId('look-plain'), 600);
   await click(page.getByRole('radio', { name: /^Deadline Focus/ }), 400);
   await click(page.getByRole('button', { name: 'Continue' }), 300);
@@ -152,39 +176,28 @@ export async function story({
   await settle();
 
   // ── Looks ───────────────────────────────────────────────────────────────────────────────────
+  await caption('Light or dark', 'Follows your system, or pick one yourself', 300);
+  await fadeTo('dark');
+  await fadeTo('light', 900);
   await caption(
     'Seven looks to choose from',
-    'Each sets a background, a widget style and fonts that belong together',
+    'Each pairs a background with a widget style and fonts that belong together',
     300,
   );
-  await look('cork');
-  await caption('Cork board', 'Pinned post-it notes', 0);
-  await look('blueprint', 1100);
-  await caption('Blueprint', 'Lettered panels on grid paper', 0);
-  await look('journal', 1100);
-  await caption('Journal', 'Dotted pages and ruled lines', 0);
-  await look('terminal', 1100);
+  await look('cork', 1400);
+  await caption('Cork board', 'Pinned post-it notes, in light…', 0);
+  await pause(400);
+  await caption('Cork board', '…and in dark', 0);
+  await fadeTo('dark', 1500);
   await caption('Terminal', 'A green screen, scanlines and all', 0);
-  await look('swiss', 1100);
-  await caption('Swiss poster', 'Bold type and hard edges', 0);
-  await look('arcade', 1100);
+  await dipTo('terminal', 'dark', 1700);
+  await caption('Blueprint', 'Lettered panels on grid paper', 0);
+  await dipTo('blueprint', 'light', 1600);
   await caption('Arcade', 'Pixel windows under a night sky', 0);
-
-  await caption('…and every look has a dark mode too', undefined, 300);
-  await settings();
-  await point(page.getByRole('combobox').first());
-  await pause(250);
-  await page.getByRole('combobox').first().selectOption('dark');
-  await pause(300);
-  await dashboard(1200);
-  await look('cork', 1200);
-  await look('terminal', 1200);
+  await dipTo('arcade', 'dark', 1700);
 
   // ── One widget, its own style ───────────────────────────────────────────────────────────────
-  await settings();
-  await page.getByRole('combobox').first().selectOption('light');
-  await click(page.getByTestId('look-plain'), 300);
-  await dashboard(500);
+  await dipTo('plain', 'light', 300);
   await caption(
     'Mix and match',
     'Give one widget its own style, or a page its own background',

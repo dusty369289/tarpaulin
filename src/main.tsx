@@ -32,7 +32,11 @@ resumeAfterUpdate();
 async function pickTransport() {
   // Dev-only demo mode for recording the product video (see src/dev/demoTransport.ts).
   if (import.meta.env.DEV && new URLSearchParams(location.search).has('demo')) {
-    const { DemoTransport } = await import('./dev/demoTransport');
+    const [{ DemoTransport }, { exposeDemoHooks }] = await Promise.all([
+      import('./dev/demoTransport'),
+      import('./dev/demoHooks'),
+    ]);
+    exposeDemoHooks();
     return new DemoTransport();
   }
   return createDefaultTransport();
