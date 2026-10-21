@@ -81,9 +81,12 @@ and Rust tests only run when `src-tauri/` changes. A final **CI passed** job sum
 
 ```sh
 pnpm release:version 0.2.0         # sets the version in package.json, Cargo.toml and tauri.conf.json
-git commit -am "Release 0.2.0"
-git tag v0.2.0 && git push origin v0.2.0
+git commit -am "Release 0.2.0"     # then merge it into main through a pull request
+git tag v0.2.0 origin/main && git push origin v0.2.0
 ```
+
+Instead of pushing the tag, you can open **Actions › Release › Run workflow** on `main` and enter
+`0.2.0`. That run creates the `v0.2.0` tag itself and builds it.
 
 The tag triggers `.github/workflows/release.yml`, which checks that the versions match the tag, runs
 the unit tests, builds every platform, publishes the release and uploads `latest.json` for the
