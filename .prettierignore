@@ -6,3 +6,4 @@ src/canvas/fixtures/*.json
 screenshots
 src-tauri/icons
 docs
+.claude
