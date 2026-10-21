@@ -52,8 +52,9 @@ body {
   .btn-icon {
     @apply inline-flex h-7 w-7 items-center justify-center rounded-md text-muted transition hover:bg-surface-2 hover:text-text;
   }
+  /* Focused fields get the app-wide focus outline (above) as well as an accent border. */
   .input {
-    @apply w-full rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm text-text placeholder:text-muted/70 focus:border-accent focus:outline-none;
+    @apply w-full rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm text-text placeholder:text-muted focus:border-accent focus-visible:outline-offset-0;
   }
   .label {
     @apply mb-1 block text-xs font-medium text-muted;

@@ -1,5 +1,6 @@
 import { Check } from 'lucide-react';
 import type { CSSProperties, ReactNode } from 'react';
+import { Radio, RadioGroup } from '../ui/RadioGroup';
 import { BACKGROUNDS, getBackground } from './backgrounds';
 import { LOOKS, type Look } from './looks';
 import { useMode } from './mode';
@@ -8,31 +9,29 @@ import type { Mode } from './themes';
 
 // Pickers for looks, page backgrounds and widget styles, shared by first-launch setup, Settings,
 // the page style drawer and each widget's settings. Every swatch draws the variant of the current
-// mode (light, or dark for dark and high contrast) unless it is given one.
+// mode (light, or dark for dark and high contrast) unless it is given one. Each picker is a
+// RadioGroup: one Tab stop, arrow keys to move between options.
 
 function Tile({
+  value,
   selected,
-  onClick,
   label,
   hint,
   children,
   testId,
 }: {
+  value: string;
   selected: boolean;
-  onClick: () => void;
   label: string;
   hint?: string;
   children: ReactNode;
   testId?: string;
 }) {
   return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      aria-label={label}
-      data-testid={testId}
-      onClick={onClick}
+    <Radio
+      value={value}
+      label={label}
+      testId={testId}
       className={`flex min-w-0 flex-col gap-1.5 rounded-theme border bg-surface p-1.5 text-left transition ${selected ? 'border-accent ring-2 ring-accent/30' : 'border-border hover:border-muted'}`}
     >
       {children}
@@ -41,9 +40,11 @@ function Tile({
         {selected && <Check className="h-3.5 w-3.5 shrink-0 text-accent" aria-hidden />}
       </span>
       {hint && <span className="-mt-1 line-clamp-2 px-0.5 text-[11px] text-muted">{hint}</span>}
-    </button>
+    </Radio>
   );
 }
+
+const TILE_GRID = 'grid grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-2';
 
 interface SwatchProps {
   id: string;
@@ -112,21 +113,30 @@ export function LookPicker({
   onPick: (look: Look) => void;
   columns?: string;
 }) {
+  const current =
+    LOOKS.find((l) => value.background === l.background && value.widgetStyle === l.widgetStyle)
+      ?.id ?? '';
   return (
-    <div role="radiogroup" aria-label="Look" className={`grid gap-2 ${columns}`}>
+    <RadioGroup
+      label="Look"
+      value={current}
+      options={LOOKS.map((l) => l.id)}
+      onChange={(id) => onPick(LOOKS.find((l) => l.id === id)!)}
+      className={`grid gap-2 ${columns}`}
+    >
       {LOOKS.map((look) => (
         <Tile
           key={look.id}
+          value={look.id}
           testId={`look-${look.id}`}
-          selected={value.background === look.background && value.widgetStyle === look.widgetStyle}
-          onClick={() => onPick(look)}
+          selected={current === look.id}
           label={look.name}
           hint={look.description}
         >
           <LookPreview look={look} />
         </Tile>
       ))}
-    </div>
+    </RadioGroup>
   );
 }
 
@@ -142,15 +152,17 @@ export function BackgroundPicker({
   inherit?: { label: string; id: string };
 }) {
   return (
-    <div
-      role="radiogroup"
-      aria-label="Background"
-      className="grid grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-2"
+    <RadioGroup
+      label="Background"
+      value={value}
+      options={[...(inherit ? [''] : []), ...BACKGROUNDS.map((b) => b.id)]}
+      onChange={onChange}
+      className={TILE_GRID}
     >
       {inherit && (
         <Tile
+          value=""
           selected={value === ''}
-          onClick={() => onChange('')}
           label={inherit.label}
           hint={getBackground(inherit.id).name}
         >
@@ -162,15 +174,15 @@ export function BackgroundPicker({
       {BACKGROUNDS.map((b) => (
         <Tile
           key={b.id}
+          value={b.id}
           testId={`background-${b.id}`}
           selected={value === b.id}
-          onClick={() => onChange(b.id)}
           label={b.name}
         >
           <BackgroundSwatch id={b.id} className="h-10" />
         </Tile>
       ))}
-    </div>
+    </RadioGroup>
   );
 }
 
@@ -186,15 +198,17 @@ export function SkinPicker({
   label?: string;
 }) {
   return (
-    <div
-      role="radiogroup"
-      aria-label={label}
-      className="grid grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-2"
+    <RadioGroup
+      label={label}
+      value={value}
+      options={[...(inherit ? [''] : []), ...SKINS.map((s) => s.id)]}
+      onChange={onChange}
+      className={TILE_GRID}
     >
       {inherit && (
         <Tile
+          value=""
           selected={value === ''}
-          onClick={() => onChange('')}
           label={inherit.label}
           hint={getSkin(inherit.id).name}
         >
@@ -206,15 +220,15 @@ export function SkinPicker({
       {SKINS.map((s) => (
         <Tile
           key={s.id}
+          value={s.id}
           testId={`skin-${s.id}`}
           selected={value === s.id}
-          onClick={() => onChange(s.id)}
           label={s.name}
         >
           <SkinSwatch id={s.id} className="h-10" />
         </Tile>
       ))}
-    </div>
+    </RadioGroup>
   );
 }
 
@@ -235,33 +249,33 @@ export function PaperPicker({
     { id: 'auto', name: skin.mixPapers ? 'Mixed' : 'Default', swatch: '' },
     ...skin.papers.map((p) => ({ id: p.id, name: p.name, swatch: p.swatch[mode] })),
   ];
+  const current = skin.papers.some((x) => x.id === value) ? value : 'auto';
   return (
-    <div role="radiogroup" aria-label="Paper colour" className="flex flex-wrap items-center gap-2">
-      {options.map((p) => {
-        const selected =
-          value === p.id || (p.id === 'auto' && !skin.papers!.some((x) => x.id === value));
-        return (
-          <button
-            key={p.id}
-            type="button"
-            role="radio"
-            aria-checked={selected}
-            aria-label={p.name}
-            title={p.name}
-            onClick={() => onChange(p.id)}
-            className={`flex h-8 items-center justify-center rounded-full border-2 transition ${selected ? 'border-accent' : 'border-transparent'} ${p.swatch ? 'w-8' : 'px-2 text-xs'}`}
-          >
-            {p.swatch ? (
-              <span
-                className="h-6 w-6 rounded-full border border-border"
-                style={{ background: p.swatch }}
-              />
-            ) : (
-              p.name
-            )}
-          </button>
-        );
-      })}
-    </div>
+    <RadioGroup
+      label="Paper colour"
+      value={current}
+      options={options.map((p) => p.id)}
+      onChange={onChange}
+      className="flex flex-wrap items-center gap-2"
+    >
+      {options.map((p) => (
+        <Radio
+          key={p.id}
+          value={p.id}
+          label={p.name}
+          title={p.name}
+          className={`flex h-8 items-center justify-center rounded-full border-2 transition ${current === p.id ? 'border-accent' : 'border-transparent'} ${p.swatch ? 'w-8' : 'px-2 text-xs'}`}
+        >
+          {p.swatch ? (
+            <span
+              className="h-6 w-6 rounded-full border border-border"
+              style={{ background: p.swatch }}
+            />
+          ) : (
+            p.name
+          )}
+        </Radio>
+      ))}
+    </RadioGroup>
   );
 }
