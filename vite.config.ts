@@ -82,8 +82,35 @@ function canvasDevProxy(): Plugin {
   };
 }
 
+/** The fontsource subsets we ship: every Latin-script language. */
+const FONT_SUBSETS = /-(latin|latin-ext)-\d+-(normal|italic) \*\//;
+
+/**
+ * Trims the fontsource stylesheets the widget styles import to the Latin subsets, woff2 only.
+ * Every webview Tauri runs on reads woff2, so the woff fallbacks were never fetched. The other
+ * scripts' faces (Cyrillic, Greek, Vietnamese, Devanagari) were only fetched for text in those
+ * scripts, which now falls back to the next font in the style's stack. The rules that are kept
+ * are unchanged, so Latin text renders exactly as before.
+ */
+function fontSubsets(): Plugin {
+  return {
+    name: 'tarpaulin-font-subsets',
+    enforce: 'pre',
+    transform(code, id) {
+      if (!/\/@fontsource\/[^/]+\/[^/]+\.css$/.test(id.split('?')[0])) return;
+      const faces = code
+        .split(/(?=\/\* )/)
+        .filter((face) => FONT_SUBSETS.test(face.slice(0, face.indexOf('\n'))))
+        .map((face) => face.replace(/,\s*url\([^)]+\.woff\) format\('woff'\)/g, ''));
+      if (!faces.length || faces.some((f) => /\.woff\)/.test(f)))
+        throw new Error(`Unexpected fontsource stylesheet layout in ${id}`);
+      return { code: faces.join(''), map: null };
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), canvasDevProxy()],
+  plugins: [react(), canvasDevProxy(), fontSubsets()],
   clearScreen: false,
   server: {
     port: 1420,

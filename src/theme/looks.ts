@@ -58,7 +58,3 @@ export const LOOKS: Look[] = [
     widgetStyle: 'pixel',
   },
 ];
-
-export function lookOf(background: string, widgetStyle: string): Look | undefined {
-  return LOOKS.find((l) => l.background === background && l.widgetStyle === widgetStyle);
-}
