@@ -1,0 +1,12 @@
+name: Set up Node and dependencies
+description: pnpm, Node 22 with the pnpm store cached, and pnpm install.
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v4
+    - uses: actions/setup-node@v5
+      with:
+        node-version: 22
+        cache: pnpm
+    - run: pnpm install --frozen-lockfile
+      shell: bash

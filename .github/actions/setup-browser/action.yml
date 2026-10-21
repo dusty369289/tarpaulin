@@ -3,13 +3,7 @@ description: pnpm install plus a cached Playwright Chromium with its system libr
 runs:
   using: composite
   steps:
-    - uses: pnpm/action-setup@v4
-    - uses: actions/setup-node@v5
-      with:
-        node-version: 22
-        cache: pnpm
-    - run: pnpm install --frozen-lockfile
-      shell: bash
+    - uses: ./.github/actions/setup-node
     # Browser binaries are cached per Playwright version; system libraries are always installed.
     - name: Playwright version
       id: pw

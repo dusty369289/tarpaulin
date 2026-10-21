@@ -76,39 +76,65 @@ jobs:
               - 'pnpm-lock.yaml'
               - '.github/workflows/ci.yml'
 
-  web:
-    name: Lint, unit tests, widget sweeps, UI check
+  # The web checks are split into three jobs that run side by side: the quick static checks,
+  # the UI check, and the widget sweeps (the slowest part), so the slowest decides the wall time.
+  checks:
+    name: Lint, types, unit tests, build
     needs: changes
     # Manual and main-branch runs always test everything.
     if: needs.changes.outputs.app == 'true' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: ./.github/actions/setup-browser
+      - uses: ./.github/actions/setup-node
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
-      # These start their own mock Canvas and Vite server; no secrets or network needed.
+
+  ui:
+    name: UI check
+    needs: changes
+    if: needs.changes.outputs.app == 'true' || github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-browser
+      # Starts its own mock Canvas and Vite server; no secrets or network needed.
       - run: pnpm test:ui
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-ui
+          path: screenshots/
+          retention-days: 7
+
+  widgets:
+    name: Widget sweeps
+    needs: changes
+    if: needs.changes.outputs.sweeps == 'true' || github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-browser
       - name: Widget sweep (every widget, size and mock scenario)
-        if: needs.changes.outputs.sweeps == 'true' || github.event_name != 'pull_request'
         run: pnpm test:widgets
       # Again with a wide monospace font forced, so layouts never depend on one font's metrics.
       - name: Widget sweep with a wide fallback font
-        if: needs.changes.outputs.sweeps == 'true' || github.event_name != 'pull_request'
         run: pnpm test:widgets --scenario=dense --font="DejaVu Sans Mono"
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: screenshots
+          name: screenshots-widgets
           path: screenshots/
           retention-days: 7
+
   # Every widget style gets the widget sweep too, one job per style so they run side by side.
   # Styles whose files (and the shared widget code) hash the same as their last pass are
-  # skipped; each style's pass record lives in the Actions cache. Keep the list in step with
-  # src/theme/skins/index.ts (a unit test checks).
+  # skipped; each style's pass record lives in the Actions cache. The hash check needs only
+  # Node, so a style with nothing to sweep finishes before installing anything. Keep the list
+  # in step with src/theme/skins/index.ts (a unit test checks).
   themes:
     name: Theme sweep (${{ matrix.style }})
     needs: changes
@@ -120,14 +146,27 @@ jobs:
         style: [card, postit, index-card, terminal, pixel, swiss, blueprint, journal]
     steps:
       - uses: actions/checkout@v5
-      - uses: ./.github/actions/setup-browser
       - uses: actions/cache/restore@v4
         with:
           path: .cache/theme-sweep.json
           key: theme-sweep-${{ matrix.style }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: theme-sweep-${{ matrix.style }}-
-      - run: pnpm test:themes --styles=${{ matrix.style }}
-      - if: always() && hashFiles('.cache/theme-sweep.json') != ''
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          # Plain Node: no pnpm here, so don't look for its cache.
+          package-manager-cache: false
+      - name: Anything to sweep?
+        id: todo
+        shell: bash
+        run: |
+          node scripts/theme-sweep.ts --styles=${{ matrix.style }} --dry-run | tee todo.txt
+          if grep -q '→ sweep' todo.txt; then echo "needed=true" >> "$GITHUB_OUTPUT"; fi
+      - if: steps.todo.outputs.needed == 'true'
+        uses: ./.github/actions/setup-browser
+      - if: steps.todo.outputs.needed == 'true'
+        run: pnpm test:themes --styles=${{ matrix.style }}
+      - if: always() && steps.todo.outputs.needed == 'true' && hashFiles('.cache/theme-sweep.json') != ''
         uses: actions/cache/save@v4
         with:
           path: .cache/theme-sweep.json
@@ -162,7 +201,7 @@ jobs:
 
   passed:
     name: CI passed
-    needs: [changes, web, themes, rust]
+    needs: [changes, checks, ui, widgets, themes, rust]
     # Not when the run itself was cancelled (a newer push superseded it): that's not a failure,
     # and the newer run reports instead.
     if: ${{ always() && !cancelled() }}
