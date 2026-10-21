@@ -8,7 +8,8 @@ import { buildPage, PRESETS, presetById } from '../dashboard/presets';
 import { useDashboard } from '../dashboard/store';
 import { BackgroundPicker, LookPicker, SkinPicker } from '../theme/pickers';
 import { pickSettings, useSettings } from './settingsStore';
-import { Row, Section, Switch } from '../ui';
+import { NotificationsSection, StartupSection } from './DesktopSettings';
+import { FoldedList, Row, Section, Switch } from '../ui';
 import { appVersion, useUpdater } from './updater';
 
 function UpdatesSection() {
@@ -34,12 +35,11 @@ function UpdatesSection() {
       {state.status !== 'unsupported' && (
         <>
           <Row label="Check for updates automatically" help="Once a day, from GitHub Releases.">
-            <input
-              type="checkbox"
-              role="switch"
-              aria-label="Check for updates automatically"
+            <Switch
+              hideLabel
+              label="Check for updates automatically"
               checked={autoCheck}
-              onChange={(e) => update({ autoCheckUpdates: e.target.checked })}
+              onChange={(on) => update({ autoCheckUpdates: on })}
             />
           </Row>
           <Row
@@ -177,7 +177,8 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
       <Section title="Look">
         <p className="-mt-1 text-sm text-muted">
           A look sets the background and the widget style together, on every page. Each page can
-          have its own (Edit › Style), and each widget too (its settings).
+          have its own (Edit › Style), and each widget too (its settings). Every look has a light
+          and a dark version, picked by Mode under Appearance.
         </p>
         <LookPicker
           value={settings}
@@ -204,7 +205,10 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
       </Section>
 
       <Section title="Appearance">
-        <Row label="Mode" help="Colours of the Plain background, Card widgets and menus.">
+        <Row
+          label="Mode"
+          help="Every look has a light and a dark version. High contrast swaps in maximum-contrast colours and keeps each style's shape and fonts."
+        >
           <select
             className="input w-auto"
             value={settings.theme}
@@ -348,12 +352,15 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
             <option value="current">Current term only</option>
           </select>
         </Row>
-        <ul className="flex flex-col divide-y divide-border">
-          {catalog.scoped.byName().map((c) => {
+        <FoldedList
+          items={catalog.scoped.byName().toArray()}
+          itemKey={(c) => c.id}
+          noun="courses"
+          searchText={(c) => `${c.canvasName} ${c.name} ${c.code ?? ''} ${c.term?.name ?? ''}`}
+          renderItem={(c) => {
             const hidden = c.isHidden;
             return (
-              <li
-                key={c.id}
+              <div
                 className={`flex flex-wrap items-center gap-2 py-2 ${hidden ? 'opacity-50' : ''}`}
               >
                 <input
@@ -382,10 +389,10 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
                 >
                   {hidden ? 'Show' : 'Hide'}
                 </button>
-              </li>
+              </div>
             );
-          })}
-        </ul>
+          }}
+        />
       </Section>
 
       <Section title="Data">
@@ -501,6 +508,8 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
           </button>
         </Row>
       </Section>
+      <NotificationsSection />
+      <StartupSection />
       <UpdatesSection />
       <p className="pb-6 text-center text-xs text-muted">
         Tarpaulin reads Canvas only. Notes and checklists stay on this device.

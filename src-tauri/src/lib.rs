@@ -1,5 +1,7 @@
 mod auth;
 mod canvas;
+mod desktop;
+mod tray;
 mod updater;
 
 use std::sync::Mutex;
@@ -165,7 +167,18 @@ pub fn run() {
         .plugin(tauri_plugin_oauth::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec![desktop::AUTOSTART_ARG]),
+        ))
         .manage(updater::PendingUpdate::default())
+        .manage(tray::CloseToTray::default())
+        .setup(|app| {
+            tray::setup(app.handle())?;
+            Ok(())
+        })
+        .on_window_event(tray::on_window_event)
         .manage(AppState {
             http,
             vault: CredentialVault::new(Box::new(KeyringStore)),
@@ -180,8 +193,24 @@ pub fn run() {
             open_external,
             updater::app_version,
             updater::check_update,
-            updater::install_update
+            updater::install_update,
+            desktop::notification_permission,
+            desktop::request_notification_permission,
+            desktop::notify,
+            desktop::autostart_enabled,
+            desktop::set_autostart,
+            desktop::launched_at_login,
+            tray::set_close_to_tray,
+            tray::send_to_background
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Tarpaulin");
+        .build(tauri::generate_context!())
+        .expect("error while building Tarpaulin")
+        .run(|app, event| {
+            // macOS: clicking the Dock icon while the window is hidden brings it back.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = event {
+                tray::show_main(app);
+            }
+            let _ = (app, event);
+        });
 }

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { z } from 'zod';
+import { NotificationPrefsSchema } from '../notifications/prefs';
 import type { FontName, ThemeChoice } from '../theme/themes';
 
 export const SettingsSchema = z.object({
@@ -22,6 +23,12 @@ export const SettingsSchema = z.object({
   clock: z.enum(['auto', '12h', '24h']).default('auto'),
   weekStartsOn: z.enum(['monday', 'sunday']).default('monday'),
   autoCheckUpdates: z.boolean().default(true),
+  notifications: NotificationPrefsSchema,
+  /** When the OS opens Tarpaulin at login, start minimised. (Opening at login itself is an OS
+   *  setting, read and written through the desktop bridge.) */
+  startMinimized: z.boolean().default(true),
+  /** Closing the window keeps Tarpaulin running in the tray, so reminders keep arriving. */
+  closeToTray: z.boolean().default(true),
   /** The dashboard's top bar: translucent frosted glass, or a quiet solid strip. */
   barStyle: z.enum(['frosted', 'basic']).default('frosted'),
   /** Slide the top bar away until the pointer nears the top edge (never on touch screens). */

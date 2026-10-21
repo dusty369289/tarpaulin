@@ -1,9 +1,18 @@
-/* Terminal: phosphor glow, scanlines, box-drawn header, bracketed checkboxes. */
+/* Terminal: phosphor glow and scanlines after dark, green-bar printout paper in light mode;
+   box-drawn header and bracketed checkboxes in both. */
 .skin-root[data-skin='terminal'] > .skin-frame {
   text-shadow: 0 0 6px rgb(var(--text) / 0.45);
   background-image:
     repeating-linear-gradient(0deg, rgb(0 0 0 / 0.28) 0 1px, transparent 1px 3px),
     radial-gradient(ellipse at center, rgb(var(--text) / 0.06), transparent 70%);
+}
+.skin-root[data-skin='terminal'][data-mode='light'] > .skin-frame {
+  text-shadow: none;
+  border-style: dashed;
+  background-image: repeating-linear-gradient(
+    transparent 0 1.6em,
+    rgb(var(--border) / 0.09) 1.6em 3.2em
+  );
 }
 .skin-root[data-skin='terminal'] * {
   border-radius: 0 !important;

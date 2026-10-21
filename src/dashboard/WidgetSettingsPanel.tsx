@@ -8,6 +8,7 @@ import { PaperPicker, SkinPicker } from '../theme/pickers';
 import { getSkin } from '../theme/skins';
 import { fullSchema, getWidget, normalizeSettings } from '../widgets/registry';
 import type { FrameSettings } from '../widgets/shared/frame';
+import { Switch } from '../ui';
 import { SettingsForm } from '../widgets/settings/SettingsForm';
 import { useDashboard } from './store';
 import type { Page } from './types';
@@ -52,15 +53,12 @@ function WidgetStyleSection({
         </div>
       )}
       {skin.tilt ? (
-        <label className="flex items-center justify-between gap-2 text-sm">
-          Tilt
-          <input
-            type="checkbox"
-            role="switch"
-            checked={values.tilt}
-            onChange={(e) => onChange({ tilt: e.target.checked })}
-          />
-        </label>
+        <Switch
+          label="Tilt"
+          checked={values.tilt}
+          onChange={(tilt) => onChange({ tilt })}
+          className="flex justify-between"
+        />
       ) : null}
       <div className="flex flex-wrap gap-2">
         <button

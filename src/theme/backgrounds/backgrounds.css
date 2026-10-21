@@ -1,6 +1,8 @@
-/* Page backgrounds, painted on <body> from <html data-background>. The swatch class
-   .bg-pattern-<id> draws the same texture in pickers. */
+/* Page backgrounds, painted on <body> from <html data-background data-mode>. The swatch class
+   .bg-pattern-<id> (with its own data-mode) draws the same texture in pickers. Each background
+   has a light and a dark variant; the light one is the unqualified rule. */
 
+/* Cork: natural cork, or charred cork after dark. */
 html[data-background='cork'] body,
 .bg-pattern-cork {
   background-color: #b07a4e;
@@ -15,31 +17,58 @@ html[data-background='cork'] body,
     31px 29px,
     13px 11px;
 }
+html[data-background='cork'][data-mode='dark'] body,
+.bg-pattern-cork[data-mode='dark'] {
+  background-color: #45301f;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgb(12 6 2 / 0.55) 0 1.5px, transparent 2px),
+    radial-gradient(circle at 70% 60%, rgb(200 140 90 / 0.18) 0 1.2px, transparent 1.8px),
+    radial-gradient(circle at 40% 80%, rgb(10 5 2 / 0.5) 0 2px, transparent 2.6px),
+    radial-gradient(circle at 85% 15%, rgb(230 170 110 / 0.12) 0 1px, transparent 1.6px);
+}
 html[data-background='cork'] body {
   box-shadow: inset 0 0 160px rgb(40 22 8 / 0.5);
   background-attachment: fixed;
 }
+html[data-background='cork'][data-mode='dark'] body {
+  box-shadow: inset 0 0 180px rgb(0 0 0 / 0.65);
+}
 
+/* Dot grid: cream paper, or charcoal paper. */
 html[data-background='dots'] body,
 .bg-pattern-dots {
   background-color: #f7f1e3;
   background-image: radial-gradient(circle, #c9bfa8 1.1px, transparent 1.4px);
   background-size: 22px 22px;
 }
+html[data-background='dots'][data-mode='dark'] body,
+.bg-pattern-dots[data-mode='dark'] {
+  background-color: #1e1e22;
+  background-image: radial-gradient(circle, #4c4c55 1.1px, transparent 1.4px);
+}
 
+/* Blueprint: white lines on Prussian blue, or a whiteprint (blue lines on pale paper). */
 html[data-background='blueprint'] body,
 .bg-pattern-blueprint {
-  background-color: #0f4c81;
+  --grid-major: rgb(29 79 145 / 0.17);
+  --grid-minor: rgb(29 79 145 / 0.07);
+  background-color: #e8eff8;
   background-image:
-    linear-gradient(rgb(255 255 255 / 0.16) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(255 255 255 / 0.16) 1px, transparent 1px),
-    linear-gradient(rgb(255 255 255 / 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(255 255 255 / 0.06) 1px, transparent 1px);
+    linear-gradient(var(--grid-major) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-major) 1px, transparent 1px),
+    linear-gradient(var(--grid-minor) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-minor) 1px, transparent 1px);
   background-size:
     100px 100px,
     100px 100px,
     20px 20px,
     20px 20px;
+}
+html[data-background='blueprint'][data-mode='dark'] body,
+.bg-pattern-blueprint[data-mode='dark'] {
+  --grid-major: rgb(255 255 255 / 0.16);
+  --grid-minor: rgb(255 255 255 / 0.06);
+  background-color: #0f4c81;
 }
 .bg-pattern-blueprint {
   background-size:
@@ -49,19 +78,91 @@ html[data-background='blueprint'] body,
     6px 6px;
 }
 
+/* CRT: a phosphor tube, or green-bar printout paper with tractor-feed holes. */
 html[data-background='crt'] body,
 .bg-pattern-crt {
+  background-color: #eef3ea;
+  background-image:
+    radial-gradient(circle, #d3dccd 4px, transparent 4.5px),
+    radial-gradient(circle, #d3dccd 4px, transparent 4.5px),
+    repeating-linear-gradient(transparent 0 32px, rgb(60 140 80 / 0.1) 32px 64px);
+  background-size:
+    24px 24px,
+    24px 24px,
+    auto;
+  background-position:
+    4px 0,
+    right 4px top 0,
+    0 0;
+  background-repeat: repeat-y, repeat-y, repeat;
+}
+.bg-pattern-crt {
+  background-image:
+    radial-gradient(circle, #c9d4c2 2px, transparent 2.5px),
+    radial-gradient(circle, #c9d4c2 2px, transparent 2.5px),
+    repeating-linear-gradient(transparent 0 6px, rgb(60 140 80 / 0.14) 6px 12px);
+  background-size:
+    10px 10px,
+    10px 10px,
+    auto;
+  background-position:
+    0 0,
+    right 0 top 0,
+    0 0;
+}
+html[data-background='crt'][data-mode='dark'] body,
+.bg-pattern-crt[data-mode='dark'] {
   background-color: #050a06;
   background-image:
     repeating-linear-gradient(0deg, rgb(70 255 130 / 0.05) 0 1px, transparent 1px 3px),
     radial-gradient(ellipse at center, rgb(40 255 110 / 0.08), transparent 70%);
+  background-size: auto;
+  background-position: 0 0;
+  background-repeat: repeat;
 }
 html[data-background='crt'] body {
   background-attachment: fixed;
 }
 
+/* Sky: a daytime 8-bit sky with flat clouds, or a starry night. */
 html[data-background='night-sky'] body,
 .bg-pattern-night-sky {
+  background-color: #8ecbf7;
+  background-image:
+    radial-gradient(ellipse 48px 15px at 50% 50%, rgb(255 255 255 / 0.92) 97%, transparent),
+    radial-gradient(ellipse 28px 13px at 50% 50%, rgb(255 255 255 / 0.92) 97%, transparent),
+    radial-gradient(ellipse 72px 18px at 50% 50%, rgb(255 255 255 / 0.7) 97%, transparent),
+    linear-gradient(#5aa8ea, #8ecbf7 55%, #cbe9ff);
+  background-size:
+    440px 270px,
+    440px 270px,
+    630px 390px,
+    100% 100%;
+  background-position:
+    60px 70px,
+    84px 56px,
+    300px 210px,
+    0 0;
+}
+.bg-pattern-night-sky {
+  background-image:
+    radial-gradient(ellipse 14px 5px at 50% 50%, rgb(255 255 255 / 0.92) 97%, transparent),
+    radial-gradient(ellipse 8px 4px at 50% 50%, rgb(255 255 255 / 0.92) 97%, transparent),
+    radial-gradient(ellipse 18px 5px at 50% 50%, rgb(255 255 255 / 0.7) 97%, transparent),
+    linear-gradient(#5aa8ea, #8ecbf7 55%, #cbe9ff);
+  background-size:
+    80px 44px,
+    80px 44px,
+    110px 60px,
+    100% 100%;
+  background-position:
+    -20px -6px,
+    -14px -10px,
+    40px 20px,
+    0 0;
+}
+html[data-background='night-sky'][data-mode='dark'] body,
+.bg-pattern-night-sky[data-mode='dark'] {
   background-color: #2a1a5e;
   background-image:
     radial-gradient(#ffffff 1px, transparent 1.5px),
@@ -79,15 +180,22 @@ html[data-background='night-sky'] body {
   background-attachment: fixed;
 }
 
+/* Poster: newsprint in a black frame, or a black poster in a red one. */
 html[data-background='poster'] body,
 .bg-pattern-poster {
+  --poster-frame: #111;
   background-color: #f2efe8;
 }
+html[data-background='poster'][data-mode='dark'] body,
+.bg-pattern-poster[data-mode='dark'] {
+  --poster-frame: #e30613;
+  background-color: #111111;
+}
 html[data-background='poster'] body {
-  box-shadow: inset 0 0 0 12px #111;
+  box-shadow: inset 0 0 0 12px var(--poster-frame);
 }
 .bg-pattern-poster {
-  box-shadow: inset 0 0 0 4px #111;
+  box-shadow: inset 0 0 0 4px var(--poster-frame);
 }
 
 /* The top bar picks its own colours per background: src/dashboard/appBar.css. */

@@ -1,12 +1,25 @@
 /* Index card: blue rules, a red margin line and a red pen title. */
+.skin-root[data-skin='index-card'] {
+  --rule-line: #b9d2ec;
+  --margin-line: #f2a3a3;
+}
+.skin-root[data-skin='index-card'][data-mode='dark'] {
+  --rule-line: rgb(140 180 225 / 0.3);
+  --margin-line: rgb(255 130 125 / 0.55);
+}
 .skin-root[data-skin='index-card'] > .skin-frame {
   border-color: transparent;
   --rule: 1.7em;
   background-image:
-    linear-gradient(90deg, transparent 1.55rem, #f2a3a3 1.55rem 1.65rem, transparent 1.65rem),
+    linear-gradient(
+      90deg,
+      transparent 1.55rem,
+      var(--margin-line) 1.55rem 1.65rem,
+      transparent 1.65rem
+    ),
     repeating-linear-gradient(
       transparent 0 calc(var(--rule) - 1px),
-      #b9d2ec calc(var(--rule) - 1px) var(--rule)
+      var(--rule-line) calc(var(--rule) - 1px) var(--rule)
     );
   background-position:
     0 0,

@@ -1,5 +1,5 @@
 import { hexToTriple } from '../lib/color';
-import type { ThemeTokens } from './themes';
+import type { ByMode, ThemeTokens } from './themes';
 
 export type TokenHex = Partial<Record<keyof ThemeTokens, string>>;
 
@@ -12,6 +12,11 @@ export function tokens(hex: TokenHex): Partial<ThemeTokens> {
     out[k as keyof ThemeTokens] = triple;
   }
   return out;
+}
+
+/** A light and a dark token set, from hex. */
+export function modeTokens(light: TokenHex, dark: TokenHex): ByMode<Partial<ThemeTokens>> {
+  return { light: tokens(light), dark: tokens(dark) };
 }
 
 /** CSS custom properties for a token set, ready for a `style` prop. */

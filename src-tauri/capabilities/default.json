@@ -12,6 +12,14 @@
     "allow-open-external",
     "allow-app-version",
     "allow-check-update",
-    "allow-install-update"
+    "allow-install-update",
+    "allow-notification-permission",
+    "allow-request-notification-permission",
+    "allow-notify",
+    "allow-autostart-enabled",
+    "allow-set-autostart",
+    "allow-launched-at-login",
+    "allow-set-close-to-tray",
+    "allow-send-to-background"
   ]
 }

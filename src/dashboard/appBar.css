@@ -17,6 +17,7 @@
     transform 340ms cubic-bezier(0.2, 0.8, 0.2, 1),
     opacity 240ms ease;
 }
+html[data-mode='dark'] .app-bar,
 html[data-theme='dark'] .app-bar,
 html[data-background='crt'] .app-bar,
 html[data-background='blueprint'] .app-bar,
@@ -90,15 +91,15 @@ html[data-background]:not([data-background='plain'])
 
 /* Swiss poster: hard edges and a heavy rule, like the rest of the look. */
 html[data-background='poster'] .app-bar[data-bar-style='basic'] .app-bar-surface {
-  border-bottom: 6px solid #111;
+  border-bottom: 6px solid var(--poster-frame, #111);
 }
 html[data-background='poster'] .app-bar[data-bar-style='frosted'] {
   padding: 1.25rem 1.25rem 0;
 }
 html[data-background='poster'] .app-bar[data-bar-style='frosted'] .app-bar-surface {
-  border: 2px solid #111;
+  border: 2px solid var(--poster-frame, #111);
   border-radius: 0;
-  box-shadow: 5px 5px 0 #111;
+  box-shadow: 5px 5px 0 var(--poster-frame, #111);
 }
 
 /* ---------- fold away ---------- */
