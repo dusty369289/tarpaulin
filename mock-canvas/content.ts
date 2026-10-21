@@ -63,6 +63,16 @@ export function workDescription(
       '<p>Watch the walkthrough first:</p><p><iframe src="https://www.youtube.com/embed/mock-video" width="560" height="315" allowfullscreen></iframe></p>',
     );
   }
+  if (id % 4 === 1) {
+    // How institutional templates and pasted content really arrive: accordions as <details>,
+    // Canvas's hidden "external site" labels, file links, Teams emoji, Outlook image stubs.
+    parts.push(
+      `<details class="access-accordion"><summary>Late submission policy</summary><div class="access-accordion-div ui-state-default"><p>Work submitted up to 24 hours late loses 5%. After that, see <a class="inline_disabled external" href="https://example.org/policy" target="_blank">the policy<span class="external_link_icon" role="presentation"></span><span class="screenreader-only">Links to an external site.</span></a>.</p></div></details>`,
+      `<details class="access-accordion"><summary>Accessibility and support</summary><div class="access-accordion-div"><p>Extensions are available through the support team.</p></div></details>`,
+      `<p>Template: <a class="instructure_file_link instructure_scribd_file inline_disabled" href="${BASE}/courses/${courseId}/files/${800000 + id}?wrap=1" data-api-endpoint="${BASE}/api/v1/courses/${courseId}/files/${800000 + id}" data-api-returntype="File">report-template.docx</a></p>`,
+      `<p style="color: #e03e2d; font-size: 18pt;"><strong>Good luck!</strong> <img src="https://statics.teams.example/emoticons/sparkles/default/20_f.png?v=2" alt="✨" width="20" height="20"><img class="x_outlook" data-imagetype="AttachmentByCid"></p>`,
+    );
+  }
   parts.push(
     `<p>Questions? Post in the <a href="${BASE}/courses/${courseId}/discussion_topics">Q&amp;A forum</a> or see the <a href="https://example.org/style-guide">style guide</a>.</p>`,
   );

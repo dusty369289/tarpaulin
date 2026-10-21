@@ -45,6 +45,10 @@
   text-underline-offset: 2px;
   cursor: pointer;
 }
+.reader-prose a[data-file]::before {
+  content: '📎 ';
+  display: inline-block;
+}
 .reader-prose a[data-canvas='false']::after {
   content: ' ↗';
   font-size: 0.85em;
@@ -74,13 +78,19 @@
 .reader-prose hr {
   border-color: rgb(var(--border));
 }
-.reader-prose img {
+.reader-prose img:not([data-inline]) {
   display: block;
   max-width: 100%;
   height: auto;
   border-radius: calc(var(--radius) * 0.6);
   border: 1px solid rgb(var(--border));
   background: rgb(var(--surface-2));
+}
+.reader-prose img[data-inline] {
+  display: inline-block;
+  height: 1.4em;
+  width: auto;
+  vertical-align: -0.3em;
 }
 .reader-prose img[data-state='loading'],
 .reader-prose img[data-state='failed'],
@@ -113,4 +123,24 @@
 .reader-prose th {
   background: rgb(var(--surface-2));
   font-weight: 600;
+}
+.reader-prose details {
+  border: 1px solid rgb(var(--border));
+  border-radius: calc(var(--radius) * 0.6);
+  padding: 0 0.9em;
+}
+.reader-prose details[open] {
+  padding-bottom: 0.7em;
+}
+.reader-prose summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0.6em 0;
+}
+.reader-prose details[open] > summary {
+  border-bottom: 1px solid rgb(var(--border));
+  margin-bottom: 0.7em;
+}
+.reader-prose details + details {
+  margin-top: 0.5em;
 }

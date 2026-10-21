@@ -51,7 +51,10 @@ describe('sanitizeCanvasHtml', () => {
     const div = dom(
       `${fileImage('12', 345, 'Diagram')}<img src="https://cdn.example.org/a.png" alt="a"><img src="/courses/12/files/678/preview" alt="b"><img src="data:image/png;base64,AAAA" alt="c"><img src="data:text/html;base64,AAAA" alt="d">`,
     );
-    const [file, pub, rel, data, bad] = [...div.querySelectorAll('img')];
+    const imgs = [...div.querySelectorAll('img')];
+    // The data:text/html one has nothing loadable, so it's removed outright.
+    expect(imgs).toHaveLength(4);
+    const [file, pub, rel, data] = imgs;
     expect(file.dataset.fileId).toBe('345');
     expect(file.hasAttribute('src')).toBe(false);
     expect(file.getAttribute('style')).toBeNull();
@@ -59,7 +62,6 @@ describe('sanitizeCanvasHtml', () => {
     expect(pub.getAttribute('src')).toBe('https://cdn.example.org/a.png');
     expect(rel.dataset.fileId).toBe('678');
     expect(data.getAttribute('src')).toMatch(/^data:image\/png/);
-    expect(bad.hasAttribute('src')).toBe(false);
   });
 
   it('keeps document structure and wraps tables to scroll', () => {
@@ -68,6 +70,28 @@ describe('sanitizeCanvasHtml', () => {
     expect(div.querySelectorAll('ol li')).toHaveLength(3);
     expect(div.querySelector('[data-table-scroll] > table')).not.toBeNull();
     expect(div.querySelector('[class]')).toBeNull();
+  });
+
+  it('handles patterns seen in real course content', () => {
+    const div = dom(workDescription('assignment', 'Lab report', '12', 5));
+    // Accordions stay accordions.
+    expect(div.querySelectorAll('details > summary')).toHaveLength(2);
+    // Canvas's hidden labels and icons go (the reader marks outside links itself).
+    expect(div.textContent).not.toContain('Links to an external site');
+    expect(div.querySelector('[role="presentation"]')).toBeNull();
+    // File links are marked; emoji stay inline; src-less Outlook stubs vanish; colours go.
+    expect(div.querySelector('a[data-file]')?.textContent).toBe('report-template.docx');
+    const imgs = [...div.querySelectorAll('img')];
+    expect(imgs.filter((i) => i.hasAttribute('data-inline'))).toHaveLength(1);
+    expect(imgs.some((i) => !i.hasAttribute('src') && !i.dataset.fileId)).toBe(false);
+    expect(div.querySelector('[style]')).toBeNull();
+  });
+
+  it('labels video embeds', () => {
+    const out = clean(
+      '<iframe src="https://example.panopto.eu/Panopto/Pages/Embed.aspx?id=x"></iframe>',
+    );
+    expect(out).toContain('▶ Watch on example.panopto.eu');
   });
 
   it('handles empty bodies', () => {

@@ -8,7 +8,11 @@ import DOMPurify from 'dompurify';
 //     deliberately (Canvas links in-app or in the browser, other sites after a prompt);
 //   - Canvas file images carry their file id, so the reader can fetch a signed URL with the
 //     token instead of a login-only page;
-//   - embedded players (iframe, video, audio) become a link to what they embed.
+//   - embedded players (iframe, video, audio) become a link to what they embed;
+//   - Canvas's own decorations (the screen-reader "Links to an external site." text and its
+//     icon) go, since the reader marks outside links itself.
+// The patterns handled here were checked against real course content: accordions built from
+// <details>, Outlook and Word pastes, Teams emoji images, file links with verifiers.
 
 const TAGS = [
   'a',
@@ -16,6 +20,8 @@ const TAGS = [
   'b',
   'blockquote',
   'br',
+  'details',
+  'summary',
   'caption',
   'code',
   'col',
@@ -69,8 +75,16 @@ const ATTRS = [
   'rowspan',
   'dir',
   'lang',
+  'width',
+  'height',
+  'open',
   'data-api-endpoint',
 ];
+/** Canvas decorations that only make sense with Canvas's own stylesheet. */
+const DECORATIONS = '.screenreader-only, .external_link_icon, .hidden-readable';
+/** Images this small are emoji or icons: they sit in the line, unframed. */
+const INLINE_IMAGE_PX = 48;
+const VIDEO_HOSTS = /youtube|youtu\.be|vimeo|panopto|kaltura|stream\.microsoft|vidgrid|loom/i;
 const EMBEDS = 'iframe, video, audio, embed, object';
 const FILE_ID = /\/files\/(\d+)(?:[/?#]|$)/;
 
@@ -99,7 +113,9 @@ function replaceEmbeds(doc: Document, base: string | null) {
     if (src && isWeb(src)) {
       const a = doc.createElement('a');
       a.setAttribute('href', src.href);
-      a.textContent = `Embedded content: ${src.hostname}`;
+      a.textContent = VIDEO_HOSTS.test(src.hostname)
+        ? `▶ Watch on ${src.hostname}`
+        : `Embedded content: ${src.hostname}`;
       p.appendChild(a);
     } else {
       p.textContent = '[Embedded content]';
@@ -113,6 +129,7 @@ export function sanitizeCanvasHtml(html: string, { baseUrl }: SanitizeOptions): 
   const canvasHost = resolve(baseUrl, null)?.host ?? null;
   const pre = new DOMParser().parseFromString(html, 'text/html');
   replaceEmbeds(pre, baseUrl);
+  for (const el of pre.querySelectorAll(DECORATIONS)) el.remove();
 
   const fragment = DOMPurify.sanitize(pre.body.innerHTML, {
     ALLOWED_TAGS: TAGS,
@@ -125,8 +142,10 @@ export function sanitizeCanvasHtml(html: string, { baseUrl }: SanitizeOptions): 
     const url = resolve(a.getAttribute('href'), baseUrl);
     a.removeAttribute('href');
     if (url && isWeb(url)) {
+      const onCanvas = url.host === canvasHost;
       a.setAttribute('data-href', url.href);
-      a.setAttribute('data-canvas', String(url.host === canvasHost));
+      a.setAttribute('data-canvas', String(onCanvas));
+      if (onCanvas && FILE_ID.test(url.pathname)) a.setAttribute('data-file', '');
       a.setAttribute('href', '#');
       a.setAttribute('title', url.href);
     }
@@ -146,8 +165,14 @@ export function sanitizeCanvasHtml(html: string, { baseUrl }: SanitizeOptions): 
     } else if (src && (isWeb(src) || src.href.startsWith('data:image/'))) {
       img.setAttribute('src', src.href);
     } else {
-      img.removeAttribute('src');
+      // Nothing loadable (Outlook pastes often leave src-less images): show nothing.
+      img.remove();
+      continue;
     }
+    const w = Number(img.getAttribute('width'));
+    const h = Number(img.getAttribute('height'));
+    if ((w && w <= INLINE_IMAGE_PX) || (h && h <= INLINE_IMAGE_PX))
+      img.setAttribute('data-inline', '');
     img.setAttribute('loading', 'lazy');
   }
   for (const table of fragment.querySelectorAll('table')) {
