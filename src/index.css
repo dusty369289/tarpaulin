@@ -113,17 +113,17 @@ body {
 [data-density='compact'] {
   --w-pad: 0.5rem;
   --w-gap: 0.25rem;
-  font-size: 0.8125rem;
+  font-size: calc(0.8125rem * var(--skin-scale, 1));
 }
 [data-density='comfortable'] {
   --w-pad: 0.875rem;
   --w-gap: 0.5rem;
-  font-size: 0.875rem;
+  font-size: calc(0.875rem * var(--skin-scale, 1));
 }
 [data-density='spacious'] {
   --w-pad: 1.25rem;
   --w-gap: 0.75rem;
-  font-size: 0.9375rem;
+  font-size: calc(0.9375rem * var(--skin-scale, 1));
 }
 .w-pad {
   padding: var(--w-pad);
@@ -170,14 +170,19 @@ body {
   }
 }
 /* Sized by character count (--chars) at a conservative 0.68em per glyph, so the time fits
-   whatever font the platform falls back to, not just the one it was designed with. */
+   whatever font the platform falls back to, not just the one it was designed with. Widget
+   styles with a display font set their own glyph width (--glyph). */
 .fit-time {
-  font-size: clamp(1.25rem, min(calc(100cqw / (var(--chars, 7) * 0.68)), 36cqh), 7rem);
+  font-size: clamp(
+    0.75rem,
+    min(calc(100cqw / (var(--chars, 7) * max(var(--glyph, 0.68), 0.5))), 36cqh),
+    7rem
+  );
   line-height: 1;
   transition: font-size 200ms ease;
 }
 .fit-digits {
-  font-size: clamp(1.25rem, min(13cqw, 38cqh), 6rem);
+  font-size: clamp(1.25rem, min(calc(13cqw * 0.62 / var(--glyph, 0.62)), 38cqh), 6rem);
   line-height: 1.05;
   transition: font-size 200ms ease;
 }

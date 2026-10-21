@@ -32,6 +32,16 @@ interface DashboardState extends DashboardData {
   ) => void;
   resetWidgetSettings: (pageId: string, widgetId: string) => void;
   setWidgetData: (pageId: string, widgetId: string, data: unknown) => void;
+  /** Sets or clears ('') this page's background / default widget style. */
+  setPageLook: (pageId: string, look: { background?: string; widgetStyle?: string }) => void;
+  /**
+   * Makes `style` the style of every widget on one page (page default, widget overrides
+   * cleared), or with pageId null on every page (page defaults and overrides cleared; the
+   * caller sets the app default).
+   */
+  applyWidgetStyle: (pageId: string | null, style: string) => void;
+  /** Clears every page's background override, so the app default shows everywhere. */
+  clearPageBackgrounds: () => void;
   replacePages: (pages: Page[]) => void;
   appendPages: (pages: Page[]) => void;
 }
@@ -109,6 +119,8 @@ export function sanitize(state: Record<string, unknown>): DashboardData {
         id: p.id,
         name: p.name || 'Page',
         icon: p.icon || 'layout-dashboard',
+        ...(typeof p.background === 'string' && p.background && { background: p.background }),
+        ...(typeof p.widgetStyle === 'string' && p.widgetStyle && { widgetStyle: p.widgetStyle }),
         layout,
         widgets,
       };
@@ -253,6 +265,39 @@ export const useDashboard = create<DashboardState>()(
           pages: mapPage(s.pages, pageId, (p) => {
             const w = p.widgets[widgetId];
             return w ? { ...p, widgets: { ...p.widgets, [widgetId]: { ...w, data } } } : p;
+          }),
+        })),
+      setPageLook: (pageId, look) =>
+        set((s) => ({
+          pages: mapPage(s.pages, pageId, (p) => {
+            const next = { ...p, ...look };
+            if (!next.background) delete next.background;
+            if (!next.widgetStyle) delete next.widgetStyle;
+            return next;
+          }),
+        })),
+      applyWidgetStyle: (pageId, style) =>
+        set((s) => ({
+          pages: s.pages.map((p) => {
+            if (pageId && p.id !== pageId) return p;
+            const widgets = Object.fromEntries(
+              Object.entries(p.widgets).map(([id, w]) => [
+                id,
+                { ...w, settings: { ...w.settings, style: '', paper: 'auto' } },
+              ]),
+            );
+            const next: Page = { ...p, widgets };
+            if (pageId) next.widgetStyle = style;
+            else delete next.widgetStyle;
+            return next;
+          }),
+        })),
+      clearPageBackgrounds: () =>
+        set((s) => ({
+          pages: s.pages.map((p) => {
+            const next = { ...p };
+            delete next.background;
+            return next;
           }),
         })),
       replacePages: (pages) => set(sanitize({ pages, activePageId: pages[0]?.id })),

@@ -4,11 +4,12 @@ import { useSettings } from '../app/settingsStore';
 import { buildPage, PRESETS } from '../dashboard/presets';
 import { useDashboard } from '../dashboard/store';
 import { GRID_COLS } from '../dashboard/types';
+import { LookPicker } from '../theme/pickers';
 import { THEMES, type ThemeName } from '../theme/themes';
 
-// First-launch step after connecting: pick a look and a starting layout. Everything defaults to
-// the plain theme following the system's light/dark mode, so "Continue" without touching
-// anything changes nothing. Shown once.
+// First-launch step after connecting: pick a look, colour mode and a starting layout. Everything
+// defaults to the plain look following the system's light/dark mode, so "Continue" without
+// touching anything changes nothing. Shown once.
 
 const MODES: Array<{ id: 'system' | ThemeName; name: string; hint: string }> = [
   { id: 'system', name: 'Match system', hint: 'Light or dark with your OS' },
@@ -78,7 +79,7 @@ function LayoutPreview({ presetId }: { presetId: string }) {
 }
 
 export function Personalize() {
-  const { theme, accent, update } = useSettings();
+  const { theme, accent, background, widgetStyle, update } = useSettings();
   const replacePages = useDashboard((s) => s.replacePages);
   const [presetId, setPresetId] = useState(PRESETS[0].id);
 
@@ -99,8 +100,9 @@ export function Personalize() {
         <div>
           <h1 className="text-xl font-semibold">Make it yours</h1>
           <p className="text-sm text-muted">
-            Pick a starting look and layout. You can fine-tune all of it later in Settings,
-            including colours, fonts and the style of each individual widget.
+            Pick a starting look and layout. You can fine-tune all of it later: mix backgrounds and
+            widget styles, give each page or even each widget its own style, and change colours and
+            fonts in Settings.
           </p>
         </div>
 
@@ -110,6 +112,21 @@ export function Personalize() {
             className="text-xs font-semibold uppercase tracking-wide text-muted"
           >
             Look
+          </h2>
+          <LookPicker
+            value={{ background, widgetStyle }}
+            onPick={(look) =>
+              update({ background: look.background, widgetStyle: look.widgetStyle })
+            }
+          />
+        </section>
+
+        <section aria-labelledby="mode-heading" className="flex flex-col gap-3">
+          <h2
+            id="mode-heading"
+            className="text-xs font-semibold uppercase tracking-wide text-muted"
+          >
+            Colour mode
           </h2>
           <div
             role="radiogroup"

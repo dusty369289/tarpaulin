@@ -12,7 +12,9 @@
 //   pnpm test:widgets --shots              # also write screenshots/lab/<scenario>/<widget>.png
 //   pnpm test:widgets --live               # use a running `pnpm dev` (real Canvas) instead
 //   pnpm test:widgets --font="DejaVu Sans" # force a font, to reproduce another OS's metrics
-import { mkdirSync } from 'node:fs';
+//   pnpm test:widgets --skins=postit,pixel # sweep in these widget styles (default: card only)
+//   pnpm test:widgets --report=out.json    # write {style: failures} for scripts/theme-sweep.ts
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { SCENARIOS } from '../mock-canvas/world';
 import type { LabCase, LabReport } from '../src/dev/labTypes';
 import { launch, startStack } from './browser';
@@ -23,7 +25,17 @@ const live = process.argv.includes('--live');
 const only = arg('only');
 // Force a font (e.g. --font="DejaVu Sans") to reproduce another platform's fallback metrics.
 const font = arg('font');
-const scenarios: string[] = live ? ['live'] : arg('scenario') ? [arg('scenario')!] : SCENARIOS;
+const scenarios: string[] = live
+  ? ['live']
+  : arg('scenario')
+    ? arg('scenario')!.split(',')
+    : SCENARIOS;
+// Widget styles to sweep. '' is the page default, i.e. the plain card style.
+const skins: string[] = arg('skins')?.split(',') ?? [''];
+const reportPath = arg('report');
+const failuresBySkin: Record<string, number> = Object.fromEntries(
+  skins.map((s) => [s || 'card', 0]),
+);
 
 const WIDTHS = [2, 3, 4, 5, 6, 8, 12];
 const HEIGHTS = [2, 3, 4, 5, 6, 9, 12];
@@ -94,50 +106,69 @@ for (const scenario of scenarios) {
   const types = (await page.evaluate(() => window.__tarpaulinLab!.types)).filter(
     (t) => !only || t === only,
   );
-  const cases: LabCase[] = [];
-  for (const type of types) {
-    const min = await page.evaluate((t: string) => window.__tarpaulinLab!.minSize(t), type);
-    for (const settings of VARIANTS[type] ?? [{}]) {
-      for (const w of WIDTHS.filter((w) => w >= min.w)) {
-        for (const h of HEIGHTS.filter((h) => h >= min.h)) {
-          const data =
-            type === 'notes' ? { text: LONG_NOTE } : type === 'todo' ? LONG_TODO : undefined;
-          cases.push({ type, w, h, settings, data });
+  for (const skin of skins) {
+    const name = skin || 'card';
+    const label = skins.length > 1 || skin ? `${scenario}/${name}` : scenario;
+    const cases: LabCase[] = [];
+    for (const type of types) {
+      const min = await page.evaluate((t: string) => window.__tarpaulinLab!.minSize(t), type);
+      for (const variant of VARIANTS[type] ?? [{}]) {
+        const settings = skin ? { ...variant, style: skin } : variant;
+        for (const w of WIDTHS.filter((w) => w >= min.w)) {
+          for (const h of HEIGHTS.filter((h) => h >= min.h)) {
+            const data =
+              type === 'notes' ? { text: LONG_NOTE } : type === 'todo' ? LONG_TODO : undefined;
+            cases.push({ type, w, h, settings, data });
+          }
         }
       }
+      // Edit-mode header (grip + three buttons) at the smallest width.
+      cases.push({
+        type,
+        w: min.w,
+        h: Math.max(min.h, 3),
+        editMode: true,
+        settings: skin ? { style: skin } : undefined,
+      });
     }
-    // Edit-mode header (grip + three buttons) at the smallest width.
-    cases.push({ type, w: min.w, h: Math.max(min.h, 3), editMode: true });
-  }
 
-  const started = Date.now();
-  const reports: LabReport[] = await page.evaluate((c) => window.__tarpaulinLab!.sweep(c), cases);
-  const elapsed = Date.now() - started;
-  const failures = reports.filter((r) => r.issues.length);
-  failed += failures.length;
-  for (const r of failures) {
-    const variant =
-      r.settings && Object.keys(r.settings).length ? ` ${JSON.stringify(r.settings)}` : '';
-    console.log(`✘ [${scenario}] ${r.type} ${r.w}×${r.h}${r.editMode ? ' (edit)' : ''}${variant}`);
-    for (const i of r.issues) console.log(`    ${i.kind}: ${i.detail}`);
-  }
-  const settle = reports.map((r) => r.settleMs).sort((a, b) => a - b);
-  console.log(
-    `${failures.length ? '✘' : '✔'} ${scenario}: ${reports.length} renders, ${failures.length} with issues, ${elapsed}ms ` +
-      `(settle median ${settle[Math.floor(settle.length / 2)]}ms, p95 ${settle[Math.floor(settle.length * 0.95)]}ms)`,
-  );
+    const started = Date.now();
+    const reports: LabReport[] = await page.evaluate((c) => window.__tarpaulinLab!.sweep(c), cases);
+    const elapsed = Date.now() - started;
+    const failures = reports.filter((r) => r.issues.length);
+    failed += failures.length;
+    failuresBySkin[name] += failures.length;
+    for (const r of failures) {
+      const variant =
+        r.settings && Object.keys(r.settings).length ? ` ${JSON.stringify(r.settings)}` : '';
+      console.log(`✘ [${label}] ${r.type} ${r.w}×${r.h}${r.editMode ? ' (edit)' : ''}${variant}`);
+      for (const i of r.issues) console.log(`    ${i.kind}: ${i.detail}`);
+    }
+    const settle = reports.map((r) => r.settleMs).sort((a, b) => a - b);
+    console.log(
+      `${failures.length ? '✘' : '✔'} ${label}: ${reports.length} renders, ${failures.length} with issues, ${elapsed}ms ` +
+        `(settle median ${settle[Math.floor(settle.length / 2)]}ms, p95 ${settle[Math.floor(settle.length * 0.95)]}ms)`,
+    );
 
-  if (shots) {
-    const dir = `screenshots/lab/${scenario}`;
-    mkdirSync(dir, { recursive: true });
-    for (const type of types) {
-      await page.goto(`${stack.appUrl}/?gallery=${type}#/lab?gallery=${type}`);
-      await page.waitForSelector('#lab-gallery');
-      await page.evaluate(() => window.__tarpaulin!.settled());
-      await page.locator('#lab-gallery').screenshot({ path: `${dir}/${type}.png` });
+    if (shots) {
+      const dir = `screenshots/lab/${scenario}${skin ? `/${skin}` : ''}`;
+      mkdirSync(dir, { recursive: true });
+      for (const type of types) {
+        await page.goto(`${stack.appUrl}/?gallery=${type}#/lab?gallery=${type}&skin=${skin}`);
+        await page.waitForSelector('#lab-gallery');
+        await page.evaluate(() => window.__tarpaulin!.settled());
+        await page.locator('#lab-gallery').screenshot({ path: `${dir}/${type}.png` });
+      }
+      await page.goto(`${stack.appUrl}/#/lab`);
+      await page.waitForFunction(() => Boolean(window.__tarpaulinLab), null, { timeout: 30_000 });
+      if (font)
+        await page.addStyleTag({
+          content: `:root, body, * { font-family: "${font}" !important; }`,
+        });
     }
   }
 }
+if (reportPath) writeFileSync(reportPath, JSON.stringify(failuresBySkin, null, 2));
 
 if (stack.mock) {
   const writes = stack.mock.writes;

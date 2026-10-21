@@ -47,6 +47,19 @@ jobs:
       # Again with a wide monospace font forced, so layouts never depend on one font's metrics.
       - run: pnpm test:widgets --scenario=dense --font="DejaVu Sans Mono"
       - run: pnpm test:ui
+      # Every widget style gets the same sweep. Styles whose files (and the shared widget code)
+      # hash the same as their last pass are skipped; the pass record lives in the Actions cache.
+      - uses: actions/cache/restore@v4
+        with:
+          path: .cache/theme-sweep.json
+          key: theme-sweep-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: theme-sweep-
+      - run: pnpm test:themes
+      - if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/theme-sweep.json
+          key: theme-sweep-${{ github.run_id }}-${{ github.run_attempt }}
       - if: failure()
         uses: actions/upload-artifact@v4
         with:

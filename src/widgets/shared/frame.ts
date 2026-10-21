@@ -17,8 +17,16 @@ export const frameSchema = z.object({
     label: 'Density',
     section: 'appearance',
   }),
+  // Style, paper and tilt have their own picker in the settings drawer (WidgetStylePicker).
+  style: field(z.string().default(''), {
+    label: 'Style',
+    kind: 'hidden',
+    help: 'Empty follows the page default.',
+  }),
+  paper: field(z.string().default('auto'), { label: 'Paper', kind: 'hidden' }),
+  tilt: field(z.boolean().default(true), { label: 'Tilt', kind: 'hidden' }),
   background: field(z.enum(['surface', 'tinted', 'transparent']).default('surface'), {
-    label: 'Background',
+    label: 'Fill',
     section: 'appearance',
   }),
   opacity: field(z.number().int().min(20).max(100).default(100), {

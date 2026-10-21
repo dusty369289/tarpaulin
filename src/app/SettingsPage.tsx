@@ -6,6 +6,7 @@ import { useCatalog } from '../canvas/hooks';
 import { exportDashboard, importDashboard, ImportError } from '../dashboard/exportImport';
 import { buildPage, PRESETS, presetById } from '../dashboard/presets';
 import { useDashboard } from '../dashboard/store';
+import { BackgroundPicker, LookPicker, SkinPicker } from '../theme/pickers';
 import { pickSettings, useSettings } from './settingsStore';
 import { appVersion, useUpdater } from './updater';
 
@@ -193,8 +194,37 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
         )}
       </Section>
 
+      <Section title="Look">
+        <p className="-mt-1 text-sm text-muted">
+          A look sets the background and the widget style together, on every page. Each page can
+          have its own (Edit › Style), and each widget too (its settings).
+        </p>
+        <LookPicker
+          value={settings}
+          onPick={(look) => {
+            settings.update({ background: look.background, widgetStyle: look.widgetStyle });
+            dashboard.applyWidgetStyle(null, look.widgetStyle);
+            dashboard.clearPageBackgrounds();
+          }}
+        />
+        <div className="flex flex-col gap-2">
+          <div className="text-sm">Background</div>
+          <BackgroundPicker
+            value={settings.background}
+            onChange={(background) => settings.update({ background })}
+          />
+        </div>
+        <div className="flex flex-col gap-2">
+          <div className="text-sm">Widget style</div>
+          <SkinPicker
+            value={settings.widgetStyle}
+            onChange={(widgetStyle) => settings.update({ widgetStyle })}
+          />
+        </div>
+      </Section>
+
       <Section title="Appearance">
-        <Row label="Theme">
+        <Row label="Mode" help="Colours of the Plain background, Card widgets and menus.">
           <select
             className="input w-auto"
             value={settings.theme}

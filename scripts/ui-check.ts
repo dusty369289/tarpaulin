@@ -129,13 +129,24 @@ await step('first launch: pick a look (plain by default) and layout', async () =
     'Dark did not apply live',
   );
   await page.getByRole('radio', { name: /^Match system/ }).click();
+  await page.getByTestId('look-cork').click();
+  await settled();
+  assert(
+    (await page.evaluate(() => document.documentElement.dataset.background)) === 'cork',
+    'Cork board did not apply live',
+  );
+  await shot('00-setup-cork');
+  await page.getByTestId('look-plain').click();
   await page.getByRole('button', { name: 'Continue' }).click();
   await settled();
   const saved = await page.evaluate(
     () => JSON.parse(localStorage.getItem('tarpaulin.settings') ?? '{}').state,
   );
   assert(
-    saved?.onboarded === true && saved?.theme === 'system',
+    saved?.onboarded === true &&
+      saved?.theme === 'system' &&
+      saved?.background === 'plain' &&
+      saved?.widgetStyle === 'card',
     `setup not saved: ${JSON.stringify(saved)}`,
   );
 });
@@ -288,6 +299,108 @@ for (const theme of ['dark', 'high-contrast', 'light'] as const) {
     await shot(`09-theme-${theme}`);
   });
 }
+
+/** The widget style each widget on screen renders in. */
+const skinsOnScreen = () =>
+  page
+    .locator('[data-widget-id] .skin-root')
+    .evaluateAll((els) => els.map((el) => (el as HTMLElement).dataset.skin));
+
+const LOOKS = [
+  ['cork', 'cork', 'postit'],
+  ['journal', 'dots', 'journal'],
+  ['blueprint', 'blueprint', 'blueprint'],
+  ['terminal', 'crt', 'terminal'],
+  ['swiss', 'poster', 'swiss'],
+  ['arcade', 'night-sky', 'pixel'],
+  ['plain', 'plain', 'card'],
+] as const;
+for (const [look, background, skin] of LOOKS) {
+  await step(`look: ${look}`, async () => {
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByTestId(`look-${look}`).click();
+    await page.getByRole('button', { name: 'Dashboard' }).click();
+    await settled();
+    const applied = await page.evaluate(() => document.documentElement.dataset.background);
+    assert(applied === background, `background is ${applied}`);
+    const skins = await skinsOnScreen();
+    assert(
+      skins.length > 0 && skins.every((s) => s === skin),
+      `widgets render as ${[...new Set(skins)]}`,
+    );
+    await assertGridLayout();
+    await shot(`10-look-${look}`);
+  });
+}
+
+await step('page style: own background, one widget restyled, then applied to all', async () => {
+  await page.getByRole('button', { name: 'Edit' }).click();
+  await page.getByRole('button', { name: 'Style' }).click();
+  const drawer = page.getByRole('dialog', { name: /^Style/ });
+  await drawer.waitFor();
+  await drawer.getByTestId('background-dots').click();
+  await settled();
+  assert(
+    (await page.evaluate(() => document.documentElement.dataset.background)) === 'dots',
+    'page background did not apply',
+  );
+  await page.keyboard.press('Escape');
+  await settled();
+
+  const page0 = await activePage();
+  const id = page0.layout[0].i;
+  await page
+    .locator(`[data-widget-id="${id}"]`)
+    .getByRole('button', { name: /^Settings for/ })
+    .click();
+  const panel = page.getByRole('dialog', { name: /settings$/ });
+  await panel.waitFor();
+  await panel.getByTestId('skin-postit').click();
+  await panel.getByRole('radio', { name: 'Pink' }).click();
+  await settled();
+  const one = page.locator(`[data-widget-id="${id}"] .skin-root`);
+  assert(
+    (await one.getAttribute('data-skin')) === 'postit' &&
+      (await one.getAttribute('data-paper')) === 'pink',
+    'widget style did not apply',
+  );
+  let skins = await skinsOnScreen();
+  assert(skins.filter((s) => s === 'postit').length === 1, `others changed too: ${skins}`);
+  await shot('11-widget-own-style');
+  await panel.getByRole('button', { name: 'Apply to all on this page' }).click();
+  await settled();
+  skins = await skinsOnScreen();
+  assert(
+    skins.every((s) => s === 'postit'),
+    `not applied to all: ${skins}`,
+  );
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Done' }).click();
+  await settled();
+  await assertGridLayout();
+  await shot('12-page-style');
+  const stored0 = await activePage();
+  assert(
+    (stored0 as unknown as { background?: string }).background === 'dots',
+    'page background not saved',
+  );
+});
+
+await step('back to plain everywhere', async () => {
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByTestId('look-plain').click();
+  await page.getByRole('button', { name: 'Dashboard' }).click();
+  await settled();
+  assert(
+    (await page.evaluate(() => document.documentElement.dataset.background)) === 'plain',
+    'page override survived applying a look',
+  );
+  const skins = await skinsOnScreen();
+  assert(
+    skins.every((s) => s === 'card'),
+    `widgets still styled: ${skins}`,
+  );
+});
 
 await step('layout survives a reload', async () => {
   const before = await activePage();

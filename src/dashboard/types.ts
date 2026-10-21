@@ -17,6 +17,9 @@ export interface Page {
   id: string;
   name: string;
   icon: string;
+  /** Overrides the app's default background / widget style for this page; empty inherits. */
+  background?: string;
+  widgetStyle?: string;
   layout: LayoutItem[];
   widgets: Record<string, WidgetInstance>;
 }

@@ -43,6 +43,8 @@ export const WidgetHost = memo(function WidgetHost({
   const { Component } = def;
   return (
     <WidgetFrame
+      widgetId={id}
+      columns={size.w}
       title={settings.title || def.name}
       icon={def.icon}
       frame={settings}

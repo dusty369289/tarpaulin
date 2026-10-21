@@ -128,6 +128,7 @@ export function WidgetLab() {
   const [gallery, setGallery] = useState<string | null>(() =>
     new URLSearchParams(location.hash.split('?')[1] ?? '').get('gallery'),
   );
+  const gallerySkin = new URLSearchParams(location.hash.split('?')[1] ?? '').get('skin') ?? '';
 
   useEffect(() => {
     const render = async (c: LabCase): Promise<LabReport> => {
@@ -213,7 +214,7 @@ export function WidgetLab() {
         </button>
       </div>
       {gallery ? (
-        <Gallery type={gallery} />
+        <Gallery type={gallery} skin={gallerySkin} />
       ) : (
         <div
           id="lab-stage"
@@ -236,7 +237,7 @@ export function WidgetLab() {
 }
 
 /** Every interesting size of one widget side by side, for eyeballing and screenshots. */
-export function Gallery({ type }: { type: string }) {
+export function Gallery({ type, skin = '' }: { type: string; skin?: string }) {
   const def = getWidget(type)!;
   const widths = [2, 3, 4, 6, 8].filter((w) => w >= def.minSize.w);
   const heights = [2, 3, 4, 6, 9].filter((h) => h >= def.minSize.h);
@@ -254,7 +255,7 @@ export function Gallery({ type }: { type: string }) {
                 <div data-lab-cell={`${w}x${h}`} style={{ width: px.width, height: px.height }}>
                   <WidgetHost
                     id={`g-${w}-${h}`}
-                    instance={{ type, settings: defaultSettings(type) }}
+                    instance={{ type, settings: { ...defaultSettings(type), style: skin } }}
                     size={{ w, h }}
                     editMode={false}
                     onData={() => {}}

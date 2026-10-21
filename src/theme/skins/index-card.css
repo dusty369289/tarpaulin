@@ -1,0 +1,27 @@
+/* Index card: blue rules, a red margin line and a red pen title. */
+.skin-root[data-skin='index-card'] > .skin-frame {
+  border-color: transparent;
+  --rule: 1.7em;
+  background-image:
+    linear-gradient(90deg, transparent 1.55rem, #f2a3a3 1.55rem 1.65rem, transparent 1.65rem),
+    repeating-linear-gradient(
+      transparent 0 calc(var(--rule) - 1px),
+      #b9d2ec calc(var(--rule) - 1px) var(--rule)
+    );
+  background-position:
+    0 0,
+    0 2.6em;
+}
+.skin-root[data-skin='index-card'] .skin-header,
+.skin-root[data-skin='index-card'] .skin-body {
+  padding-left: calc(1.65rem + var(--w-pad) * 0.6);
+}
+.skin-root[data-skin='index-card'] .skin-title {
+  color: rgb(var(--accent));
+  font-size: 1.45em;
+  font-weight: 700;
+  line-height: 1.05;
+}
+.skin-root[data-skin='index-card'] .skin-body {
+  line-height: 1.7;
+}

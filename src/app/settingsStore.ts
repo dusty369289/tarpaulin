@@ -7,6 +7,9 @@ export const SettingsSchema = z.object({
   theme: z.enum(['system', 'light', 'dark', 'high-contrast']).default('system'),
   /** Empty means "use the theme's accent". */
   accent: z.string().default(''),
+  /** Default page background and widget style (see src/theme). Pages and widgets can override. */
+  background: z.string().default('plain'),
+  widgetStyle: z.string().default('card'),
   font: z.enum(['system', 'rounded', 'serif', 'mono', 'readable']).default('system'),
   radius: z.number().min(0).max(24).default(12),
   fontScale: z.number().min(0.85).max(1.3).default(1),

@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react';
 import GridLayout, { WidthProvider, type Layout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
+import { PageSkinContext, usePageLook } from '../theme/look';
 import { getWidget } from '../widgets/registry';
 import { useDashboard } from './store';
 import { GRID_COLS, type Page } from './types';
@@ -57,49 +58,56 @@ export function Grid({ page, editMode, onOpenSettings }: GridProps) {
     [page.id, setWidgetData],
   );
 
+  const { widgetStyle } = usePageLook(page);
   return (
-    <AutoWidthGrid
-      className={
-        editMode
-          ? 'min-h-[60vh] select-none rounded-theme bg-[radial-gradient(rgb(var(--border))_1px,transparent_1px)] [background-size:16px_16px]'
-          : ''
-      }
-      layout={layout}
-      cols={GRID_COLS}
-      rowHeight={ROW_HEIGHT}
-      margin={GRID_MARGIN}
-      containerPadding={[0, 0]}
-      isDraggable={editMode}
-      isResizable={editMode}
-      resizeHandles={['se', 'e', 's']}
-      draggableHandle=".widget-drag-handle"
-      draggableCancel="button, input, textarea, select, a"
-      compactType="vertical"
-      onLayoutChange={onLayoutChange}
-      useCSSTransforms
-    >
-      {page.layout.map((l) => {
-        const instance = page.widgets[l.i];
-        if (!instance) return null;
-        return (
-          // The entry animation lives on an inner wrapper: on the grid item itself its final
-          // `transform` would override react-grid-layout's inline translate and stack every widget at 0,0.
-          <div key={l.i} data-widget-id={l.i} data-widget-type={instance.type}>
-            <div className="h-full animate-pop-in">
-              <WidgetHost
-                id={l.i}
-                instance={instance}
-                size={{ w: l.w, h: l.h }}
-                editMode={editMode}
-                onSettings={editMode ? onOpenSettings : undefined}
-                onRemove={editMode ? onRemove : undefined}
-                onDuplicate={editMode ? onDuplicate : undefined}
-                onData={onData}
-              />
-            </div>
-          </div>
-        );
-      })}
-    </AutoWidthGrid>
+    <PageSkinContext.Provider value={widgetStyle}>
+      <AutoWidthGrid
+        className={
+          editMode
+            ? 'min-h-[60vh] select-none rounded-theme bg-[radial-gradient(rgb(var(--border))_1px,transparent_1px)] [background-size:16px_16px]'
+            : ''
+        }
+        layout={layout}
+        cols={GRID_COLS}
+        rowHeight={ROW_HEIGHT}
+        margin={GRID_MARGIN}
+        containerPadding={[0, 0]}
+        isDraggable={editMode}
+        isResizable={editMode}
+        resizeHandles={['se', 'e', 's']}
+        draggableHandle=".widget-drag-handle"
+        draggableCancel="button, input, textarea, select, a"
+        compactType="vertical"
+        onLayoutChange={onLayoutChange}
+        useCSSTransforms
+      >
+        {/* Reading order (top-to-bottom, left-to-right), so tabbing and the lettered panels of the
+          Blueprint style follow what's on screen. */}
+        {[...page.layout]
+          .sort((a, b) => a.y - b.y || a.x - b.x)
+          .map((l) => {
+            const instance = page.widgets[l.i];
+            if (!instance) return null;
+            return (
+              // The entry animation lives on an inner wrapper: on the grid item itself its final
+              // `transform` would override react-grid-layout's inline translate and stack every widget at 0,0.
+              <div key={l.i} data-widget-id={l.i} data-widget-type={instance.type}>
+                <div className="h-full animate-pop-in">
+                  <WidgetHost
+                    id={l.i}
+                    instance={instance}
+                    size={{ w: l.w, h: l.h }}
+                    editMode={editMode}
+                    onSettings={editMode ? onOpenSettings : undefined}
+                    onRemove={editMode ? onRemove : undefined}
+                    onDuplicate={editMode ? onDuplicate : undefined}
+                    onData={onData}
+                  />
+                </div>
+              </div>
+            );
+          })}
+      </AutoWidthGrid>
+    </PageSkinContext.Provider>
   );
 }

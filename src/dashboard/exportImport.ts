@@ -19,6 +19,8 @@ const PageSchema = z.object({
   id: z.string(),
   name: z.string().max(80),
   icon: z.string().default('layout-dashboard'),
+  background: z.string().max(40).optional(),
+  widgetStyle: z.string().max(40).optional(),
   layout: z.array(LayoutItemSchema),
   widgets: z.record(
     z.object({
@@ -112,6 +114,8 @@ export function importDashboard(json: string): ImportResult {
       id: newId('p'),
       name: parsed.data.name,
       icon: parsed.data.icon,
+      ...(parsed.data.background && { background: parsed.data.background }),
+      ...(parsed.data.widgetStyle && { widgetStyle: parsed.data.widgetStyle }),
       layout: parsed.data.layout
         .filter((l) => idMap.has(l.i))
         .map((l) => ({ ...l, i: idMap.get(l.i)! })),

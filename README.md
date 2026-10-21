@@ -10,6 +10,10 @@ announcements and a countdown to your next deadline. Each widget can be dragged,
 - **Deep customisation**: every widget has its own settings (course filter, time window, sort,
   grouping and so on) plus shared appearance options (title, accent colour, density, background,
   opacity, corners). Course colours and nicknames are set once and used everywhere.
+- **Looks**: seven complete looks (Plain, Cork board, Bullet journal, Blueprint, Terminal, Swiss
+  poster, Arcade), each a page background plus a widget style. Backgrounds and widget styles can
+  also be mixed separately, set per page, and set per widget (with paper colours and tilt),
+  with one-click "apply to all on this page / all pages".
 - **Themes**: light, dark, high contrast and system, with a custom accent, font, text size and corner radius.
 - **Export / import** your dashboard as JSON.
 - **Read-only by design**: Tarpaulin never submits, edits or marks anything in Canvas. Notes and
@@ -114,6 +118,22 @@ scripts/              smoke test, fixture recorder, widget-lab sweep, UI check
   persisted to local storage, so the app opens instantly. All planner-based widgets share a single
   window of data, so a whole dashboard makes one request per resource. A test checks this.
 
+### Looks, backgrounds and widget styles
+
+A widget's style comes from the most specific place that sets one: the widget's own settings,
+then its page (Edit › Style), then Settings › Look. Backgrounds work the same way per page.
+
+- **Widget styles** (`src/theme/skins/`) are one `.ts` and one `.css` file each: colours as theme
+  tokens scoped to the widget (so every widget's content restyles itself), optional paper
+  colours, fonts (bundled with Fontsource, so they work offline), tilt, decorations (pins, tape,
+  washi) and icon treatment. The CSS does the rest: Terminal's box-drawn headers and `[x]`
+  checkboxes, Blueprint's lettered panels, Pixel's stepped borders and blocky icons.
+- **Backgrounds** (`src/theme/backgrounds/`) paint the page and bring chrome colours that read on
+  them. Plain follows light/dark mode. High contrast always wins.
+- **Looks** (`src/theme/looks.ts`) pair a background with a style.
+
+A unit test checks every style, paper and background for WCAG AA text contrast.
+
 ### Adding a widget
 
 Create `src/widgets/MyWidget.tsx` with `defineWidget({ type, name, icon, defaultSize, minSize,
@@ -145,7 +165,9 @@ Scenarios are written with a fluent builder:
 pnpm test            # unit tests (Vitest): client vs mock Canvas, models, widgets vs recorded
                      # fixtures, store migrations, export/import, settings form, anonymiser
 pnpm test:widgets    # every widget × 7 widths × 7 heights × setting variants × 5 mock scenarios
-pnpm test:ui         # real UI driven with the mouse: presets, edit, drag, resize, add, settings, themes
+pnpm test:themes     # the widget sweep again in every widget style, skipping unchanged styles
+pnpm test:ui         # real UI driven with the mouse: presets, edit, drag, resize, add, settings,
+                     # themes, every look, page and per-widget styles
 pnpm test:all        # all of the above
 pnpm lint && pnpm typecheck && pnpm build
 cd src-tauri && cargo test
@@ -161,6 +183,12 @@ sweep of about 3,600 renders takes around a minute.
 The widget sweep fails on horizontal scrolling, elements escaping the widget, text clipped or
 squashed by its container, and fit-to-box widgets (clock, countdown) that would need to scroll.
 Every run also asserts that no request tried to write to Canvas.
+
+`test:themes` repeats the sweep in each widget style (on the realistic and edge-case data). Each
+style has a hash of its own files plus everything all styles share (widgets, frame, global CSS,
+the lab, mock data, lockfile). A style that passed at its current hash is skipped, so editing one
+style re-sweeps only that style, while changing a widget re-sweeps all of them. Passes are kept in
+`.cache/theme-sweep.json` locally and in the Actions cache on CI. Use `--all` to ignore the cache.
 
 To render the product demo (captioned, human-paced, on the invented `showcase` term):
 

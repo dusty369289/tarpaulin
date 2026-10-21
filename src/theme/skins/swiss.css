@@ -1,0 +1,35 @@
+/* Swiss: heavy black rule, all-caps tracked labels, poster numerals. */
+.skin-root[data-skin='swiss'] > .skin-frame {
+  border-width: 4px;
+  border-color: #111;
+}
+.skin-root[data-skin='swiss'] * {
+  border-radius: 0 !important;
+}
+.skin-root[data-skin='swiss'] .skin-header {
+  border-bottom: 3px solid currentColor;
+  padding-bottom: calc(var(--w-pad) * 0.5);
+}
+.skin-root[data-skin='swiss'] .skin-title {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.skin-root[data-skin='swiss'] .skin-body {
+  padding-top: calc(var(--w-pad) * 0.8);
+}
+.skin-root[data-skin='swiss'] .fit-time,
+.skin-root[data-skin='swiss'] .fit-digits {
+  font-weight: 400;
+  letter-spacing: -0.03em;
+}
+.skin-root[data-skin='swiss'] svg.lucide {
+  stroke-width: 2.75;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+}
+.skin-root[data-skin='swiss'] .font-semibold,
+.skin-root[data-skin='swiss'] .font-medium {
+  font-weight: 800;
+}

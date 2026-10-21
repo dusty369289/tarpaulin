@@ -99,3 +99,52 @@ describe('dashboard actions', () => {
     expect(s.pages.find((p) => p.id === id)?.name).toBe('Minimal');
   });
 });
+
+describe('page and widget styles', () => {
+  beforeEach(() => {
+    useDashboard.setState(sanitize({}));
+  });
+  const page = () => useDashboard.getState().pages[0];
+
+  it('sets and clears a page look', () => {
+    const { setPageLook } = useDashboard.getState();
+    setPageLook(page().id, { background: 'cork', widgetStyle: 'postit' });
+    expect(page()).toMatchObject({ background: 'cork', widgetStyle: 'postit' });
+    setPageLook(page().id, { background: '' });
+    expect(page().background).toBeUndefined();
+    expect(page().widgetStyle).toBe('postit');
+  });
+
+  it('applies a style to every widget on a page, clearing overrides', () => {
+    const s = useDashboard.getState();
+    const [first] = Object.keys(page().widgets);
+    s.updateWidgetSettings(page().id, first, {
+      ...page().widgets[first].settings,
+      style: 'terminal',
+      paper: 'amber',
+    });
+    expect(page().widgets[first].settings).toMatchObject({ style: 'terminal', paper: 'amber' });
+    s.applyWidgetStyle(page().id, 'swiss');
+    expect(page().widgetStyle).toBe('swiss');
+    for (const w of Object.values(page().widgets))
+      expect(w.settings).toMatchObject({ style: '', paper: 'auto' });
+  });
+
+  it('applies a style everywhere by clearing page defaults too', () => {
+    const s = useDashboard.getState();
+    s.setPageLook(page().id, { widgetStyle: 'pixel', background: 'night-sky' });
+    s.applyWidgetStyle(null, 'journal');
+    expect(page().widgetStyle).toBeUndefined();
+    expect(page().background).toBe('night-sky');
+    s.clearPageBackgrounds();
+    expect(page().background).toBeUndefined();
+  });
+
+  it('keeps page looks through sanitize', () => {
+    const out = sanitize({
+      pages: [{ id: 'p', name: 'P', layout: [], widgets: {}, background: 'dots', widgetStyle: 7 }],
+    });
+    expect(out.pages[0].background).toBe('dots');
+    expect(out.pages[0].widgetStyle).toBeUndefined();
+  });
+});

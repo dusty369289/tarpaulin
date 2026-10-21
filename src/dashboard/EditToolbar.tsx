@@ -1,10 +1,11 @@
 import { useIsFetching, useQueryClient } from '@tanstack/react-query';
-import { Check, Pencil, Plus, RefreshCw, Settings } from 'lucide-react';
+import { Check, Palette, Pencil, Plus, RefreshCw, Settings } from 'lucide-react';
 
 interface EditToolbarProps {
   editMode: boolean;
   onToggleEdit: () => void;
   onAddWidget: () => void;
+  onOpenStyle: () => void;
   onOpenSettings: () => void;
 }
 
@@ -12,6 +13,7 @@ export function EditToolbar({
   editMode,
   onToggleEdit,
   onAddWidget,
+  onOpenStyle,
   onOpenSettings,
 }: EditToolbarProps) {
   const queryClient = useQueryClient();
@@ -21,6 +23,11 @@ export function EditToolbar({
       {editMode && (
         <button type="button" className="btn animate-pop-in" onClick={onAddWidget}>
           <Plus className="h-4 w-4" /> Add widget
+        </button>
+      )}
+      {editMode && (
+        <button type="button" className="btn animate-pop-in" onClick={onOpenStyle}>
+          <Palette className="h-4 w-4" /> Style
         </button>
       )}
       <button

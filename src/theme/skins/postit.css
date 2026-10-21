@@ -1,0 +1,25 @@
+/* Post-it: square paper, no border, handwritten. */
+.skin-root[data-skin='postit'] > .skin-frame {
+  border-color: transparent;
+  background-image: linear-gradient(
+    to bottom,
+    rgb(0 0 0 / 0.04),
+    transparent 18%,
+    transparent 85%,
+    rgb(0 0 0 / 0.05)
+  );
+}
+.skin-root[data-skin='postit'] .skin-header {
+  padding-top: calc(var(--w-pad) * 1.15);
+}
+.skin-root[data-skin='postit'] .skin-title {
+  font-size: 1.45em;
+  font-weight: 700;
+  line-height: 1.05;
+}
+.skin-root[data-skin='postit'] .chip {
+  border-radius: 3px;
+}
+.skin-root[data-skin='postit'] input[type='checkbox'] {
+  accent-color: rgb(var(--text));
+}

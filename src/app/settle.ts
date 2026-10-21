@@ -2,8 +2,8 @@ import type { QueryClient } from '@tanstack/react-query';
 import '../dev/labTypes';
 
 // A "settled" signal for automated UI checks, so tests wait exactly as long as the browser needs
-// instead of sleeping. Settled = no Canvas queries in flight, no running CSS animations or
-// transitions, and no DOM mutations for `quietFrames` consecutive animation frames.
+// instead of sleeping. Settled = no Canvas queries in flight, no fonts loading, no running CSS
+// animations or transitions, and no DOM mutations for `quietFrames` consecutive animation frames.
 
 const frame = () => new Promise<number>((r) => requestAnimationFrame(r));
 
@@ -30,6 +30,7 @@ export async function waitForSettled(
       await frame();
       const busy =
         mutated ||
+        document.fonts.status === 'loading' ||
         queryClient.isFetching() > 0 ||
         document
           .getAnimations()
