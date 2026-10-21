@@ -2,6 +2,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import pkg from './package.json';
 import {
   CanvasHttpError,
   fetchAllPages,
@@ -66,6 +67,7 @@ export default defineConfig({
   clearScreen: false,
   server: { port: 1420, strictPort: true, watch: { ignored: ['**/src-tauri/**'] } },
   envPrefix: ['VITE_', 'TAURI_ENV_'],
+  define: { 'import.meta.env.VITE_APP_VERSION': JSON.stringify(pkg.version) },
   build: { target: 'es2022', sourcemap: false },
   test: {
     environment: 'jsdom',

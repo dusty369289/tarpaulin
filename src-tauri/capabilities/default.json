@@ -9,6 +9,9 @@
     "allow-save-token",
     "allow-oauth-login",
     "allow-logout",
-    "allow-open-external"
+    "allow-open-external",
+    "allow-app-version",
+    "allow-check-update",
+    "allow-install-update"
   ]
 }

@@ -1,5 +1,6 @@
 import { LayoutDashboard } from 'lucide-react';
 import { useState } from 'react';
+import { UpdateBanner } from '../app/UpdateBanner';
 import { EditToolbar } from './EditToolbar';
 import { Grid } from './Grid';
 import { PageTabs } from './PageTabs';
@@ -32,6 +33,7 @@ export function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
           onOpenSettings={onOpenSettings}
         />
       </header>
+      <UpdateBanner />
       <main className="flex-1 p-4">
         {page.layout.length === 0 ? (
           <div className="mx-auto mt-24 flex max-w-sm flex-col items-center gap-3 text-center text-muted animate-fade-in">

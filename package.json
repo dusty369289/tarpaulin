@@ -21,7 +21,8 @@
     "dev:mock": "CANVAS_BASE_URL=http://127.0.0.1:4810 CANVAS_TOKEN=${CANVAS_TOKEN:-mock-realistic} vite",
     "test:all": "vitest run && tsx scripts/widget-lab.ts && tsx scripts/ui-check.ts",
     "format:check": "prettier --check .",
-    "demo:video": "tsx scripts/demo-video.ts"
+    "demo:video": "tsx scripts/demo-video.ts",
+    "release:version": "tsx scripts/version.ts"
   },
   "dependencies": {
     "@tanstack/query-sync-storage-persister": "^5.104.5",
@@ -64,5 +65,6 @@
     "typescript-eslint": "^8.72.0",
     "vite": "^6.4.5",
     "vitest": "^3.2.7"
-  }
+  },
+  "packageManager": "pnpm@10.28.0"
 }

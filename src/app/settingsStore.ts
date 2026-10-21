@@ -17,6 +17,7 @@ export const SettingsSchema = z.object({
   courseNicknames: z.record(z.string()).default({}),
   clock: z.enum(['auto', '12h', '24h']).default('auto'),
   weekStartsOn: z.enum(['monday', 'sunday']).default('monday'),
+  autoCheckUpdates: z.boolean().default(true),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 

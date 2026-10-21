@@ -1,5 +1,6 @@
 mod auth;
 mod canvas;
+mod updater;
 
 use std::sync::Mutex;
 use std::time::Duration;
@@ -163,6 +164,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_oauth::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(updater::PendingUpdate::default())
         .manage(AppState {
             http,
             vault: CredentialVault::new(Box::new(KeyringStore)),
@@ -174,7 +177,10 @@ pub fn run() {
             save_token,
             oauth_login,
             logout,
-            open_external
+            open_external,
+            updater::app_version,
+            updater::check_update,
+            updater::install_update
         ])
         .run(tauri::generate_context!())
         .expect("error while running Tarpaulin");

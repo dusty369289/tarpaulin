@@ -33,6 +33,20 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "createUpdaterArtifacts": true,
+    "category": "Education",
+    "shortDescription": "A calmer dashboard for Canvas LMS"
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFFREUxNTM1NDg0RTQwRTAKUldUZ1FFNUlOUlhlcm1YT3ZicXRvWENBbEF5L01sRnl4emRPMjFSVHhqcnQyNEhBTFVxZ1ZZaEQK",
+      "endpoints": [
+        "https://github.com/dusty369289/tarpaulin/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

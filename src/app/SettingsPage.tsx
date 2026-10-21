@@ -1,12 +1,13 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Download, LogOut, RotateCcw, Upload } from 'lucide-react';
-import { useRef, useState, type ReactNode } from 'react';
+import { ArrowLeft, Download, Loader2, LogOut, RefreshCw, RotateCcw, Upload } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useCanvas } from '../canvas/CanvasProvider';
 import { useCatalog } from '../canvas/hooks';
 import { exportDashboard, importDashboard, ImportError } from '../dashboard/exportImport';
 import { buildPage, PRESETS, presetById } from '../dashboard/presets';
 import { useDashboard } from '../dashboard/store';
 import { pickSettings, useSettings } from './settingsStore';
+import { appVersion, useUpdater } from './updater';
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -26,6 +27,90 @@ function Row({ label, children, help }: { label: string; children: ReactNode; he
       </div>
       <div className="flex items-center gap-2">{children}</div>
     </div>
+  );
+}
+
+function UpdatesSection() {
+  const { state, check, install } = useUpdater();
+  const autoCheck = useSettings((s) => s.autoCheckUpdates);
+  const update = useSettings((s) => s.update);
+  const [version, setVersion] = useState<string>('');
+  useEffect(() => {
+    void appVersion().then(setVersion);
+  }, []);
+  const busy =
+    state.status === 'checking' || state.status === 'downloading' || state.status === 'installing';
+  return (
+    <Section title="Updates">
+      <Row
+        label="Version"
+        help={
+          state.status === 'unsupported' ? 'Updates are installed by the desktop app.' : undefined
+        }
+      >
+        <span className="chip bg-surface-2 text-muted">{version || '…'}</span>
+      </Row>
+      {state.status !== 'unsupported' && (
+        <>
+          <Row label="Check for updates automatically" help="Once a day, from GitHub Releases.">
+            <input
+              type="checkbox"
+              role="switch"
+              aria-label="Check for updates automatically"
+              checked={autoCheck}
+              onChange={(e) => update({ autoCheckUpdates: e.target.checked })}
+            />
+          </Row>
+          <Row
+            label={
+              state.status === 'available' ||
+              state.status === 'downloading' ||
+              state.status === 'installing'
+                ? `Version ${state.update.version} is available`
+                : state.status === 'current'
+                  ? 'You’re up to date'
+                  : state.status === 'error'
+                    ? 'Couldn’t check for updates'
+                    : 'Updates'
+            }
+            help={
+              state.status === 'error'
+                ? state.message
+                : state.status === 'available' && state.update.notes
+                  ? state.update.notes.slice(0, 200)
+                  : undefined
+            }
+          >
+            {state.status === 'available' ||
+            state.status === 'downloading' ||
+            state.status === 'installing' ? (
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => void install()}
+                disabled={busy}
+              >
+                {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+                {state.status === 'downloading'
+                  ? `Downloading${state.total ? ` ${Math.round((state.received / state.total) * 100)}%` : '…'}`
+                  : state.status === 'installing'
+                    ? 'Installing…'
+                    : 'Install & restart'}
+              </button>
+            ) : (
+              <button type="button" className="btn" onClick={() => void check()} disabled={busy}>
+                {state.status === 'checking' ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                Check for updates
+              </button>
+            )}
+          </Row>
+        </>
+      )}
+    </Section>
   );
 }
 
@@ -375,6 +460,7 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
           </button>
         </Row>
       </Section>
+      <UpdatesSection />
       <p className="pb-6 text-center text-xs text-muted">
         Tarpaulin reads Canvas only. Notes and checklists stay on this device.
       </p>
