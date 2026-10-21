@@ -1,0 +1,33 @@
+name: Set up Node, dependencies and Chromium
+description: pnpm install plus a cached Playwright Chromium with its system libraries.
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v4
+    - uses: actions/setup-node@v5
+      with:
+        node-version: 22
+        cache: pnpm
+    - run: pnpm install --frozen-lockfile
+      shell: bash
+    # Browser binaries are cached per Playwright version; system libraries are always installed.
+    - name: Playwright version
+      id: pw
+      shell: bash
+      run: echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+    - uses: actions/cache@v4
+      id: pw-cache
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+    - name: Install Chromium
+      if: steps.pw-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: pnpm exec playwright install chromium
+    - name: Install Chromium system dependencies
+      shell: bash
+      # The runner image ships a Microsoft apt source that sometimes refuses requests (403),
+      # which fails apt-get update for everything; nothing here needs it.
+      run: |
+        sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list /etc/apt/sources.list.d/microsoft*.list
+        pnpm exec playwright install-deps chromium

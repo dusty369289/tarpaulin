@@ -1,6 +1,7 @@
 import { LayoutDashboard } from 'lucide-react';
 import { useState } from 'react';
 import { UpdateBanner } from '../app/UpdateBanner';
+import { AppBar } from './AppBar';
 import { EditToolbar } from './EditToolbar';
 import { Grid } from './Grid';
 import { PageStylePanel } from './PageStylePanel';
@@ -17,16 +18,17 @@ export function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
   const [picking, setPicking] = useState(false);
   const [settingsFor, setSettingsFor] = useState<string | null>(null);
   const [styling, setStyling] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <div className="flex min-h-full flex-col">
-      <header className="app-header sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-bg/85 px-4 py-2 backdrop-blur">
-        <div className="flex shrink-0 items-center gap-2 font-semibold">
+      <AppBar editing={editMode} pinned={editMode || picking || styling || menuOpen}>
+        <div className="bar-brand">
           <img src="/icon.png" alt="" className="h-6 w-6" />
-          <span className="hidden sm:inline">Tarpaulin</span>
+          <span className="bar-brand-name">Tarpaulin</span>
         </div>
-        <div className="min-w-0 flex-1">
-          <PageTabs />
+        <div className="bar-pages-slot min-w-0 flex-1">
+          <PageTabs onMenuChange={setMenuOpen} />
         </div>
         <EditToolbar
           editMode={editMode}
@@ -35,7 +37,7 @@ export function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
           onOpenStyle={() => setStyling(true)}
           onOpenSettings={onOpenSettings}
         />
-      </header>
+      </AppBar>
       <UpdateBanner />
       <main className="flex-1 p-4">
         {page.layout.length === 0 ? (

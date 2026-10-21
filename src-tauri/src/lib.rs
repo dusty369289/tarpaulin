@@ -179,6 +179,15 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
+        // Remembers the window's size, position and maximised state between launches, so an
+        // update (or any restart) reopens it exactly where it was.
+        // Visibility is left out: quitting from the tray (window hidden) must not make the next
+        // launch start invisible.
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(updater::WINDOW_STATE)
+                .build(),
+        )
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec![desktop::AUTOSTART_ARG]),

@@ -209,3 +209,502 @@ body {
     transparent
   );
 }
+
+/* ── Clock: stacked when tall, greeting beside a big time when wide, one line when short. ──
+   Each mode sizes the time from the share of the box it gets (--tw of the width, --th of the
+   height), so it keeps filling the widget while resizing. */
+.clock {
+  --tw: 1;
+  --th: 44cqh;
+  display: grid;
+  height: 100%;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'greet' 'time' 'date' 'sum';
+  align-content: safe center;
+  justify-items: start;
+  row-gap: 0.2em;
+}
+.clock[data-align='center'] {
+  justify-items: center;
+  text-align: center;
+}
+.clock > * {
+  max-width: 100%;
+  min-width: 0;
+}
+.clock-greet {
+  grid-area: greet;
+}
+.clock-time {
+  grid-area: time;
+  font-size: clamp(
+    0.75rem,
+    min(calc(var(--tw) * 100cqw / (var(--chars, 7) * max(var(--glyph, 0.68), 0.5))), var(--th)),
+    16rem
+  );
+  line-height: 1;
+  transition: font-size 200ms ease;
+}
+.clock-date {
+  grid-area: date;
+}
+.clock-sum {
+  grid-area: sum;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+.clock-greet,
+.clock-date {
+  font-size: clamp(0.75rem, min(4.2cqw, 11cqh), 1.125rem);
+  transition: font-size 200ms ease;
+}
+@container (max-height: 104px) {
+  .clock-date {
+    display: none;
+  }
+}
+@container (max-height: 132px) {
+  .clock-sum {
+    display: none;
+  }
+}
+/* Wide: greeting, date and summary on the left, the time as big as its column allows. */
+@container (min-height: 72px) and (min-width: 340px) and (min-aspect-ratio: 9 / 4) {
+  .clock {
+    --tw: 0.58;
+    --th: 74cqh;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: 1fr auto auto auto 1fr;
+    grid-template-areas: '. time' 'greet time' 'date time' 'sum time' '. time';
+    align-content: stretch;
+    align-items: center;
+    column-gap: 1.25em;
+  }
+  .clock[data-align='center'] {
+    grid-template-columns: fit-content(calc((1 - var(--tw)) * 100% - 1.25em)) auto;
+    justify-content: center;
+    justify-items: start;
+    text-align: left;
+  }
+  .clock-time {
+    justify-self: end;
+  }
+  .clock-greet,
+  .clock-date {
+    display: block;
+    font-size: clamp(0.8125rem, min(2.4cqw, 17cqh), 2rem);
+  }
+  .clock-greet {
+    font-weight: 600;
+  }
+  /* Capped at two lines so wider fonts can't push the column past the box. */
+  .clock-sum {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    font-size: clamp(0.75rem, min(1.7cqw, 10cqh), 1.25rem);
+  }
+}
+@container (min-height: 72px) and (min-width: 340px) and (min-aspect-ratio: 9 / 4) and (max-height: 112px) {
+  .clock-sum {
+    display: none;
+  }
+}
+/* Very short: everything on one line, dropping the less important parts as it narrows. */
+@container (max-height: 71.98px) {
+  .clock {
+    --tw: 1;
+    --th: 78cqh;
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-start;
+    column-gap: 1.25em;
+  }
+  .clock[data-align='center'] {
+    justify-content: center;
+  }
+  .clock > * {
+    flex: 0 1 auto;
+    white-space: nowrap;
+  }
+  .clock-time {
+    flex-shrink: 0;
+  }
+  .clock-greet,
+  .clock-date,
+  .clock-sum {
+    display: none;
+    font-size: clamp(0.75rem, min(1.6cqw, 40cqh), 1.25rem);
+  }
+}
+@container (max-height: 71.98px) and (min-width: 300px) {
+  .clock {
+    --tw: 0.5;
+  }
+  .clock-greet {
+    display: block;
+  }
+}
+@container (max-height: 71.98px) and (min-width: 600px) {
+  .clock {
+    --tw: 0.3;
+  }
+  .clock-date {
+    display: block;
+  }
+  .clock:not([data-align='center']) .clock-date {
+    margin-left: auto;
+  }
+}
+@container (max-height: 71.98px) and (min-width: 900px) {
+  .clock {
+    --tw: 0.22;
+  }
+  .clock-sum {
+    display: block;
+  }
+}
+
+/* ── Countdown: the same three modes as the clock. The digits are sized from their own width
+   in em (--dw, from the units shown), so they fill whatever share of the box they get. ── */
+.cd {
+  --fw: 0.94;
+  --fh: 38cqh;
+  display: grid;
+  height: 100%;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'label' 'digits' 'sub';
+  align-content: safe center;
+  justify-items: center;
+  row-gap: 0.25em;
+  text-align: center;
+}
+.cd > * {
+  max-width: 100%;
+  min-width: 0;
+}
+.cd-label {
+  grid-area: label;
+  font-size: clamp(0.75rem, min(4.2cqw, 11cqh), 1.125rem);
+}
+.cd-digits {
+  grid-area: digits;
+  --dw: calc(
+    (var(--dchars, 4) + var(--uem, 1.5) * 0.45) * max(var(--glyph, 0.62), 0.5) / 0.62 +
+      (var(--n, 2) - 1) * 0.3 + var(--n, 2) * 0.08
+  );
+  font-size: clamp(1.25rem, min(calc(var(--fw) * 100cqw / var(--dw)), var(--fh)), 16rem);
+  line-height: 1.05;
+  transition: font-size 200ms ease;
+}
+.cd-sub {
+  grid-area: sub;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+@container (max-height: 64px) {
+  .cd-label {
+    display: none;
+  }
+}
+@container (max-height: 104px) {
+  .cd-sub {
+    display: none;
+  }
+}
+@container (min-height: 72px) and (min-width: 340px) and (min-aspect-ratio: 9 / 4) {
+  .cd {
+    --fw: 0.56;
+    --fh: 72cqh;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: 1fr auto auto 1fr;
+    grid-template-areas: '. digits' 'label digits' 'sub digits' '. digits';
+    align-content: stretch;
+    align-items: center;
+    justify-items: start;
+    column-gap: 1.5em;
+    text-align: left;
+  }
+  .cd-label {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    white-space: normal;
+    font-size: clamp(0.8125rem, min(2.3cqw, 17cqh), 1.75rem);
+    line-height: 1.2;
+  }
+  .cd-sub {
+    display: block;
+    font-size: clamp(0.75rem, min(1.6cqw, 11cqh), 1.125rem);
+  }
+  .cd-digits {
+    justify-self: end;
+  }
+}
+@container (min-height: 72px) and (min-width: 340px) and (min-aspect-ratio: 9 / 4) and (max-height: 80px) {
+  .cd-sub {
+    display: none;
+  }
+}
+@container (max-height: 71.98px) {
+  .cd {
+    --fw: 1;
+    --fh: 80cqh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    column-gap: 1.25em;
+  }
+  .cd > * {
+    flex: 0 1 auto;
+    white-space: nowrap;
+  }
+  .cd-digits {
+    flex-shrink: 0;
+  }
+  .cd-label,
+  .cd-sub {
+    display: none;
+    font-size: clamp(0.75rem, min(1.6cqw, 36cqh), 1.25rem);
+  }
+}
+@container (max-height: 71.98px) and (min-width: 420px) {
+  .cd {
+    --fw: 0.45;
+    justify-content: flex-start;
+  }
+  .cd-label {
+    display: block;
+    order: -1;
+  }
+}
+@container (max-height: 71.98px) and (min-width: 760px) {
+  .cd {
+    --fw: 0.3;
+  }
+  .cd-sub {
+    display: block;
+    margin-left: auto;
+  }
+}
+
+/* ── Lists that spread out when wide. Columns appear at a width set in em, so they follow the
+   widget's density and font, and a narrow widget keeps its single column. In the components
+   layer so utilities (gap-y-*, [--col:…]) can adjust them. ── */
+@layer components {
+  /* Items flow left to right, then down, so the first ones stay at the top of a short widget. */
+  .wide-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--col, 16em)), 1fr));
+    column-gap: 1.5em;
+    row-gap: var(--w-gap);
+    align-items: start;
+  }
+  /* Groups (days, courses) side by side; a few groups share the width between them. */
+  .wide-groups {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--col, 16em)), 1fr));
+    column-gap: 1.5em;
+    row-gap: calc(var(--w-gap) * 1.5);
+    align-items: start;
+  }
+  .wide-grid > *,
+  .wide-groups > * {
+    min-width: 0;
+  }
+}
+
+/* To-do: Canvas's list and the checklist side by side once there's room for both. */
+.todo {
+  container-type: inline-size;
+}
+@container (min-width: 36em) {
+  .todo-both {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    column-gap: 1.5em;
+    align-items: stretch;
+  }
+  .todo-both > hr {
+    display: none;
+  }
+  .todo-both > .todo-local {
+    border-left: 1px solid rgb(var(--border));
+    padding-left: 1.5em;
+  }
+}
+
+/* Calendar week: the days become seven columns once each can hold a short title. */
+.cal-list {
+  container-type: inline-size;
+}
+@container (min-width: 46em) {
+  .cal-week {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    column-gap: 0.375em;
+    align-items: stretch;
+  }
+  .cal-week > section {
+    min-width: 0;
+    border-radius: 0.375rem;
+    background: rgb(var(--surface-2) / 0.5);
+    padding: 0.25em 0.125em 0.375em;
+  }
+  .cal-week > section[data-today] {
+    background: rgb(var(--accent) / 0.08);
+  }
+  .cal-week > section > h3 {
+    padding: 0 0.25rem;
+  }
+  .cal-week .cal-entry {
+    flex-wrap: wrap;
+    row-gap: 0;
+    column-gap: 0.375em;
+  }
+  .cal-week .cal-time {
+    width: auto;
+    order: 1;
+  }
+  .cal-week .cal-title {
+    flex-basis: 100%;
+    order: 2;
+    font-size: 0.9375em;
+  }
+}
+
+/* Calendar month: when the widget is much wider than tall, the day list sits beside the grid
+   instead of under it, so the grid keeps sensibly shaped cells. */
+.cal-month {
+  container-type: size;
+}
+.cal-month-body {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.cal-upcoming {
+  display: none;
+}
+@container (min-aspect-ratio: 2 / 1) and (min-width: 36em) {
+  .cal-month-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(13em, 32%);
+    grid-template-rows: minmax(0, 1fr);
+    gap: 1em;
+  }
+  .cal-upcoming,
+  .cal-selected {
+    display: block;
+    max-height: none;
+    min-height: 0;
+    overflow-y: auto;
+  }
+}
+
+/* Lists whose rows share out spare height, so a few items fill a tall widget. Each row is a
+   size container, so a row with room to spare can restyle itself as a card. --row-min is the
+   row's natural height (in lh, so it follows each style's line height). */
+.fill-rows {
+  min-height: 100%;
+  grid-auto-rows: minmax(var(--row-min), 1fr);
+  align-items: stretch;
+}
+.fill-rows > li {
+  container-type: size;
+  min-height: var(--row-min);
+}
+
+/* Grades: a roomy row becomes a card with a big score. */
+.grades {
+  --row-min: calc(1lh + 0.25rem + 6px + 2px);
+}
+.grades[data-bars='false'] {
+  --row-min: calc(1lh + 2px);
+}
+.grade-btn {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  justify-content: center;
+}
+@container (min-height: 4.75em) and (min-width: 9em) {
+  .grade-btn {
+    border-radius: 0.5rem;
+    background: rgb(var(--surface-2) / 0.55);
+    padding: 0.5em 0.75em;
+  }
+  .grade-row {
+    flex-wrap: wrap;
+    row-gap: 0.1em;
+  }
+  .grade-score {
+    flex-basis: 100%;
+    font-size: clamp(
+      1.25em,
+      min(30cqh, calc(85cqw / (var(--len, 6) * max(var(--glyph, 0.62), 0.5)))),
+      3.5em
+    );
+    line-height: 1.1;
+    transition: font-size 200ms ease;
+  }
+  .grade-bar {
+    height: clamp(6px, 7cqh, 10px);
+    margin-top: 0.4em;
+  }
+}
+
+/* Course list rows: a roomy row becomes a card, its colour bar running the full height. */
+.course-rows {
+  --row-min: calc(max(1.5rem, 1lh + 1rem) + 0.25rem + 2px);
+}
+@container (min-height: 3.75em) and (min-width: 9em) {
+  .course-row {
+    gap: 0.75em;
+    background: rgb(var(--surface-2) / 0.55);
+    padding: 0.5em 0.75em;
+  }
+  .course-bar {
+    height: auto;
+    align-self: stretch;
+  }
+  .course-row .course-name {
+    font-size: clamp(1em, 22cqh, 1.25em);
+  }
+}
+
+/* Course tiles: tall tiles get a wash of the course colour, with the name set lower and larger. */
+.course-tiles {
+  --row-min: calc(1lh + 2rem + 8px);
+}
+.course-tiles[data-score='true'] {
+  --row-min: calc(1lh + 3rem + 10px);
+}
+@container (min-height: 5.5em) and (min-width: 8em) {
+  .course-tile {
+    justify-content: flex-end;
+    padding: 0.625em 0.75em;
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--c) 16%, transparent),
+      transparent 80%
+    );
+  }
+  .course-tile > span {
+    flex: none;
+  }
+  .course-tile .course-name {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+    font-size: clamp(1em, min(12cqh, 10cqw), 1.25em);
+    line-height: 1.2;
+  }
+}

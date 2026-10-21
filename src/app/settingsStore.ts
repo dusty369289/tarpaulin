@@ -31,6 +31,10 @@ export const SettingsSchema = z.object({
   startMinimized: z.boolean().default(true),
   /** Closing the window keeps Tarpaulin running in the tray, so reminders keep arriving. */
   closeToTray: z.boolean().default(true),
+  /** The dashboard's top bar: translucent frosted glass, or a quiet solid strip. */
+  barStyle: z.enum(['frosted', 'basic']).default('frosted'),
+  /** Slide the top bar away until the pointer nears the top edge (never on touch screens). */
+  barFoldAway: z.boolean().default(false),
   /** Set once the first-launch "Make it yours" step is done or skipped. */
   onboarded: z.boolean().default(false),
 });

@@ -1,4 +1,5 @@
 import { BookOpen } from 'lucide-react';
+import type { CSSProperties } from 'react';
 import { z } from 'zod';
 import { useCanvas } from '../canvas/CanvasProvider';
 import { useCatalog, useCatalogStatus, useCourseIds } from '../canvas/hooks';
@@ -22,7 +23,7 @@ export const CourseList = defineWidget({
   defaultSize: { w: 4, h: 6 },
   minSize: { w: 2, h: 3 },
   settingsSchema: schema,
-  Component: function CourseListWidget({ settings, size }) {
+  Component: function CourseListWidget({ settings }) {
     const catalog = useCatalog();
     const status = useCatalogStatus();
     const ids = useCourseIds(settings.courseIds);
@@ -34,11 +35,16 @@ export const CourseList = defineWidget({
           const courses = catalog.inScope.filter((c) => ids.includes(c.id));
           if (courses.isEmpty) return <EmptyState>No courses in scope.</EmptyState>;
           const tiles = settings.layout === 'tiles';
-          const cols = tiles ? Math.max(1, Math.min(4, Math.floor(size.w / 2))) : 1;
+          // Both layouts add columns as the widget widens (tiles from 10em, rows from 15em) and
+          // share out spare height; roomy rows turn into cards (`.course-rows` in index.css).
           return (
             <ul
-              className={tiles ? 'grid w-gap' : 'flex flex-col w-gap'}
-              style={tiles ? { gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` } : undefined}
+              className={
+                tiles
+                  ? 'fill-rows course-tiles grid w-gap [grid-template-columns:repeat(auto-fit,minmax(min(100%,10em),1fr))]'
+                  : 'fill-rows course-rows wide-grid [--col:15em]'
+              }
+              data-score={settings.showScore}
             >
               {courses.map((c) => (
                 <li key={c.id} className="min-w-0">
@@ -47,20 +53,24 @@ export const CourseList = defineWidget({
                     onClick={() => openLink(c.url)}
                     className={
                       tiles
-                        ? 'flex h-full w-full flex-col gap-0.5 rounded-md border border-border p-2 text-left transition hover:-translate-y-0.5 hover:bg-surface-2'
-                        : 'flex w-full items-center gap-2 rounded-md px-1 py-0.5 text-left hover:bg-surface-2'
+                        ? 'course-tile flex h-full w-full flex-col gap-0.5 rounded-md border border-border p-2 text-left transition hover:-translate-y-0.5 hover:bg-surface-2'
+                        : 'course-row flex h-full w-full items-center gap-2 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-surface-2'
                     }
-                    style={tiles ? { borderTop: `4px solid ${c.color}` } : undefined}
+                    style={
+                      tiles
+                        ? ({ borderTop: `4px solid ${c.color}`, '--c': c.color } as CSSProperties)
+                        : undefined
+                    }
                   >
                     {!tiles && (
                       <span
-                        className="h-6 w-1.5 shrink-0 rounded-full"
+                        className="course-bar h-6 w-1.5 shrink-0 rounded-full"
                         style={{ backgroundColor: c.color }}
                         aria-hidden
                       />
                     )}
                     <span className="min-w-0 max-w-full flex-1">
-                      <span className="block truncate font-medium">{c.name}</span>
+                      <span className="course-name block truncate font-medium">{c.name}</span>
                       {(settings.showCode || settings.showTerm) && (
                         <span className="block truncate text-xs text-muted">
                           {[settings.showCode && c.code, settings.showTerm && c.term?.name]
