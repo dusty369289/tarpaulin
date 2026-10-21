@@ -6,6 +6,7 @@
   "permissions": [
     "allow-canvas-request",
     "allow-auth-status",
+    "allow-token-expiry",
     "allow-save-token",
     "allow-oauth-login",
     "allow-logout",

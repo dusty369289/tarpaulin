@@ -858,6 +858,181 @@ await step('layout survives a reload', async () => {
   );
 });
 
+// Token health. The sign-in and replace-token screens only exist where the app manages the token
+// itself, so these steps use the dev demo transport (`/?demo`): it "connects" with whatever is
+// typed and reads the mock through the dev proxy, whose token the stack switches below to play
+// the token Canvas now sees. Mock tokens: mock-expired is rejected (401 "Invalid access token."),
+// mock-expiring-<n>d expires in n days, and every other mock token never expires.
+if (stack.mock) {
+  const tokenBanner = page.getByTestId('token-banner');
+  const expiryBanner = page.getByTestId('token-expiry-banner');
+  const toDashboard = async () => {
+    await page.getByRole('tab', { name: /Home/ }).waitFor({ timeout: 20_000 });
+    await settled();
+  };
+  const reloadAs = async (token: string) => {
+    stack.useScenario(token);
+    await page.reload();
+    await toDashboard();
+  };
+  const setTheme = (theme: string) =>
+    page.evaluate((t) => {
+      const saved = JSON.parse(localStorage.getItem('tarpaulin.settings') ?? '{}');
+      localStorage.setItem(
+        'tarpaulin.settings',
+        JSON.stringify({ ...saved, state: { ...saved.state, theme: t } }),
+      );
+    }, theme);
+  let layoutBefore = '';
+
+  await step(
+    'token help: opens from the sign-in screen and links to the typed Canvas',
+    async () => {
+      layoutBefore = JSON.stringify((await stored()).pages);
+      await page.goto(`${stack.appUrl}/?demo`);
+      await page.getByRole('heading', { name: 'Connect to Canvas' }).waitFor({ timeout: 20_000 });
+      await settled();
+      const toggle = page.getByRole('button', { name: 'How do I get a token?' });
+      assert((await toggle.getAttribute('aria-expanded')) === 'false', 'help starts open');
+      await toggle.click();
+      const help = page.getByTestId('token-help');
+      await help.waitFor();
+      const text = await help.innerText();
+      for (const part of [
+        'Account → Settings',
+        'Approved Integrations',
+        '+ New Access Token',
+        'purpose',
+        'expiry date',
+        'only once',
+        'Paste it',
+        'Some universities turn access tokens off',
+        'system keychain',
+        'only ever reads from Canvas',
+      ])
+        assert(text.includes(part), `help is missing "${part}"`);
+      assert(text.includes('Type your Canvas address'), 'no prompt for the address');
+      await page.getByLabel('Canvas address').fill('canvas.example.edu');
+      const open = help.getByRole('button', { name: /canvas\.example\.edu\/profile\/settings/ });
+      await open.waitFor();
+      await settled();
+      await shot('20-token-help-onboarding');
+      // Opened through the transport's web-link opener (open_web_link in the desktop app).
+      await page.context().route('https://canvas.example.edu/**', (r) => r.fulfill({ body: 'ok' }));
+      const [popup] = await Promise.all([page.waitForEvent('popup'), open.click()]);
+      assert(
+        popup.url() === 'https://canvas.example.edu/profile/settings',
+        `opened ${popup.url()}`,
+      );
+      await popup.close();
+      await toggle.click();
+      assert((await help.count()) === 0, 'help did not fold away');
+      await page.getByLabel('Access token').fill('mock-realistic');
+      await page.getByRole('button', { name: 'Test & connect' }).click();
+      await toDashboard();
+      assert((await tokenBanner.count()) === 0, 'token banner with a working token');
+      assert((await expiryBanner.count()) === 0, 'expiry warning for a token with no expiry');
+    },
+  );
+
+  await step('expired token: a banner stays up and leads to replacing it in place', async () => {
+    await reloadAs('expired');
+    await tokenBanner.waitFor({ timeout: 20_000 });
+    assert(
+      (await tokenBanner.innerText()).includes('expired or been revoked'),
+      'banner does not say what happened',
+    );
+    // Not a flash: still there after the app's own retries and a reload.
+    await page.reload();
+    await toDashboard();
+    await tokenBanner.waitFor();
+    for (const theme of ['light', 'dark', 'high-contrast'] as const) {
+      await setTheme(theme);
+      await page.reload();
+      await toDashboard();
+      await tokenBanner.waitFor();
+      await shot(`21-token-expired-${theme}`);
+    }
+    await setTheme('system');
+    await page.reload();
+    await toDashboard();
+    await tokenBanner.getByRole('button', { name: 'How to get a token' }).click();
+    const dialog = page.getByRole('dialog', { name: 'How to get an access token' });
+    await dialog.getByTestId('token-help').waitFor();
+    assert(
+      (await dialog.getByRole('button', { name: /\/profile\/settings/ }).count()) === 1,
+      'no link to the connected Canvas settings page',
+    );
+    await settled();
+    await shot('22-token-help-dialog');
+    await dialog.getByRole('button', { name: 'Close' }).click();
+    await tokenBanner.getByRole('button', { name: /Paste a new token/ }).click();
+    const replace = page.getByRole('dialog', { name: 'Replace your access token' });
+    await replace.getByLabel(/New access token/).waitFor();
+    await settled();
+    await shot('23-token-replace');
+    stack.useScenario('realistic'); // the new token, as Canvas sees it
+    await replace.getByLabel(/New access token/).fill('mock-new-token');
+    await replace.getByRole('button', { name: 'Test & save token' }).click();
+    await replace.waitFor({ state: 'detached' });
+    await settled();
+    assert((await tokenBanner.count()) === 0, 'banner stayed after a working token');
+    assert((await page.getByTestId('widget-frame').count()) >= 4, 'widgets are gone');
+    assert(
+      JSON.stringify((await stored()).pages) === layoutBefore,
+      'pages or layout changed while replacing the token',
+    );
+  });
+
+  await step('expiry warning: 14 days ahead, again at 3 days, date in settings', async () => {
+    await reloadAs('expiring-10d');
+    await expiryBanner.waitFor({ timeout: 20_000 });
+    assert(
+      (await expiryBanner.innerText()).includes('expires in 10 days'),
+      `banner says: ${await expiryBanner.innerText()}`,
+    );
+    for (const theme of ['light', 'dark', 'high-contrast'] as const) {
+      await setTheme(theme);
+      await page.reload();
+      await toDashboard();
+      await expiryBanner.waitFor();
+      await shot(`24-token-expiring-${theme}`);
+    }
+    await setTheme('system');
+    await page.reload();
+    await toDashboard();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    const status = page.getByTestId('token-status');
+    await status.waitFor();
+    await settled();
+    assert((await status.innerText()).includes('Expires'), 'settings shows no expiry date');
+    await page.getByRole('button', { name: 'Dashboard' }).click();
+    await toDashboard();
+    await expiryBanner.getByRole('button', { name: 'Remind me 3 days before' }).click();
+    await settled();
+    assert((await expiryBanner.count()) === 0, 'dismiss did not hide the warning');
+    await page.reload();
+    await toDashboard();
+    assert((await expiryBanner.count()) === 0, 'dismissal was not remembered');
+    await reloadAs('expiring-2d');
+    await expiryBanner.waitFor({ timeout: 20_000 });
+    assert(
+      (await expiryBanner.innerText()).includes('expires in 2 days'),
+      'no second warning at 3 days',
+    );
+    await expiryBanner.getByRole('button', { name: 'Dismiss' }).click();
+    await reloadAs('realistic');
+    assert((await expiryBanner.count()) === 0, 'warning for a token with no expiry');
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await status.waitFor();
+    await settled();
+    assert((await status.innerText()).includes('No expiry date'), 'settings: no "no expiry"');
+    await page.getByRole('button', { name: 'Dashboard' }).click();
+    await page.goto(stack.appUrl);
+    await toDashboard();
+  });
+}
+
 if (stack.mock) {
   await step('read-only: no writes reached Canvas', async () => {
     assert(stack.mock!.writes.length === 0, JSON.stringify(stack.mock!.writes));

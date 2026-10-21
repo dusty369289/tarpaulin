@@ -1,6 +1,7 @@
 //! Read-only Canvas HTTP. Every request is a GET under `/api/v1/` on the configured base URL,
 //! and paginated array responses are followed through their `Link: rel="next"` headers.
 
+use serde::Serialize;
 use serde_json::Value;
 use url::Url;
 
@@ -130,7 +131,11 @@ async fn get_page(
         .map_err(|e| CanvasError::Network(e.to_string()))?;
     let status = response.status();
     if status == reqwest::StatusCode::UNAUTHORIZED {
-        return Err(CanvasError::Unauthorized);
+        let body = response.text().await.unwrap_or_default();
+        if is_credential_rejection(&body) {
+            return Err(CanvasError::Unauthorized);
+        }
+        return Err(CanvasError::Http { status: 401, body: body.chars().take(300).collect() });
     }
     let next = response
         .headers()
@@ -183,9 +188,139 @@ pub async fn get_all(
     Ok(Value::Array(items))
 }
 
+/// Canvas answers 401 both for a bad token ("Invalid access token.") and for a good token asking
+/// for something it may not see ("user not authorized to perform that action"). Only the first
+/// means the credentials are expired or revoked. Mirrors `isCredentialRejection` in
+/// src/canvas/token.ts.
+pub fn is_credential_rejection(body: &str) -> bool {
+    !body.to_ascii_lowercase().contains("user not authorized to perform that action")
+}
+
+/// What the frontend may know about the connected token's expiry (see src/canvas/token.ts).
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(tag = "status", rename_all = "kebab-case")]
+pub enum TokenExpiry {
+    Expires {
+        #[serde(rename = "expiresAt")]
+        expires_at: String,
+    },
+    Never,
+    Unknown,
+    NotApplicable,
+}
+
+/// Canvas looks a token up by its hint: the first five characters of the random part, after the
+/// `<shard id>~` prefix.
+pub fn token_hint(token: &str) -> Option<String> {
+    let random = token.trim().rsplit('~').next().unwrap_or_default();
+    let hint: String = random.chars().take(5).collect();
+    // Canvas's are letters and digits; - and _ (the mock's tokens) are safe in the path too.
+    let safe = |c: char| c.is_ascii_alphanumeric() || c == '-' || c == '_';
+    (hint.len() == 5 && hint.chars().all(safe)).then_some(hint)
+}
+
+/// Reads `GET /api/v1/users/self/tokens/:hint`. `visible_token` (`<shard id>~<hint>...`) must
+/// show the same hint, so a different token of the same user is never mistaken for this one.
+pub fn read_token_expiry(body: &Value, hint: &str) -> TokenExpiry {
+    let Some(visible) = body.get("visible_token").and_then(Value::as_str) else {
+        return TokenExpiry::Unknown;
+    };
+    let shown = visible.trim_end_matches("...").rsplit('~').next().unwrap_or_default();
+    if shown != hint {
+        return TokenExpiry::Unknown;
+    }
+    match body.get("expires_at") {
+        Some(Value::Null) => TokenExpiry::Never,
+        Some(Value::String(at)) if at.len() >= 10 && at.as_bytes()[0].is_ascii_digit() => {
+            TokenExpiry::Expires { expires_at: at.clone() }
+        }
+        _ => TokenExpiry::Unknown,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tells_rejected_credentials_from_permission_errors() {
+        assert!(is_credential_rejection(r#"{"errors":[{"message":"Invalid access token."}]}"#));
+        assert!(is_credential_rejection(
+            r#"{"status":"unauthenticated","errors":[{"message":"user authorization required"}]}"#
+        ));
+        assert!(!is_credential_rejection(
+            r#"{"status":"unauthorized","errors":[{"message":"user not authorized to perform that action"}]}"#
+        ));
+    }
+
+    #[test]
+    fn derives_token_hints() {
+        assert_eq!(token_hint("1234~AbCde7890xyz").as_deref(), Some("AbCde"));
+        assert_eq!(token_hint(" AbCde7890xyz ").as_deref(), Some("AbCde"));
+        assert_eq!(token_hint("mock-realistic").as_deref(), Some("mock-"));
+        assert_eq!(token_hint("1~ab"), None);
+        assert_eq!(token_hint("1~ab/cd"), None);
+    }
+
+    #[test]
+    fn reads_token_expiry() {
+        let body = |visible: &str, expires: Value| {
+            serde_json::json!({ "visible_token": visible, "expires_at": expires })
+        };
+        assert_eq!(
+            read_token_expiry(&body("7~AbCde...", "2030-01-02T03:04:05Z".into()), "AbCde"),
+            TokenExpiry::Expires { expires_at: "2030-01-02T03:04:05Z".into() }
+        );
+        assert_eq!(read_token_expiry(&body("7~AbCde...", Value::Null), "AbCde"), TokenExpiry::Never);
+        assert_eq!(read_token_expiry(&body("7~Other...", Value::Null), "AbCde"), TokenExpiry::Unknown);
+        assert_eq!(
+            read_token_expiry(&serde_json::json!({ "visible_token": "AbCde..." }), "AbCde"),
+            TokenExpiry::Unknown
+        );
+        assert_eq!(read_token_expiry(&serde_json::json!([]), "AbCde"), TokenExpiry::Unknown);
+        assert_eq!(
+            serde_json::to_value(TokenExpiry::Expires { expires_at: "2030-01-02T03:04:05Z".into() })
+                .unwrap(),
+            serde_json::json!({ "status": "expires", "expiresAt": "2030-01-02T03:04:05Z" })
+        );
+        assert_eq!(
+            serde_json::to_value(TokenExpiry::NotApplicable).unwrap(),
+            serde_json::json!({ "status": "not-applicable" })
+        );
+    }
+
+    /// A bad token is a credential failure; a good token refused one resource is not.
+    #[tokio::test]
+    async fn permission_401s_are_not_credential_failures() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            for body in [
+                r#"{"errors":[{"message":"Invalid access token."}]}"#,
+                r#"{"status":"unauthorized","errors":[{"message":"user not authorized to perform that action"}]}"#,
+            ] {
+                let (mut sock, _) = listener.accept().await.unwrap();
+                let mut buf = [0u8; 4096];
+                let _ = sock.read(&mut buf).await.unwrap();
+                let resp = format!(
+                    "HTTP/1.1 401 Unauthorized\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                sock.write_all(resp.as_bytes()).await.unwrap();
+            }
+        });
+        let base = normalize_base_url(&format!("http://127.0.0.1:{port}")).unwrap();
+        let http = reqwest::Client::new();
+        assert_eq!(
+            get_all(&http, &base, "t", "/api/v1/courses", &[]).await,
+            Err(CanvasError::Unauthorized)
+        );
+        assert!(matches!(
+            get_all(&http, &base, "t", "/api/v1/courses/1", &[]).await,
+            Err(CanvasError::Http { status: 401, .. })
+        ));
+    }
 
     #[test]
     fn normalizes_base_urls() {
