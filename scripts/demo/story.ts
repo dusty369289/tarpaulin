@@ -223,6 +223,9 @@ export async function story({
   // ── Top bar ─────────────────────────────────────────────────────────────────────────────────
   await settings();
   const fold = page.getByRole('switch', { name: 'Fold away the top bar' });
+  // Scroll it into view with an eased wheel, rather than a jump.
+  await moveTo(720, 520);
+  await scroll(((await fold.boundingBox())?.y ?? 400) - 420, 700);
   await point(fold);
   await fold.setChecked(true, { force: true });
   await pause(300);

@@ -46,6 +46,7 @@ const OVERLAY = () => {
       #demo-caption.show{opacity:1;transform:translate(-50%,0)}
       #demo-caption.near{bottom:auto;max-width:560px;transform:translateY(6px)}
       #demo-caption.near.show{transform:none}
+      html{scroll-behavior:auto!important}
       #demo-xfade{position:fixed;inset:0;width:100vw;height:100vh;z-index:2147483640;pointer-events:none}`;
     document.head.appendChild(style);
     const caption = document.createElement('div');
@@ -316,7 +317,9 @@ async function render(browser: Browser, appUrl: string, worker: number): Promise
       if (await target.isVisible()) return;
       await frame();
     }
-    await cdp.send("Page.captureScreenshot", { format: "png" }).then((s) => writeFileSync(`${OUT}/.timeout.png`, Buffer.from(s.data, "base64")));
+    await cdp
+      .send('Page.captureScreenshot', { format: 'png' })
+      .then((s) => writeFileSync(`${OUT}/.timeout.png`, Buffer.from(s.data, 'base64')));
     throw new Error(`Timed out waiting for ${target}`);
   }
 
@@ -348,7 +351,10 @@ const stack = await startStack(false);
 stack.useScenario('showcase');
 mkdirSync(OUT, { recursive: true });
 const browsers = await Promise.all(
-  Array.from({ length: WORKERS }, () => launch({ uncapped: true })),
+  // Smooth scrolling runs on real time, which the parallel recorders don't share.
+  Array.from({ length: WORKERS }, () =>
+    launch({ uncapped: true, args: ['--disable-smooth-scrolling'] }),
+  ),
 );
 
 // The pointer image, rendered once with a transparent background.
