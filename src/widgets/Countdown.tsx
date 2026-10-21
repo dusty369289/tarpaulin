@@ -1,5 +1,6 @@
 import { intervalToDuration } from 'date-fns';
 import { Hourglass } from 'lucide-react';
+import type { CSSProperties } from 'react';
 import { z } from 'zod';
 import { fromDeadline } from '../reader/items';
 import { useOpenItem } from '../reader/ReaderProvider';
@@ -23,6 +24,9 @@ const schema = z.object({
     unit: 'hours',
   }),
 });
+
+/** Rough width of each unit label in em, at full size (they're shown at 0.45em). */
+const UNIT_EM: Record<string, number> = { y: 0.6, mo: 1.5, d: 0.65, h: 0.65, m: 0.95, s: 0.55 };
 
 export const Countdown = defineWidget({
   type: 'countdown',
@@ -70,32 +74,44 @@ export const Countdown = defineWidget({
       );
       // Fewer units in small widgets so the digits can stay big.
       const maxUnits = size.w <= 2 ? 2 : size.w <= 3 ? 3 : 4;
+      const visible = past ? [] : shown.slice(0, maxUnits);
+      // The digits' width in em, so CSS can size them to fill their share of the box.
+      const digitStyle = {
+        '--dchars': past ? 3 : visible.reduce((n, [v]) => n + String(v).length, 0),
+        '--uem': visible.reduce((n, [, u]) => n + (UNIT_EM[u] ?? 0.7), 0),
+        '--n': Math.max(1, visible.length),
+      } as CSSProperties;
+      // The layout (stacked, side by side, or one line) follows the widget's shape: see `.cd`
+      // in index.css.
       return (
-        <div className="fit-box items-center gap-[0.25em] text-center">
-          <button
-            type="button"
-            onClick={onClick}
-            disabled={!onClick}
-            className="fit-line fit-hide-xs max-w-full truncate font-medium enabled:hover:underline"
-          >
-            {label}
-          </button>
-          <div
-            className={`fit-digits flex max-w-full items-baseline justify-center gap-x-[0.3em] font-semibold tabular-nums transition-colors ${urgent ? 'text-danger' : 'text-accent'}`}
-            aria-live="off"
-          >
-            {past ? (
-              <span>Now</span>
-            ) : (
-              shown.slice(0, maxUnits).map(([v, u]) => (
-                <span key={u} className="whitespace-nowrap">
-                  {v}
-                  <span className="ml-0.5 text-[0.45em] font-medium text-muted">{u}</span>
-                </span>
-              ))
-            )}
+        <div className="fit-box">
+          <div className="cd">
+            <button
+              type="button"
+              onClick={onClick}
+              disabled={!onClick}
+              className="cd-label truncate font-medium enabled:hover:underline"
+            >
+              {label}
+            </button>
+            <div
+              className={`fit-digits cd-digits flex items-baseline gap-x-[0.3em] whitespace-nowrap font-semibold tabular-nums transition-colors ${urgent ? 'text-danger' : 'text-accent'}`}
+              style={digitStyle}
+              aria-live="off"
+            >
+              {past ? (
+                <span>Now</span>
+              ) : (
+                visible.map(([v, u]) => (
+                  <span key={u} className="whitespace-nowrap">
+                    {v}
+                    <span className="ml-0.5 text-[0.45em] font-medium text-muted">{u}</span>
+                  </span>
+                ))
+              )}
+            </div>
+            {sub && <div className="cd-sub truncate text-muted">{sub}</div>}
           </div>
-          {sub && <div className="fit-hide-sm max-w-full truncate text-xs text-muted">{sub}</div>}
         </div>
       );
     };

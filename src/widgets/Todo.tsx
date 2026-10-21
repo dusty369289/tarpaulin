@@ -58,93 +58,102 @@ export const Todo = defineWidget({
       setDraft('');
     };
 
+    // With both lists and room for them, Canvas's to-dos and the checklist sit side by side
+    // (`.todo-both` in index.css).
+    const both = showCanvas && showLocal && !canvasItems.isEmpty;
     return (
-      <div className="flex h-full flex-col w-gap">
-        {showCanvas && (
-          <QueryGate queries={[todos.query]}>
-            {() =>
-              canvasItems.isEmpty && !showLocal ? (
-                <EmptyState>Nothing on your Canvas to-do list.</EmptyState>
-              ) : (
-                <ul className="flex flex-col w-gap" aria-label="Canvas to-do">
-                  {canvasItems.map((t) => (
-                    <li key={t.key} className="flex items-start gap-2">
-                      <CourseDot color={t.color} className="mt-1.5" />
-                      <div className="min-w-0 flex-1">
-                        <LinkButton
-                          onClick={() => openItem(fromTodo(t), t.url)}
-                          className="block truncate font-medium"
-                        >
-                          {t.title}
-                        </LinkButton>
-                        <div className="truncate text-xs text-muted">
-                          {t.courseName}
-                          {t.dueAt && ` · ${formatDue(t.dueAt, now, timeFmt)}`}
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )
-            }
-          </QueryGate>
-        )}
-        {showCanvas && showLocal && !canvasItems.isEmpty && <hr className="border-border" />}
-        {showLocal && (
-          <>
-            <ul className="flex flex-col gap-0.5" aria-label="My checklist">
-              {localItems.map((item) => (
-                <li key={item.id} className="group flex items-center gap-2 animate-in">
-                  <input
-                    type="checkbox"
-                    checked={item.done}
-                    aria-label={item.text}
-                    onChange={() =>
-                      save(local.items.map((i) => (i.id === item.id ? { ...i, done: !i.done } : i)))
-                    }
-                    className="h-4 w-4 shrink-0 accent-[rgb(var(--accent))]"
-                  />
-                  <span
-                    className={`min-w-0 flex-1 break-words transition-colors ${item.done ? 'text-muted line-through' : ''}`}
-                  >
-                    {item.text}
-                  </span>
-                  <button
-                    type="button"
-                    aria-label={`Delete ${item.text}`}
-                    onClick={() => save(local.items.filter((i) => i.id !== item.id))}
-                    className="btn-icon h-6 w-6 opacity-0 transition group-hover:opacity-100 focus:opacity-100"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <form
-              className="mt-auto flex gap-1 pt-1"
-              onSubmit={(e) => {
-                e.preventDefault();
-                add();
-              }}
-            >
-              <input
-                className="input min-w-0 py-1"
-                placeholder="Add a task…"
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                aria-label="New task"
-              />
-              <button
-                type="submit"
-                className="btn-icon shrink-0"
-                aria-label="Add task"
-                disabled={!draft.trim()}
+      <div className="todo h-full">
+        <div className={`flex h-full flex-col w-gap ${both ? 'todo-both' : ''}`}>
+          {showCanvas && (
+            <div className="todo-canvas min-w-0">
+              <QueryGate queries={[todos.query]}>
+                {() =>
+                  canvasItems.isEmpty && !showLocal ? (
+                    <EmptyState>Nothing on your Canvas to-do list.</EmptyState>
+                  ) : (
+                    <ul className="wide-grid" aria-label="Canvas to-do">
+                      {canvasItems.map((t) => (
+                        <li key={t.key} className="flex items-start gap-2">
+                          <CourseDot color={t.color} className="mt-1.5" />
+                          <div className="min-w-0 flex-1">
+                            <LinkButton
+                              onClick={() => openItem(fromTodo(t), t.url)}
+                              className="block truncate font-medium"
+                            >
+                              {t.title}
+                            </LinkButton>
+                            <div className="truncate text-xs text-muted">
+                              {t.courseName}
+                              {t.dueAt && ` · ${formatDue(t.dueAt, now, timeFmt)}`}
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )
+                }
+              </QueryGate>
+            </div>
+          )}
+          {both && <hr className="border-border" />}
+          {showLocal && (
+            <div className="todo-local flex min-w-0 flex-1 flex-col w-gap">
+              <ul className="wide-grid gap-y-0.5" aria-label="My checklist">
+                {localItems.map((item) => (
+                  <li key={item.id} className="group flex items-start gap-2 animate-in">
+                    <input
+                      type="checkbox"
+                      checked={item.done}
+                      aria-label={item.text}
+                      onChange={() =>
+                        save(
+                          local.items.map((i) => (i.id === item.id ? { ...i, done: !i.done } : i)),
+                        )
+                      }
+                      className="mt-[calc((1lh_-_1rem)/2)] h-4 w-4 shrink-0 accent-[rgb(var(--accent))]"
+                    />
+                    <span
+                      className={`min-w-0 flex-1 break-words transition-colors ${item.done ? 'text-muted line-through' : ''}`}
+                    >
+                      {item.text}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={`Delete ${item.text}`}
+                      onClick={() => save(local.items.filter((i) => i.id !== item.id))}
+                      className="btn-icon h-6 w-6 opacity-0 transition group-hover:opacity-100 focus:opacity-100"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <form
+                className="mt-auto flex gap-1 pt-1"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  add();
+                }}
               >
-                <Plus className="h-4 w-4" />
-              </button>
-            </form>
-          </>
-        )}
+                <input
+                  className="input min-w-0 py-1"
+                  placeholder="Add a task…"
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  aria-label="New task"
+                />
+                <button
+                  type="submit"
+                  className="btn-icon shrink-0"
+                  aria-label="Add task"
+                  disabled={!draft.trim()}
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </form>
+            </div>
+          )}
+        </div>
       </div>
     );
   },
