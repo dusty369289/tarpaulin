@@ -1,7 +1,8 @@
 import { intervalToDuration } from 'date-fns';
 import { Hourglass } from 'lucide-react';
 import { z } from 'zod';
-import { useCanvas } from '../canvas/CanvasProvider';
+import { fromDeadline } from '../reader/items';
+import { useOpenItem } from '../reader/ReaderProvider';
 import { useCourseIds, useNow, useUpcoming } from '../canvas/hooks';
 import { formatDue, toDate, useTimeFormat } from '../lib/dates';
 import { courseFilter, field } from './settings/fields';
@@ -35,7 +36,7 @@ export const Countdown = defineWidget({
     const now = useNow(settings.showSeconds ? 1000 : 15_000);
     const ids = useCourseIds(settings.courseIds);
     const deadlines = useUpcoming(60);
-    const { openLink } = useCanvas();
+    const openItem = useOpenItem();
     const timeFmt = useTimeFormat();
 
     const render = (label: string, target: Date | null, sub?: string, onClick?: () => void) => {
@@ -113,7 +114,7 @@ export const Countdown = defineWidget({
             next?.title ?? '',
             next?.date ?? null,
             next ? `${next.courseName} · ${formatDue(next.date!, now, timeFmt)}` : undefined,
-            next ? () => openLink(next.url) : undefined,
+            next ? () => openItem(fromDeadline(next), next.url) : undefined,
           );
         }}
       </QueryGate>

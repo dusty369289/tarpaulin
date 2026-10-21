@@ -8,6 +8,7 @@ fn main() {
             "oauth_login",
             "logout",
             "open_external",
+            "open_web_link",
             "app_version",
             "check_update",
             "install_update",

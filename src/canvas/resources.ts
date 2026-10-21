@@ -7,8 +7,11 @@ import {
   RawCalendarEvent,
   RawColors,
   RawCourse,
+  RawDiscussionTopic,
   RawEnrollment,
+  RawFile,
   RawPlannerItem,
+  RawQuiz,
   RawProfile,
   RawTodo,
   type AnnouncementData,
@@ -16,6 +19,7 @@ import {
   type CalendarEventData,
   type CourseData,
   type EnrollmentData,
+  type ItemDetail,
   type PlannerItemData,
   type PlannerItemType,
   type TodoData,
@@ -126,6 +130,7 @@ export const Planner = (startDate: string, endDate: string) =>
         key: `${p.plannable_type}:${p.plannable_id}`,
         id: p.plannable_id,
         type,
+        assignmentId: p.plannable.assignment_id ?? null,
         title: p.plannable.title || 'Untitled',
         courseId: p.course_id ?? null,
         contextName: p.context_name ?? '',
@@ -204,6 +209,7 @@ export const Announcements = (courseIds: string[], startDate: string, endDate: s
       courseId: courseIdFromContext(a.context_code),
       title: a.title || 'Announcement',
       message: htmlToText(a.message),
+      html: capHtml(a.message),
       postedAt: a.posted_at ?? a.delayed_post_at ?? null,
       author: a.author?.display_name ?? a.user_name ?? '',
       htmlUrl: urls.absolute(a.html_url),
@@ -234,6 +240,7 @@ export const CalendarEvents = (contextCodes: string[], startDate: string, endDat
       courseId: courseIdFromContext(e.context_code),
       contextName: e.context_name ?? '',
       htmlUrl: urls.absolute(e.html_url),
+      description: capHtml(e.description),
     }),
   });
 };
@@ -274,6 +281,8 @@ export const Todo = listResource({
       dueAt: a?.due_at ?? t.quiz?.due_at ?? null,
       pointsPossible: a?.points_possible ?? null,
       htmlUrl: urls.absolute(a?.html_url ?? t.html_url),
+      assignmentId: a?.id ?? null,
+      quizId: a ? null : (t.quiz?.id ?? null),
     };
   },
 });
@@ -286,3 +295,117 @@ export const MissingSubmissions = listResource({
   label: 'missing submission',
   map: (a, urls) => mapAssignment(a, null, urls),
 });
+
+// ---------------------------------------------------------------------------------------------
+// Single items, for the reader. Each is fetched when an item is first opened, then cached and
+// persisted like the lists, so it reopens instantly (and offline).
+
+/** Bodies over this are cut, so one huge page can't fill local storage. */
+export const MAX_HTML = 60_000;
+export function capHtml(html: string | null | undefined): string {
+  if (!html) return '';
+  return html.length > MAX_HTML ? html.slice(0, MAX_HTML) : html;
+}
+
+const blankDetail = {
+  dueAt: null,
+  lockAt: null,
+  unlockAt: null,
+  pointsPossible: null,
+  postedAt: null,
+  author: null,
+  submissionTypes: [],
+  allowedAttempts: null,
+  submission: null,
+  timeLimitMinutes: null,
+  questionCount: null,
+} satisfies Partial<ItemDetail>;
+
+export const AssignmentDetail = (courseId: string, id: string) =>
+  objectResource({
+    key: ['assignment', courseId, id],
+    path: `/api/v1/courses/${courseId}/assignments/${id}`,
+    query: { include: ['submission'] },
+    schema: RawAssignment,
+    map: (a, urls): ItemDetail => {
+      const s = a.submission;
+      return {
+        ...blankDetail,
+        kind: 'assignment',
+        title: a.name || 'Assignment',
+        html: capHtml(a.description),
+        htmlUrl: urls.absolute(a.html_url),
+        dueAt: a.due_at ?? null,
+        lockAt: a.lock_at ?? null,
+        unlockAt: a.unlock_at ?? null,
+        pointsPossible: a.points_possible ?? null,
+        submissionTypes: a.submission_types ?? [],
+        allowedAttempts: a.allowed_attempts && a.allowed_attempts > 0 ? a.allowed_attempts : null,
+        submission: s
+          ? {
+              state: s.workflow_state ?? null,
+              score: s.score ?? null,
+              grade: s.grade ?? null,
+              submittedAt: s.submitted_at ?? null,
+              late: s.late ?? false,
+              missing: s.missing ?? false,
+              excused: s.excused ?? false,
+            }
+          : null,
+      };
+    },
+  });
+
+export const QuizDetail = (courseId: string, id: string) =>
+  objectResource({
+    key: ['quiz', courseId, id],
+    path: `/api/v1/courses/${courseId}/quizzes/${id}`,
+    schema: RawQuiz,
+    map: (q, urls): ItemDetail => ({
+      ...blankDetail,
+      kind: 'quiz',
+      title: q.title || 'Quiz',
+      html: capHtml(q.description),
+      htmlUrl: urls.absolute(q.html_url),
+      dueAt: q.due_at ?? null,
+      lockAt: q.lock_at ?? null,
+      unlockAt: q.unlock_at ?? null,
+      pointsPossible: q.points_possible ?? null,
+      allowedAttempts: q.allowed_attempts && q.allowed_attempts > 0 ? q.allowed_attempts : null,
+      timeLimitMinutes: q.time_limit ?? null,
+      questionCount: q.question_count ?? null,
+    }),
+  });
+
+export const DiscussionDetail = (courseId: string, id: string) =>
+  objectResource({
+    key: ['discussion', courseId, id],
+    path: `/api/v1/courses/${courseId}/discussion_topics/${id}`,
+    schema: RawDiscussionTopic,
+    map: (d, urls): ItemDetail => ({
+      ...blankDetail,
+      kind: 'discussion',
+      title: d.title || 'Discussion',
+      html: capHtml(d.message),
+      htmlUrl: urls.absolute(d.html_url),
+      postedAt: d.posted_at ?? null,
+      author: d.author?.display_name ?? d.user_name ?? null,
+    }),
+  });
+
+/**
+ * A Canvas file's download URL. Images in Canvas content point at pages that need a browser
+ * login; the API hands out a signed URL that works with just the token. Signed URLs expire, so
+ * this is cached briefly (see useFileUrl).
+ */
+export const FileUrl = (fileId: string) =>
+  objectResource({
+    key: ['file-url', fileId],
+    path: `/api/v1/files/${fileId}`,
+    schema: RawFile,
+    map: (f) => ({
+      url: f.url ?? null,
+      name: f.display_name ?? null,
+      type: f['content-type'] ?? null,
+    }),
+  });

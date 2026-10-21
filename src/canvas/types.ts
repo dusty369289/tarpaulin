@@ -68,6 +68,42 @@ export const RawAssignment = z.object({
   published: bool,
   submission: RawSubmission.nullish(),
   is_quiz_assignment: bool,
+  /** HTML. Kept as Canvas sent it; sanitised only when rendered (src/reader/sanitize.ts). */
+  description: str,
+  allowed_attempts: num,
+});
+
+export const RawQuiz = z.object({
+  id,
+  title: str,
+  description: str,
+  html_url: str,
+  due_at: str,
+  lock_at: str,
+  unlock_at: str,
+  points_possible: num,
+  time_limit: num,
+  allowed_attempts: num,
+  question_count: num,
+  assignment_id: id.nullish(),
+});
+
+export const RawDiscussionTopic = z.object({
+  id,
+  title: str,
+  message: str,
+  posted_at: str,
+  html_url: str,
+  user_name: str,
+  author: z.object({ display_name: str }).passthrough().nullish(),
+  assignment_id: id.nullish(),
+});
+
+export const RawFile = z.object({
+  id,
+  display_name: str,
+  url: str,
+  'content-type': str,
 });
 
 /** `submissions` is `false` for announcements and an object for gradeable items. */
@@ -108,6 +144,7 @@ export const RawPlannerItem = z.object({
       end_at: str,
       all_day: bool,
       location_name: str,
+      assignment_id: id.nullish(),
     })
     .passthrough(),
 });
@@ -239,6 +276,8 @@ export interface PlannerItemData {
   key: string;
   id: string;
   type: PlannerItemType;
+  /** For quizzes and graded discussions: the assignment behind them. */
+  assignmentId?: string | null;
   title: string;
   courseId: string | null;
   contextName: string;
@@ -262,8 +301,10 @@ export interface AnnouncementData {
   id: string;
   courseId: string | null;
   title: string;
-  /** Plain text; Canvas sends HTML, which is never rendered as markup. */
+  /** Plain text, for previews. */
   message: string;
+  /** The body as Canvas sent it (HTML, capped). Only ever rendered through the sanitiser. */
+  html?: string;
   postedAt: string | null;
   author: string;
   htmlUrl: string | null;
@@ -280,6 +321,8 @@ export interface CalendarEventData {
   courseId: string | null;
   contextName: string;
   htmlUrl: string | null;
+  /** HTML description, capped; only ever rendered through the sanitiser. */
+  description?: string;
 }
 
 export interface EnrollmentData {
@@ -303,6 +346,8 @@ export interface TodoData {
   dueAt: string | null;
   pointsPossible: number | null;
   htmlUrl: string | null;
+  assignmentId?: string | null;
+  quizId?: string | null;
 }
 
 export interface UserProfile {
@@ -318,4 +363,26 @@ export interface ConnectionInfo {
   baseUrl: string | null;
   method: 'token' | 'oauth' | 'dev-proxy' | 'fixtures' | null;
   userName: string | null;
+}
+
+/** What the reader shows for one item, fetched when it's opened and cached like everything else. */
+export interface ItemDetail {
+  kind: 'assignment' | 'quiz' | 'discussion' | 'announcement' | 'event';
+  title: string;
+  /** Raw HTML (capped); sanitised when rendered. */
+  html: string;
+  htmlUrl: string | null;
+  dueAt: string | null;
+  lockAt: string | null;
+  unlockAt: string | null;
+  pointsPossible: number | null;
+  postedAt: string | null;
+  author: string | null;
+  /** Assignment facts. */
+  submissionTypes: string[];
+  allowedAttempts: number | null;
+  submission: SubmissionData | null;
+  /** Quiz facts. */
+  timeLimitMinutes: number | null;
+  questionCount: number | null;
 }

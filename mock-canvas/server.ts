@@ -59,6 +59,25 @@ const parseDate = (v: string | null): number | null => {
 };
 const strip = (o: Json) =>
   Object.fromEntries(Object.entries(o).filter(([k]) => !k.startsWith('_')));
+/** A Canvas File object whose `url` (normally a short-lived signed download link) is an SVG. */
+function mockFile(id: string): Json {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="240" viewBox="0 0 480 240"><rect width="480" height="240" fill="#e8eefc"/><g fill="#3b82f6">${[
+    60, 120, 90, 170, 140,
+  ]
+    .map((h, i) => `<rect x="${40 + i * 84}" y="${220 - h}" width="56" height="${h}" rx="6"/>`)
+    .join(
+      '',
+    )}</g><text x="20" y="34" font-family="sans-serif" font-size="20" fill="#1e293b">Figure ${id}</text></svg>`;
+  return {
+    id,
+    display_name: `figure-${id}.svg`,
+    filename: `figure-${id}.svg`,
+    'content-type': 'image/svg+xml',
+    url: `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`,
+    size: svg.length,
+  };
+}
+
 const rel = (url: unknown) =>
   typeof url === 'string' ? url.replace(/^https?:\/\/[^/]+/, '') : url;
 
@@ -355,6 +374,65 @@ export async function startMockCanvas(opts: MockCanvasOptions = {}): Promise<Moc
         items.sort((a, b) => String(a.due_at ?? '￿').localeCompare(String(b.due_at ?? '￿')));
       return paginate(req, url, items, res);
     }
+
+    // Single items, as the reader fetches them.
+    const one = path.match(
+      /^\/api\/v1\/courses\/([^/]+)\/(assignments|quizzes|discussion_topics|files)\/([^/]+)$/,
+    );
+    if (one) {
+      const [, cid, kind, itemId] = one;
+      const course = courseById(w, cid);
+      if (!course) throw new HttpError(404, 'The specified resource does not exist.');
+      const work = w.assignments.get(String(course.id)) ?? [];
+      if (kind === 'assignments') {
+        const a = work.find((x) => String(x.id) === itemId);
+        if (!a) throw new HttpError(404, 'The specified resource does not exist.');
+        const out = strip(a);
+        if (!list('include').includes('submission')) delete out.submission;
+        return out;
+      }
+      if (kind === 'quizzes') {
+        const a = work.find((x) => String(x.quiz_id) === itemId);
+        if (!a) throw new HttpError(404, 'The specified resource does not exist.');
+        return {
+          id: a.quiz_id,
+          title: a.name,
+          description: a.description,
+          html_url: `https://canvas.mock/courses/${cid}/quizzes/${itemId}`,
+          due_at: a.due_at,
+          lock_at: a.lock_at,
+          unlock_at: a.unlock_at,
+          points_possible: a.points_possible,
+          time_limit: 30,
+          allowed_attempts: 1,
+          question_count: 10,
+          assignment_id: a.id,
+          quiz_type: 'assignment',
+        };
+      }
+      if (kind === 'discussion_topics') {
+        const a = work.find(
+          (x) => String(x.id) === itemId && x._plannerType === 'discussion_topic',
+        );
+        const ann = w.announcements.find((x) => String(x.id) === itemId);
+        if (a)
+          return {
+            id: a.id,
+            title: a.name,
+            message: a.description,
+            posted_at: a.created_at,
+            html_url: `https://canvas.mock/courses/${cid}/discussion_topics/${itemId}`,
+            user_name: 'Course team',
+            assignment_id: a.id,
+            assignment: strip({ ...a, submission: undefined }),
+          };
+        if (ann) return ann;
+        throw new HttpError(404, 'The specified resource does not exist.');
+      }
+      return mockFile(itemId);
+    }
+    const file = path.match(/^\/api\/v1\/files\/([^/]+)$/);
+    if (file) return mockFile(file[1]);
 
     if (path === '/api/v1/planner/items') {
       // Canvas defaults the window to "from today" when start_date is omitted.

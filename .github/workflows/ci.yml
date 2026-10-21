@@ -136,7 +136,9 @@ jobs:
   passed:
     name: CI passed
     needs: [changes, web, rust]
-    if: always()
+    # Not when the run itself was cancelled (a newer push superseded it): that's not a failure,
+    # and the newer run reports instead.
+    if: ${{ always() && !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - name: Every job passed or was skipped as not affected

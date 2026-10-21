@@ -8,6 +8,7 @@ import { exposeSettle } from './app/settle';
 import { CanvasProvider } from './canvas/CanvasProvider';
 import { CatalogProvider } from './canvas/hooks';
 import { createDefaultTransport } from './canvas/transport';
+import { ReaderProvider } from './reader/ReaderProvider';
 import { ThemeProvider } from './theme/ThemeProvider';
 import './index.css';
 
@@ -42,7 +43,8 @@ pickTransport().then((transport) => {
         persistOptions={{
           persister,
           maxAge: 24 * 60 * 60_000,
-          buster: `v1-${transport.kind}`,
+          // Bumped when cached data changes shape (v2: item bodies kept for the reader).
+          buster: `v2-${transport.kind}`,
           dehydrateOptions: {
             shouldDehydrateQuery: (q) => q.queryKey[0] === 'canvas' && q.state.status === 'success',
           },
@@ -51,7 +53,9 @@ pickTransport().then((transport) => {
         <ThemeProvider>
           <CanvasProvider transport={transport}>
             <CatalogProvider>
-              <App />
+              <ReaderProvider>
+                <App />
+              </ReaderProvider>
             </CatalogProvider>
           </CanvasProvider>
         </ThemeProvider>
