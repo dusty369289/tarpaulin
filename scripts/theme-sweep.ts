@@ -56,6 +56,7 @@ const LEAVES = new Set(['src/main.tsx']);
 const EXTRA = [
   'scripts/widget-lab.ts',
   'scripts/browser.ts',
+  'scripts/contrast.ts',
   'mock-canvas',
   'tailwind.config.ts',
   'postcss.config.js',
@@ -212,6 +213,8 @@ try {
       `--scenario=${SCENARIOS}`,
       `--pairs=${todo.join(',')}`,
       `--report=${report}`,
+      // Reported, not failing (yet): measured text contrast and size in each style's galleries.
+      '--contrast',
     ],
     { stdio: 'inherit' },
   );
