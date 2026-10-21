@@ -18,7 +18,7 @@
     "test:widgets": "tsx scripts/widget-lab.ts",
     "test:ui": "tsx scripts/ui-check.ts",
     "canvas:mock": "tsx mock-canvas/server.ts",
-    "dev:mock": "CANVAS_BASE_URL=http://127.0.0.1:4810 CANVAS_TOKEN=${CANVAS_TOKEN:-mock-realistic} vite",
+    "dev:mock": "CANVAS_BASE_URL=http://127.0.0.1:4810 CANVAS_TOKEN=mock-${MOCK_SCENARIO:-realistic} vite",
     "test:all": "vitest run && tsx scripts/widget-lab.ts && tsx scripts/ui-check.ts",
     "format:check": "prettier --check .",
     "demo:video": "tsx scripts/demo-video.ts",
