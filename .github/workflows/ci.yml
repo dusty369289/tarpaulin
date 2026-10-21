@@ -28,13 +28,15 @@ jobs:
       app: ${{ steps.app.outputs.app }}
       rust: ${{ steps.rust.outputs.rust }}
       sweeps: ${{ steps.sweeps.outputs.sweeps }}
+      workflows: ${{ steps.workflows.outputs.workflows }}
     # Pull requests only (the filter asks the API for the PR's files); other events test everything.
     steps:
       - uses: dorny/paths-filter@v3
         if: github.event_name == 'pull_request'
         id: app
         with:
-          # A file counts if it matches every pattern: anything except docs and Markdown.
+          # A file counts if it matches every pattern: anything except docs, Markdown and the
+          # release workflow (CI never runs it; the workflow lint below checks it).
           predicate-quantifier: every
           filters: |
             app:
@@ -42,6 +44,14 @@ jobs:
               - '!**/*.md'
               - '!docs/**'
               - '!LICENSE'
+              - '!.github/workflows/release.yml'
+      - uses: dorny/paths-filter@v3
+        if: github.event_name == 'pull_request'
+        id: workflows
+        with:
+          filters: |
+            workflows:
+              - '.github/**'
       - uses: dorny/paths-filter@v3
         if: github.event_name == 'pull_request'
         id: rust
@@ -75,6 +85,19 @@ jobs:
               - 'package.json'
               - 'pnpm-lock.yaml'
               - '.github/workflows/ci.yml'
+
+  # Seconds-long syntax and expression check of every workflow, whenever one changes.
+  workflows:
+    name: Lint workflows
+    needs: changes
+    if: needs.changes.outputs.workflows == 'true' || github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: actionlint
+        run: |
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash) 1.7.12
+          ./actionlint -color
 
   # The web checks are split into three jobs that run side by side: the quick static checks,
   # the UI check, and the widget sweeps (the slowest part), so the slowest decides the wall time.
@@ -201,7 +224,7 @@ jobs:
 
   passed:
     name: CI passed
-    needs: [changes, checks, ui, widgets, themes, rust]
+    needs: [changes, workflows, checks, ui, widgets, themes, rust]
     # Not when the run itself was cancelled (a newer push superseded it): that's not a failure,
     # and the newer run reports instead.
     if: ${{ always() && !cancelled() }}
