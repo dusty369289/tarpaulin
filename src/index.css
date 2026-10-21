@@ -294,7 +294,6 @@ body {
   .clock-date {
     display: block;
     font-size: clamp(0.8125rem, min(2.4cqw, 17cqh), 2rem);
-    line-height: 1.25;
   }
   .clock-greet {
     font-weight: 600;
