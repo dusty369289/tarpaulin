@@ -1,35 +1,21 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { useSettings } from '../app/settingsStore';
 import { useActivePage } from '../dashboard/store';
 import { hexToTriple, readableOn } from '../lib/color';
 import { getBackground } from './backgrounds';
 import { usePageLook } from './look';
-import { FONTS, THEMES, type ThemeName } from './themes';
-
-function useSystemDark() {
-  const query = '(prefers-color-scheme: dark)';
-  const [dark, setDark] = useState(() => window.matchMedia(query).matches);
-  useEffect(() => {
-    const mq = window.matchMedia(query);
-    const onChange = (e: MediaQueryListEvent) => setDark(e.matches);
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, []);
-  return dark;
-}
-
-export function useResolvedTheme(): ThemeName {
-  const theme = useSettings((s) => s.theme);
-  const systemDark = useSystemDark();
-  return theme === 'system' ? (systemDark ? 'dark' : 'light') : theme;
-}
+import { useResolvedTheme } from './mode';
+import { FONTS, modeOf, THEMES } from './themes';
 
 /**
  * Writes the theme tokens to CSS variables on <html>; every component reads those. A textured
- * background (of the page being shown) brings its own chrome colours, except in high contrast.
+ * background (of the page being shown) brings its own chrome colours for the current mode,
+ * except in high contrast. `data-theme`, `data-mode` and `data-background` on <html> let CSS
+ * pick each texture's light or dark variant.
  */
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const resolved = useResolvedTheme();
+  const mode = modeOf(resolved);
   const { accent, font, radius, fontScale } = useSettings();
   const page = useActivePage();
   const background = getBackground(usePageLook(page).background);
@@ -37,7 +23,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const root = document.documentElement;
-    const tokens = { ...(textured ? background.tokens! : THEMES[resolved]) };
+    const tokens = { ...(textured ? background.tokens![mode] : THEMES[resolved]) };
     const custom = accent && hexToTriple(accent);
     // High contrast keeps its own accent: a custom colour could break the contrast guarantee.
     if (custom && resolved !== 'high-contrast') {
@@ -49,10 +35,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     root.style.setProperty('--radius', `${radius}px`);
     root.style.fontSize = `${16 * fontScale}px`;
     root.dataset.theme = resolved;
+    root.dataset.mode = mode;
     root.dataset.background = textured ? background.id : 'plain';
-    const dark = textured ? background.dark : resolved !== 'light';
-    root.style.colorScheme = dark ? 'dark' : 'light';
-  }, [resolved, accent, font, radius, fontScale, background, textured]);
+    root.style.colorScheme = mode;
+  }, [resolved, mode, accent, font, radius, fontScale, background, textured]);
 
   return <>{children}</>;
 }

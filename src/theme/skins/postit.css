@@ -9,6 +9,16 @@
     rgb(0 0 0 / 0.05)
   );
 }
+/* After dark the paper catches a little light along the top instead. */
+.skin-root[data-skin='postit'][data-mode='dark'] > .skin-frame {
+  background-image: linear-gradient(
+    to bottom,
+    rgb(255 255 255 / 0.05),
+    transparent 18%,
+    transparent 85%,
+    rgb(0 0 0 / 0.14)
+  );
+}
 .skin-root[data-skin='postit'] .skin-header {
   padding-top: calc(var(--w-pad) * 1.15);
 }
