@@ -82,7 +82,11 @@ jobs:
         if: steps.pw-cache.outputs.cache-hit != 'true'
         run: pnpm exec playwright install chromium
       - name: Install Chromium system dependencies
-        run: pnpm exec playwright install-deps chromium
+        # The runner image ships a Microsoft apt source that sometimes refuses requests (403),
+        # which fails apt-get update for everything; nothing here needs it.
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list /etc/apt/sources.list.d/microsoft*.list
+          pnpm exec playwright install-deps chromium
       # Both start their own mock Canvas and Vite server; no secrets or network needed.
       - run: pnpm test:widgets
       # Again with a wide monospace font forced, so layouts never depend on one font's metrics.
