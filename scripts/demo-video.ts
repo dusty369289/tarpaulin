@@ -33,6 +33,12 @@ const EPOCH = Date.now(); // every browser's virtual clock starts here
 
 // Click ripple and caption banner. The pointer itself is drawn by ffmpeg from the logged positions,
 // so frames where only the pointer moves don't need re-rendering.
+interface DemoCaptionApi {
+  __demoCaptionSet: (title: string, sub?: string) => { w: number; h: number };
+  __demoCaptionMove: (left: number, top: number, animate: boolean) => void;
+  __demoCaptionShow: (show: boolean) => void;
+}
+
 const OVERLAY = () => {
   const install = () => {
     if (document.getElementById('demo-caption')) return;
@@ -40,12 +46,11 @@ const OVERLAY = () => {
     style.textContent = `
       .demo-ripple{position:fixed;width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;border:3px solid #6366f1;z-index:2147483646;pointer-events:none;animation:demo-ripple 450ms ease-out forwards}
       @keyframes demo-ripple{from{transform:scale(.3);opacity:1}to{transform:scale(1.4);opacity:0}}
-      #demo-caption{position:fixed;left:50%;bottom:34px;transform:translate(-50%,8px);z-index:2147483645;pointer-events:none;opacity:0;transition:opacity 300ms ease,transform 300ms ease;
-        background:rgba(17,24,39,.88);color:#fff;padding:12px 22px;border-radius:14px;font:600 20px/1.3 ui-sans-serif,system-ui,sans-serif;text-align:center;max-width:780px;box-shadow:0 12px 40px -10px rgba(0,0,0,.5);backdrop-filter:blur(6px)}
-      #demo-caption small{display:block;font-weight:400;font-size:15px;opacity:.8;margin-top:3px}
-      #demo-caption.show{opacity:1;transform:translate(-50%,0)}
-      #demo-caption.near{bottom:auto;max-width:560px;transform:translateY(6px)}
-      #demo-caption.near.show{transform:none}
+      #demo-caption{position:fixed;left:0;top:0;z-index:2147483645;pointer-events:none;opacity:0;transform:translateY(6px);transition:opacity 280ms ease,transform 280ms ease,left 420ms cubic-bezier(.45,0,.55,1),top 420ms cubic-bezier(.45,0,.55,1);
+        background:rgba(17,24,39,.9);color:#fff;padding:12px 20px;border-radius:14px;font:600 19px/1.3 ui-sans-serif,system-ui,sans-serif;text-align:center;max-width:540px;box-shadow:0 12px 40px -10px rgba(0,0,0,.5);backdrop-filter:blur(6px)}
+      #demo-caption small{display:block;font-weight:400;font-size:15px;opacity:.82;margin-top:3px}
+      #demo-caption.show{opacity:1;transform:none}
+      #demo-caption.jump{transition:opacity 280ms ease,transform 280ms ease}
       html{scroll-behavior:auto!important}
       #demo-xfade{position:fixed;inset:0;width:100vw;height:100vh;z-index:2147483640;pointer-events:none}`;
     document.head.appendChild(style);
@@ -64,12 +69,9 @@ const OVERLAY = () => {
       },
       true,
     );
-    (
-      window as unknown as {
-        __demoCaption: (t: string, s?: string, at?: { left: number; top: number }) => void;
-      }
-    ).__demoCaption = (title, sub, at) => {
-      if (!title) return caption.classList.remove('show');
+    const api = window as unknown as DemoCaptionApi;
+    /** Sets the text (hidden until shown) and returns the caption's size. */
+    api.__demoCaptionSet = (title, sub) => {
       caption.innerHTML = '';
       caption.append(title);
       if (sub) {
@@ -77,11 +79,16 @@ const OVERLAY = () => {
         small.textContent = sub;
         caption.append(small);
       }
-      caption.classList.toggle('near', !!at);
-      caption.style.left = at ? `${at.left}px` : '';
-      caption.style.top = at ? `${at.top}px` : '';
-      caption.classList.add('show');
+      const r = caption.getBoundingClientRect();
+      return { w: Math.ceil(r.width), h: Math.ceil(r.height) };
     };
+    api.__demoCaptionMove = (left, top, animate) => {
+      caption.classList.toggle('jump', !animate);
+      caption.style.left = `${left}px`;
+      caption.style.top = `${top}px`;
+      void caption.offsetWidth;
+    };
+    api.__demoCaptionShow = (show) => caption.classList.toggle('show', show);
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install);
   else install();
@@ -193,6 +200,7 @@ async function render(browser: Browser, appUrl: string, worker: number): Promise
   async function moveTo(x: number, y: number, size = 40) {
     const dist = Math.hypot(x - mouse.x, y - mouse.y);
     if (dist < 2) return;
+    await clearPath(x, y);
     const ms = (180 + 150 * Math.log2(dist / Math.max(8, size) + 1)) * between(0.9, 1.12);
     const bow = dist * between(0.03, 0.09) * (rand() < 0.5 ? -1 : 1);
     if (dist < 260) return stroke(x, y, ms, bow);
@@ -236,6 +244,7 @@ async function render(browser: Browser, appUrl: string, worker: number): Promise
     await point(from, at.x, at.y);
     const start = { ...mouse };
     await pause(between(160, 260));
+    await clearPath(start.x + dx, start.y + dy);
     await page.mouse.down();
     const len = Math.hypot(dx, dy);
     await stroke(start.x + dx, start.y + dy, between(950, 1200), len * between(0.02, 0.05));
@@ -244,35 +253,122 @@ async function render(browser: Browser, appUrl: string, worker: number): Promise
     await pause(700);
   }
   // Captions stay up long enough to read (about 0.9s plus 0.28s a word) before the next one
-  // replaces them, and can sit beside the element the action is on instead of at the bottom.
+  // replaces them. They sit beside the element the action is on, placed to keep clear of it, of
+  // anything the story says is about to be used, of the pointer, and of the pointer's next path:
+  // when a move would cross the caption, it slides out of the way first.
+  type Rect = { x: number; y: number; width: number; height: number };
+  const inflate = (r: Rect, m: number): Rect => ({
+    x: r.x - m,
+    y: r.y - m,
+    width: r.width + 2 * m,
+    height: r.height + 2 * m,
+  });
+  const overlap = (a: Rect, b: Rect) =>
+    Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)) *
+    Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
+  /** Small boxes along the straight path from the pointer to (x, y), for clearance checks. */
+  const pathBoxes = (x: number, y: number): Rect[] => {
+    const steps = Math.max(1, Math.ceil(Math.hypot(x - mouse.x, y - mouse.y) / 40));
+    return Array.from({ length: steps + 1 }, (_, k) => ({
+      x: mouse.x + ((x - mouse.x) * k) / steps - 36,
+      y: mouse.y + ((y - mouse.y) * k) / steps - 36,
+      width: 72,
+      height: 72,
+    }));
+  };
+  let cap: {
+    size: { w: number; h: number };
+    near?: Locator;
+    avoid: Locator[];
+    rect: Rect | null;
+  } | null = null;
   let captionDue = 0;
-  async function caption(title: string, sub?: string, hold = 0, near?: Locator) {
-    if (videoMs < captionDue) await pause(captionDue - videoMs);
-    let at: { left: number; top: number } | undefined;
-    if (near && title) {
-      const box = await near.boundingBox();
-      if (box) {
-        const width = 560; // the caption's max width, roughly
-        const left = Math.min(
-          Math.max(16, box.x + box.width / 2 - width / 2),
-          SIZE.width - width - 16,
-        );
-        // Below the element when it's near the top, otherwise just above it.
-        const top = box.y < 200 ? Math.min(box.y + box.height + 14, SIZE.height - 110) : box.y - 92;
-        at = { left, top: Math.max(16, top) };
+  const api = () => page.evaluate.bind(page);
+
+  async function placeCaption(extra: Rect[], animate: boolean) {
+    if (!cap) return;
+    const { w, h } = cap.size;
+    const near = cap.near ? await cap.near.boundingBox().catch(() => null) : null;
+    const clear: Rect[] = [{ x: mouse.x - 30, y: mouse.y - 30, width: 60, height: 60 }, ...extra];
+    if (near) clear.push(near);
+    for (const l of cap.avoid) {
+      const b = await l.boundingBox().catch(() => null);
+      if (b) clear.push(b);
+    }
+    const keep = clear.map((r) => inflate(r, 12));
+    const M = 16;
+    const G = 18;
+    const spots: Array<[number, number]> = [];
+    if (near) {
+      const cy = near.y + near.height / 2;
+      for (const x of [near.x + near.width / 2 - w / 2, near.x, near.x + near.width - w]) {
+        spots.push([x, near.y - h - G], [x, near.y + near.height + G]);
+      }
+      spots.push([near.x + near.width + G, cy - h / 2], [near.x - w - G, cy - h / 2]);
+    }
+    spots.push([SIZE.width / 2 - w / 2, SIZE.height - h - 30], [SIZE.width / 2 - w / 2, 86]);
+    let best: Rect | null = null;
+    let bestScore = Infinity;
+    for (const [sx, sy] of spots) {
+      const x = Math.min(Math.max(M, sx), SIZE.width - w - M);
+      if (sy < M || sy + h > SIZE.height - M) continue;
+      const r = { x, y: sy, width: w, height: h };
+      const covered = keep.reduce((sum, k) => sum + overlap(r, k), 0);
+      const dist = near
+        ? Math.hypot(x + w / 2 - (near.x + near.width / 2), sy + h / 2 - (near.y + near.height / 2))
+        : sy < SIZE.height / 2
+          ? 60
+          : 0;
+      const score = covered * 20 + dist;
+      if (score < bestScore) {
+        bestScore = score;
+        best = r;
       }
     }
-    await page.evaluate(
-      ([t, s, a]) =>
-        (
-          window as unknown as {
-            __demoCaption: (t: string, s?: string, at?: { left: number; top: number }) => void;
-          }
-        ).__demoCaption(t, s, a),
-      [title, sub, at] as const,
+    best ??= { x: SIZE.width / 2 - w / 2, y: SIZE.height - h - 30, width: w, height: h };
+    if (cap.rect && Math.abs(cap.rect.x - best.x) < 4 && Math.abs(cap.rect.y - best.y) < 4) return;
+    cap.rect = best;
+    await api()(([l, t, a]) => (window as unknown as DemoCaptionApi).__demoCaptionMove(l, t, a), [
+      best.x,
+      best.y,
+      animate,
+    ] as const);
+  }
+  /** Before the pointer heads to (x, y): move the caption if it's in the way. */
+  async function clearPath(x: number, y: number) {
+    if (!cap?.rect) return;
+    const path = pathBoxes(x, y);
+    const hit = inflate(cap.rect, 8);
+    if (path.some((p) => overlap(p, hit) > 0)) {
+      await placeCaption(path, true);
+      await pause(160);
+    }
+  }
+  async function caption(
+    title: string,
+    sub?: string,
+    hold = 0,
+    near?: Locator,
+    avoid: Locator[] = [],
+  ) {
+    if (process.env.DEMO_TIMES && worker === 0) console.log((videoMs / 1000).toFixed(1), title);
+    if (videoMs < captionDue) await pause(captionDue - videoMs);
+    if (cap) {
+      await api()(() => (window as unknown as DemoCaptionApi).__demoCaptionShow(false));
+      cap = null;
+      if (title) await pause(260);
+    }
+    captionDue = 0;
+    if (!title) return;
+    const size = await api()(
+      ([t, s]) => (window as unknown as DemoCaptionApi).__demoCaptionSet(t, s),
+      [title, sub] as const,
     );
+    cap = { size, near, avoid, rect: null };
+    await placeCaption([], false);
+    await api()(() => (window as unknown as DemoCaptionApi).__demoCaptionShow(true));
     const words = `${title} ${sub ?? ''}`.trim().split(/\s+/).length;
-    captionDue = title ? videoMs + 900 + 280 * words : 0;
+    captionDue = videoMs + 900 + 280 * words;
     if (hold) await pause(hold);
   }
   /** Change the screen (a mode, a look) as a cross-fade: the old frame dissolves into the new. */
