@@ -177,7 +177,8 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
       <Section title="Look">
         <p className="-mt-1 text-sm text-muted">
           A look sets the background and the widget style together, on every page. Each page can
-          have its own (Edit › Style), and each widget too (its settings).
+          have its own (Edit › Style), and each widget too (its settings). Every look has a light
+          and a dark version, picked by Mode under Appearance.
         </p>
         <LookPicker
           value={settings}
@@ -204,7 +205,10 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
       </Section>
 
       <Section title="Appearance">
-        <Row label="Mode" help="Colours of the Plain background, Card widgets and menus.">
+        <Row
+          label="Mode"
+          help="Every look has a light and a dark version. High contrast swaps in maximum-contrast colours and keeps each style's shape and fonts."
+        >
           <select
             className="input w-auto"
             value={settings.theme}

@@ -155,6 +155,21 @@ await step('first launch: pick a look (plain by default) and layout', async () =
     'Cork board did not apply live',
   );
   await shot('00-setup-cork');
+  // The look tiles and mode previews switch to the dark variants live.
+  await page.getByRole('radio', { name: /^Dark/ }).click();
+  await settled();
+  const tileMode = await page
+    .getByTestId('look-cork')
+    .locator('[data-mode]')
+    .first()
+    .getAttribute('data-mode');
+  const body = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  assert(
+    tileMode === 'dark' && body === 'rgb(69, 48, 31)',
+    `dark cork not applied in setup: tile ${tileMode}, page ${body}`,
+  );
+  await shot('00-setup-cork-dark');
+  await page.getByRole('radio', { name: /^Match system/ }).click();
   await page.getByTestId('look-plain').click();
   await page.getByRole('button', { name: 'Continue' }).click();
   await settled();
@@ -325,32 +340,117 @@ const skinsOnScreen = () =>
     .locator('[data-widget-id] .skin-root')
     .evaluateAll((els) => els.map((el) => (el as HTMLElement).dataset.skin));
 
+// Look, its background and widget style, and the page colour each mode paints.
 const LOOKS = [
-  ['cork', 'cork', 'postit'],
-  ['journal', 'dots', 'journal'],
-  ['blueprint', 'blueprint', 'blueprint'],
-  ['terminal', 'crt', 'terminal'],
-  ['swiss', 'poster', 'swiss'],
-  ['arcade', 'night-sky', 'pixel'],
-  ['plain', 'plain', 'card'],
+  ['cork', 'cork', 'postit', 'rgb(176, 122, 78)', 'rgb(69, 48, 31)'],
+  ['journal', 'dots', 'journal', 'rgb(247, 241, 227)', 'rgb(30, 30, 34)'],
+  ['blueprint', 'blueprint', 'blueprint', 'rgb(232, 239, 248)', 'rgb(15, 76, 129)'],
+  ['terminal', 'crt', 'terminal', 'rgb(238, 243, 234)', 'rgb(5, 10, 6)'],
+  ['swiss', 'poster', 'swiss', 'rgb(242, 239, 232)', 'rgb(17, 17, 17)'],
+  ['arcade', 'night-sky', 'pixel', 'rgb(142, 203, 247)', 'rgb(42, 26, 94)'],
+  ['plain', 'plain', 'card', 'rgb(244, 245, 247)', 'rgb(15, 17, 23)'],
 ] as const;
-for (const [look, background, skin] of LOOKS) {
-  await step(`look: ${look}`, async () => {
-    await page.getByRole('button', { name: 'Settings', exact: true }).click();
-    await page.getByTestId(`look-${look}`).click();
+
+async function setMode(theme: string) {
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('combobox').first().selectOption(theme);
+  await settled();
+}
+
+/** What the page and its widgets actually render: html attributes, body colour, widget tokens. */
+const rendered = () =>
+  page.evaluate(() => {
+    const html = document.documentElement;
+    const roots = [...document.querySelectorAll<HTMLElement>('[data-widget-id] .skin-root')];
+    return {
+      theme: html.dataset.theme,
+      mode: html.dataset.mode,
+      background: html.dataset.background,
+      body: getComputedStyle(document.body).backgroundColor,
+      widgetModes: [...new Set(roots.map((r) => r.dataset.mode))],
+      surfaces: roots.map((r) => getComputedStyle(r).getPropertyValue('--surface').trim()),
+    };
+  });
+
+// Every look in light and then dark mode: the texture, chrome and widget colours all switch.
+const lightSurfaces: Record<string, string[]> = {};
+for (const mode of ['light', 'dark'] as const) {
+  await step(`mode: ${mode}`, async () => {
+    await setMode(mode);
+    const r = await rendered();
+    assert(r.theme === mode && r.mode === mode, `html is ${r.theme}/${r.mode}`);
     await page.getByRole('button', { name: 'Dashboard' }).click();
     await settled();
-    const applied = await page.evaluate(() => document.documentElement.dataset.background);
-    assert(applied === background, `background is ${applied}`);
-    const skins = await skinsOnScreen();
-    assert(
-      skins.length > 0 && skins.every((s) => s === skin),
-      `widgets render as ${[...new Set(skins)]}`,
-    );
-    await assertGridLayout();
-    await shot(`10-look-${look}`);
   });
+  for (const [look, background, skin, lightBg, darkBg] of LOOKS) {
+    await step(`look: ${look} (${mode})`, async () => {
+      await page.getByRole('button', { name: 'Settings', exact: true }).click();
+      const tile = page.getByTestId(`look-${look}`);
+      const swatchModes = await tile
+        .locator('[data-mode]')
+        .evaluateAll((els) => [...new Set(els.map((el) => (el as HTMLElement).dataset.mode))]);
+      assert(
+        swatchModes.length === 1 && swatchModes[0] === mode,
+        `look tile previews ${swatchModes}`,
+      );
+      await tile.click();
+      await page.getByRole('button', { name: 'Dashboard' }).click();
+      await settled();
+      const r = await rendered();
+      assert(r.background === background, `background is ${r.background}`);
+      assert(r.mode === mode, `html data-mode is ${r.mode}`);
+      const bg = mode === 'light' ? lightBg : darkBg;
+      assert(r.body === bg, `page is ${r.body}, expected ${bg}`);
+      const skins = await skinsOnScreen();
+      assert(
+        skins.length > 0 && skins.every((s) => s === skin),
+        `widgets render as ${[...new Set(skins)]}`,
+      );
+      assert(
+        r.widgetModes.length === 1 && r.widgetModes[0] === mode,
+        `widgets in ${r.widgetModes}`,
+      );
+      if (mode === 'light') lightSurfaces[look] = r.surfaces;
+      else
+        assert(
+          r.surfaces.every((s, i) => s !== lightSurfaces[look]?.[i]),
+          `widget colours did not change for dark: ${r.surfaces[0]}`,
+        );
+      await assertGridLayout();
+      await shot(`10-look-${look}-${mode}`);
+    });
+  }
 }
+
+await step('high contrast overrides a textured look', async () => {
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByTestId('look-cork').click();
+  await page.getByRole('combobox').first().selectOption('high-contrast');
+  await settled();
+  await page.getByRole('button', { name: 'Dashboard' }).click();
+  await settled();
+  const r = await rendered();
+  assert(
+    r.theme === 'high-contrast' && r.mode === 'dark' && r.background === 'plain',
+    `html is ${r.theme}/${r.mode}/${r.background}`,
+  );
+  assert(r.body === 'rgb(0, 0, 0)', `page is ${r.body}`);
+  assert(
+    r.surfaces.length > 0 && r.surfaces.every((s) => s === '0 0 0'),
+    `widgets keep style colours: ${r.surfaces}`,
+  );
+  const skins = await skinsOnScreen();
+  assert(
+    skins.every((s) => s === 'postit'),
+    `widgets lost their style: ${skins}`,
+  );
+  await assertGridLayout();
+  await shot('10-look-cork-high-contrast');
+  await setMode('system');
+  await page.getByTestId('look-plain').click();
+  await page.getByRole('button', { name: 'Dashboard' }).click();
+  await settled();
+});
 
 await step('page style: own background, one widget restyled, then applied to all', async () => {
   await page.getByRole('button', { name: 'Edit' }).click();

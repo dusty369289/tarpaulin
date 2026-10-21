@@ -1,14 +1,26 @@
-import type { ThemeTokens } from '../themes';
+import type { ByMode, ThemeTokens } from '../themes';
+
+/** One of a style's paper colours, in light and dark mode. */
+export interface Paper {
+  id: string;
+  name: string;
+  /** CSS colour for the picker dot. */
+  swatch: ByMode<string>;
+  tokens: ByMode<Partial<ThemeTokens>>;
+}
 
 /** How a widget looks: its colours, type, edges, decorations and iconography. */
 export interface Skin {
   id: string;
   name: string;
   description: string;
-  /** Colours scoped to the widget. Omitted tokens inherit the app theme. */
-  tokens?: Partial<ThemeTokens>;
+  /**
+   * Colours scoped to the widget, per mode. Omitted tokens inherit the app theme. High contrast
+   * ignores them, so widgets keep the style's shape and type but use the high-contrast colours.
+   */
+  tokens?: ByMode<Partial<ThemeTokens>>;
   /** Paper colours the user can pick per widget; the first is the default. Each overrides tokens. */
-  papers?: Array<{ id: string; name: string; swatch: string; tokens: Partial<ThemeTokens> }>;
+  papers?: Paper[];
   /** When true, `auto` paper cycles through the papers so a board of widgets looks varied. */
   mixPapers?: boolean;
   /** Body text. */
@@ -28,6 +40,6 @@ export interface Skin {
   decor?: string[];
   /** Whether the header shows the widget's icon. */
   headerIcon: boolean;
-  /** CSS background for the picker swatch. */
-  swatch: string;
+  /** CSS background for the picker swatch, per mode. */
+  swatch: ByMode<string>;
 }

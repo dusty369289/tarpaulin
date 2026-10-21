@@ -26,6 +26,9 @@ declare global {
       types: string[];
       minSize: (type: string) => { w: number; h: number };
       render: (c: LabCase) => Promise<LabReport>;
+      /** Switches Settings › Mode ('light', 'dark', 'high-contrast', 'system'); resolves to the
+       *  applied light/dark mode once the page has settled. */
+      setTheme: (theme: string) => Promise<string>;
       sweep: (cases: LabCase[]) => Promise<LabReport[]>;
     };
     __tarpaulin?: {

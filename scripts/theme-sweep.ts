@@ -1,20 +1,28 @@
-// Runs the widget layout sweep (scripts/widget-lab.ts) once per widget style, skipping any style
-// whose hash matches the last run that passed. A style's hash covers its own files
-// (src/theme/skins/<id>.ts and .css) plus everything every style shares: widgets, frame, global
-// CSS, fonts, the lab and the mock data. Change one style and only that style is re-swept;
-// change a widget and every style is.
+// Runs the widget layout sweep (scripts/widget-lab.ts) once per widget style and colour mode,
+// skipping any style/mode whose hash matches the last run that passed. A style's hash covers its
+// own files (src/theme/skins/<id>.ts and .css, which hold both its light and dark variants), the
+// mode, plus everything every style shares: widgets, frame, global CSS, fonts, the lab and the
+// mock data. Change one style and only that style is re-swept (in both modes); change a widget
+// and every style is.
 //
-//   pnpm test:themes              # sweep changed styles, record passes in .cache/theme-sweep.json
-//   pnpm test:themes --all        # ignore the cache
-//   pnpm test:themes --dry-run    # just print what would run
+//   pnpm test:themes                 # sweep changed styles, record passes in .cache/theme-sweep.json
+//   pnpm test:themes --all           # ignore the cache
+//   pnpm test:themes --modes=dark    # only these modes (default: light,dark)
+//   pnpm test:themes --dry-run       # just print what would run
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const CACHE = '.cache/theme-sweep.json';
-// The plain card style is the default, swept on every scenario by `pnpm test:widgets` already.
-const COVERED = new Set(['card']);
+// The plain card style in light mode is the default, swept on every scenario by
+// `pnpm test:widgets` already.
+const COVERED = new Set(['card:light']);
+const MODES = (
+  process.argv.find((a) => a.startsWith('--modes='))?.split('=')[1] ??
+  process.env.THEME_MODES ??
+  'light,dark'
+).split(',');
 const SKIN_DIR = 'src/theme/skins';
 // Scenarios each style is swept against: everyday data and the awkward stuff.
 const SCENARIOS = process.env.THEME_SCENARIOS ?? 'realistic,edge';
@@ -24,6 +32,8 @@ const SHARED = [
   'src/index.css',
   'src/theme/skins/shared.css',
   'src/theme/skins/types.ts',
+  'src/theme/skins/index.ts',
+  'src/theme/mode.ts',
   'src/theme/palette.ts',
   'src/theme/themes.ts',
   'src/dev',
@@ -67,20 +77,21 @@ function skinFiles(): Record<string, string> {
 }
 
 const shared = hashFiles(SHARED);
+// Keyed "<style>:<mode>", e.g. "postit:dark".
 const hashes = Object.fromEntries(
-  Object.entries(skinFiles())
-    .filter(([id]) => !COVERED.has(id))
-    .map(([id, f]) => {
-      return [
-        id,
-        createHash('sha256')
-          .update(shared)
-          .update(hashFiles([join(SKIN_DIR, `${f}.ts`), join(SKIN_DIR, `${f}.css`)]))
-          .update(SCENARIOS)
-          .digest('hex')
-          .slice(0, 16),
-      ];
-    }),
+  Object.entries(skinFiles()).flatMap(([id, f]) => {
+    const own = hashFiles([join(SKIN_DIR, `${f}.ts`), join(SKIN_DIR, `${f}.css`)]);
+    return MODES.map((mode) => [
+      `${id}:${mode}`,
+      createHash('sha256')
+        .update(shared)
+        .update(own)
+        .update(mode)
+        .update(SCENARIOS)
+        .digest('hex')
+        .slice(0, 16),
+    ]).filter(([key]) => !COVERED.has(key));
+  }),
 );
 
 const passed: Record<string, string> = existsSync(CACHE)
@@ -89,10 +100,10 @@ const passed: Record<string, string> = existsSync(CACHE)
 const all = process.argv.includes('--all');
 const todo = Object.keys(hashes).filter((id) => all || passed[id] !== hashes[id]);
 for (const id of Object.keys(hashes))
-  console.log(`${todo.includes(id) ? '→ sweep' : '✔ skip '} ${id.padEnd(12)} ${hashes[id]}`);
+  console.log(`${todo.includes(id) ? '→ sweep' : '✔ skip '} ${id.padEnd(18)} ${hashes[id]}`);
 
 if (process.argv.includes('--dry-run') || todo.length === 0) {
-  if (!todo.length) console.log('Every widget style passed at its current hash.');
+  if (!todo.length) console.log('Every widget style passed in every mode at its current hash.');
   process.exit(0);
 }
 
@@ -106,7 +117,7 @@ try {
       'tsx',
       'scripts/widget-lab.ts',
       `--scenario=${SCENARIOS}`,
-      `--skins=${todo.join(',')}`,
+      `--pairs=${todo.join(',')}`,
       `--report=${report}`,
     ],
     { stdio: 'inherit' },

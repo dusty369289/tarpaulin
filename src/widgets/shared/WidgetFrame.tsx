@@ -2,6 +2,7 @@ import { Copy, GripVertical, Settings2, Trash2, type LucideIcon } from 'lucide-r
 import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import { hexToTriple, readableOn } from '../../lib/color';
 import { usePageSkin } from '../../theme/look';
+import { useResolvedTheme } from '../../theme/mode';
 import { tokenStyle } from '../../theme/palette';
 import { getSkin, resolveSkin } from '../../theme/skins';
 import type { FrameSettings } from './frame';
@@ -73,15 +74,17 @@ export function WidgetFrame({
   onRemove,
 }: WidgetFrameProps) {
   const pageSkin = usePageSkin();
+  const theme = useResolvedTheme();
   const look = resolveSkin(getSkin(frame.style || pageSkin), widgetId, {
     paper: frame.paper,
     tilt: frame.tilt,
+    theme,
   });
   const { skin } = look;
   // Skin colours and fonts are CSS variables on the root, so the widget body and the decorations
   // both pick them up, and nothing outside this widget is affected.
   const rootStyle: CSSProperties & Record<string, string> = {
-    ...tokenStyle(look.tokens ?? {}),
+    ...tokenStyle(look.tokens),
     '--tilt': `${editMode ? 0 : Math.round(look.tilt * Math.min(1, 4 / columns) * 100) / 100}deg`,
   };
   if (skin.font) rootStyle['--skin-font'] = skin.font;
@@ -109,6 +112,7 @@ export function WidgetFrame({
       className="skin-root"
       data-skin={skin.id}
       data-paper={look.paper ?? undefined}
+      data-mode={look.mode}
       data-fill={frame.background}
       data-editing={editMode || undefined}
       style={rootStyle}

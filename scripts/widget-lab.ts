@@ -13,7 +13,9 @@
 //   pnpm test:widgets --live               # use a running `pnpm dev` (real Canvas) instead
 //   pnpm test:widgets --font="DejaVu Sans" # force a font, to reproduce another OS's metrics
 //   pnpm test:widgets --skins=postit,pixel # sweep in these widget styles (default: card only)
-//   pnpm test:widgets --report=out.json    # write {style: failures} for scripts/theme-sweep.ts
+//   pnpm test:widgets --modes=light,dark   # sweep in each colour mode (default: as the OS says)
+//   pnpm test:widgets --pairs=postit:dark,card:dark  # exactly these style/mode runs
+//   pnpm test:widgets --report=out.json    # write {style[:mode]: failures} for theme-sweep.ts
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { SCENARIOS } from '../mock-canvas/world';
 import type { LabCase, LabReport } from '../src/dev/labTypes';
@@ -30,12 +32,25 @@ const scenarios: string[] = live
   : arg('scenario')
     ? arg('scenario')!.split(',')
     : SCENARIOS;
-// Widget styles to sweep. '' is the page default, i.e. the plain card style.
-const skins: string[] = arg('skins')?.split(',') ?? [''];
+// Style/mode runs. A style of '' is the page default, i.e. the plain card style; a mode of ''
+// leaves Settings › Mode alone (Match system).
+interface Run {
+  skin: string;
+  mode: string;
+}
+const pairs = arg('pairs');
+const runs: Run[] = pairs
+  ? pairs.split(',').map((p) => {
+      const [skin, mode = ''] = p.split(':');
+      return { skin: skin === 'card' ? '' : skin, mode };
+    })
+  : (arg('skins')?.split(',') ?? ['']).flatMap((skin) =>
+      (arg('modes')?.split(',') ?? ['']).map((mode) => ({ skin, mode })),
+    );
+const modes = [...new Set(runs.map((r) => r.mode))];
+const runKey = (r: Run) => `${r.skin || 'card'}${r.mode ? `:${r.mode}` : ''}`;
 const reportPath = arg('report');
-const failuresBySkin: Record<string, number> = Object.fromEntries(
-  skins.map((s) => [s || 'card', 0]),
-);
+const failuresBySkin: Record<string, number> = Object.fromEntries(runs.map((r) => [runKey(r), 0]));
 
 const WIDTHS = [2, 3, 4, 5, 6, 8, 12];
 const HEIGHTS = [2, 3, 4, 5, 6, 9, 12];
@@ -106,9 +121,19 @@ for (const scenario of scenarios) {
   const types = (await page.evaluate(() => window.__tarpaulinLab!.types)).filter(
     (t) => !only || t === only,
   );
-  for (const skin of skins) {
+  for (const run of modes.flatMap((m) => runs.filter((r) => r.mode === m))) {
+    const { skin, mode } = run;
+    if (mode) {
+      const applied = await page.evaluate((m: string) => window.__tarpaulinLab!.setTheme(m), mode);
+      const expected = mode === 'light' ? 'light' : mode === 'system' ? applied : 'dark';
+      if (applied !== expected) {
+        console.log(`✘ [${scenario}] mode ${mode} did not apply (got ${applied})`);
+        failed++;
+      }
+    }
     const name = skin || 'card';
-    const label = skins.length > 1 || skin ? `${scenario}/${name}` : scenario;
+    const label =
+      runs.length > 1 || skin || mode ? `${scenario}/${name}${mode ? `/${mode}` : ''}` : scenario;
     const cases: LabCase[] = [];
     for (const type of types) {
       const min = await page.evaluate((t: string) => window.__tarpaulinLab!.minSize(t), type);
@@ -137,7 +162,7 @@ for (const scenario of scenarios) {
     const elapsed = Date.now() - started;
     const failures = reports.filter((r) => r.issues.length);
     failed += failures.length;
-    failuresBySkin[name] += failures.length;
+    failuresBySkin[runKey(run)] += failures.length;
     for (const r of failures) {
       const variant =
         r.settings && Object.keys(r.settings).length ? ` ${JSON.stringify(r.settings)}` : '';
@@ -151,10 +176,12 @@ for (const scenario of scenarios) {
     );
 
     if (shots) {
-      const dir = `screenshots/lab/${scenario}${skin ? `/${skin}` : ''}`;
+      const dir = `screenshots/lab/${scenario}${skin ? `/${skin}` : ''}${mode ? `/${mode}` : ''}`;
       mkdirSync(dir, { recursive: true });
       for (const type of types) {
-        await page.goto(`${stack.appUrl}/?gallery=${type}#/lab?gallery=${type}&skin=${skin}`);
+        await page.goto(
+          `${stack.appUrl}/?gallery=${type}#/lab?gallery=${type}&skin=${skin}&theme=${mode}`,
+        );
         await page.waitForSelector('#lab-gallery');
         await page.evaluate(() => window.__tarpaulin!.settled());
         await page.locator('#lab-gallery').screenshot({ path: `${dir}/${type}.png` });

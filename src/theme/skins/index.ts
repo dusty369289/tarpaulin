@@ -6,7 +6,8 @@ import { pixel } from './pixel';
 import { postit } from './postit';
 import { swiss } from './swiss';
 import { terminal } from './terminal';
-import type { Skin } from './types';
+import { modeOf, type Mode, type ThemeName, type ThemeTokens } from '../themes';
+import type { Paper, Skin } from './types';
 import './shared.css';
 
 // Adding a widget style = one .ts and one .css file in this folder, plus an entry here.
@@ -30,20 +31,28 @@ export function hashOf(s: string): number {
 export interface ResolvedSkin {
   skin: Skin;
   paper: string | null;
-  tokens: Skin['tokens'];
+  /** The light/dark variant in use; high contrast uses the dark textures. */
+  mode: Mode;
+  tokens: Partial<ThemeTokens>;
   tilt: number;
   decor: string | null;
 }
 
-/** Resolves a skin for one widget: paper (explicit or auto), tilt and decoration from its id. */
+/**
+ * Resolves a skin for one widget: paper (explicit or auto), tilt and decoration from its id, and
+ * colours for the theme. High contrast drops the style's colours so widgets use the
+ * high-contrast palette, keeping only the style's shape, type and decorations.
+ */
 export function resolveSkin(
   skin: Skin,
   widgetId: string,
-  opts: { paper?: string; tilt?: boolean } = {},
+  opts: { paper?: string; tilt?: boolean; theme?: ThemeName } = {},
 ): ResolvedSkin {
+  const theme = opts.theme ?? 'light';
+  const mode = modeOf(theme);
   const h = hashOf(widgetId);
   const papers = skin.papers ?? [];
-  let paper = papers.find((p) => p.id === opts.paper) ?? null;
+  let paper: Paper | null = papers.find((p) => p.id === opts.paper) ?? null;
   if (!paper && papers.length) paper = skin.mixPapers ? papers[h % papers.length] : papers[0];
   const decor = skin.decor?.length ? skin.decor[(h >>> 8) % skin.decor.length] : null;
   // Spread tilts evenly between -max and +max, never exactly flat.
@@ -54,10 +63,11 @@ export function resolveSkin(
   return {
     skin,
     paper: paper?.id ?? null,
-    tokens: { ...skin.tokens, ...paper?.tokens },
+    mode,
+    tokens: theme === 'high-contrast' ? {} : { ...skin.tokens?.[mode], ...paper?.tokens[mode] },
     tilt,
     decor: decor === 'none' ? null : decor,
   };
 }
 
-export type { Skin };
+export type { Paper, Skin };
