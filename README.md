@@ -52,6 +52,12 @@ When it opens, connect to your Canvas account in one of two ways:
 The token is stored in your operating system's keychain (macOS Keychain, Windows Credential
 Manager, or Secret Service on Linux), never in the app's files or in the web view.
 
+If the token has an expiry date, Tarpaulin looks it up (Canvas's own token API, with the token
+itself) and warns 14 days and again 3 days ahead; Settings shows the date. If Canvas rejects the
+token (expired or revoked), a banner stays up until you paste a new one, which you can do in place
+without losing your layout or settings. The sign-in screen has the same steps under **How do I get
+a token?**
+
 ### OAuth ("Sign in with Canvas")
 
 This needs a **developer key** from your institution's Canvas admin:
@@ -204,11 +210,11 @@ setting a default and a label with `field(z…, { label })`, and the settings pa
 
 ## Development without (or with) a Canvas account
 
-| Command                            | Data source                                                                                                                                                                                                                    |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `pnpm dev:mock`                    | The local mock Canvas (start it with `pnpm canvas:mock`). Pick a dataset with `CANVAS_TOKEN=mock-realistic` (default), `mock-showcase` (a busy, tidy term for demos), `mock-dense`, `mock-edge`, `mock-empty` or `mock-flaky`. |
-| `pnpm dev`                         | Your real Canvas through a GET-only dev proxy. Set `CANVAS_BASE_URL` and `CANVAS_TOKEN` (see `.env.example`). The token stays server-side.                                                                                     |
-| `VITE_TRANSPORT=fixtures pnpm dev` | Anonymised recorded responses.                                                                                                                                                                                                 |
+| Command                            | Data source                                                                                                                                                                                                                                                                                                                                |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm dev:mock`                    | The local mock Canvas (start it with `pnpm canvas:mock`). Pick a dataset with `CANVAS_TOKEN=mock-realistic` (default), `mock-showcase` (a busy, tidy term for demos), `mock-dense`, `mock-edge`, `mock-empty` or `mock-flaky`. Token health: `mock-expiring-10d` (any number of days), `mock-expired` (rejected); the others never expire. |
+| `pnpm dev`                         | Your real Canvas through a GET-only dev proxy. Set `CANVAS_BASE_URL` and `CANVAS_TOKEN` (see `.env.example`). The token stays server-side.                                                                                                                                                                                                 |
+| `VITE_TRANSPORT=fixtures pnpm dev` | Anonymised recorded responses.                                                                                                                                                                                                                                                                                                             |
 
 All of the mock data (and the recorded fixtures in `src/canvas/fixtures/`, which are generated
 from the mock) is invented. No real accounts, people or courses are in this repository.

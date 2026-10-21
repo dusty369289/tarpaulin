@@ -4,6 +4,7 @@ fn main() {
         tauri_build::AppManifest::new().commands(&[
             "canvas_request",
             "auth_status",
+            "token_expiry",
             "save_token",
             "oauth_login",
             "logout",

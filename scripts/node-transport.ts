@@ -22,6 +22,8 @@ export function nodeTransportFromEnv(): { transport: Transport; baseUrl: string 
       method: 'dev-proxy',
       userName: null,
     }),
+    // The smoke and record scripts don't need it, so they make no extra request for it.
+    tokenExpiry: async () => ({ status: 'unknown' }),
     connectWithToken: nope,
     connectWithOAuth: nope,
     disconnect: nope,

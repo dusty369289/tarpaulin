@@ -2,6 +2,10 @@
 // pagination and filtering behaviour, from generated worlds (see world.ts). The bearer token picks
 // the scenario: `mock-realistic`, `mock-dense`, `mock-edge`, `mock-empty`, `mock-flaky`.
 //
+// Token health has its own tokens. Every scenario token above never expires; `mock-expiring-10d`
+// (any number of days) is the realistic world with a token that expires that far from now; and
+// `mock-expired` is rejected like an expired or revoked token (401 "Invalid access token.").
+//
 // It also implements /login/oauth2/{auth,token} so the desktop OAuth flow can run end to end,
 // and it records any non-GET request to /api/ so tests can prove the app never writes to Canvas.
 //
@@ -96,16 +100,25 @@ export async function startMockCanvas(opts: MockCanvasOptions = {}): Promise<Moc
   const refreshTokens = new Map<string, ScenarioName>();
   let tokenCounter = 0;
 
-  const scenarioFor = (req: IncomingMessage): ScenarioName => {
-    const auth = req.headers.authorization ?? '';
-    const m = auth.match(/^Bearer\s+(.+)$/i);
+  const bearer = (req: IncomingMessage): string => {
+    const m = (req.headers.authorization ?? '').match(/^Bearer\s+(.+)$/i);
     if (!m)
       throw new HttpError(401, 'user authorization required', {
         status: 'unauthenticated',
         errors: [{ message: 'user authorization required' }],
       });
-    const token = m[1].trim();
+    return m[1].trim();
+  };
+  /** When a personal token expires (ms), or null for one that never does. */
+  const tokenExpiresAt = (token: string): number | null => {
+    const m = token.match(/^mock-expiring-(\d+)d$/);
+    return m ? world('realistic').now.getTime() + Number(m[1]) * DAY : null;
+  };
+
+  const scenarioFor = (req: IncomingMessage): ScenarioName => {
+    const token = bearer(req);
     if (token === 'mock') return 'realistic';
+    if (/^mock-expiring-\d+d$/.test(token)) return 'realistic';
     const direct = token.match(/^mock-(\w+)$/);
     if (direct && SCENARIOS.includes(direct[1] as ScenarioName)) return direct[1] as ScenarioName;
     const oauth = oauthTokens.get(token);
@@ -333,6 +346,33 @@ export async function startMockCanvas(opts: MockCanvasOptions = {}): Promise<Moc
       };
     }
     if (path === '/api/v1/users/self/colors') return { custom_colors: w.colors };
+
+    // Canvas finds a user's token by its hint (the first five characters after any `<shard>~`),
+    // and never returns the hint itself: `visible_token` shows it followed by "...".
+    const tokenMatch = path.match(/^\/api\/v1\/users\/self\/tokens\/([^/]+)$/);
+    if (tokenMatch) {
+      const token = bearer(req);
+      const hint = (token.split('~').pop() ?? '').slice(0, 5);
+      if (tokenMatch[1] !== hint && tokenMatch[1] !== '4242')
+        throw new HttpError(404, 'The specified resource does not exist.');
+      const expires = tokenExpiresAt(token);
+      return {
+        id: 4242,
+        created_at: '2025-08-20T09:00:00Z',
+        updated_at: '2025-08-20T09:00:00Z',
+        last_used_at: new Date(now).toISOString(),
+        purpose: 'Tarpaulin',
+        real_user_id: null,
+        remember_access: null,
+        scopes: [],
+        user_id: user.id,
+        workflow_state: 'active',
+        app_name: 'User-Generated',
+        visible_token: `${hint}...`,
+        expires_at: expires === null ? null : new Date(expires).toISOString(),
+        can_manually_regenerate: true,
+      };
+    }
 
     if (path === '/api/v1/courses') {
       const includes = list('include');

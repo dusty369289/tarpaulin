@@ -1,6 +1,8 @@
-import { KeyRound, Loader2, LogIn, PlugZap } from 'lucide-react';
+import { ChevronDown, HelpCircle, KeyRound, Loader2, LogIn, PlugZap } from 'lucide-react';
 import { useState } from 'react';
+import { tokenErrorMessage } from '../app/ReplaceToken';
 import { useCanvas } from '../canvas/CanvasProvider';
+import { TokenHelp } from './TokenHelp';
 
 const REDIRECTS = [43821, 43822, 43823].map((p) => `http://127.0.0.1:${p}/oauth/callback`);
 
@@ -13,6 +15,7 @@ export function Onboarding() {
   const [clientSecret, setClientSecret] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [help, setHelp] = useState(false);
 
   if (!transport.canManageCredentials) {
     return (
@@ -42,7 +45,9 @@ export function Onboarding() {
       else await transport.connectWithOAuth(baseUrl, clientId, clientSecret);
       await refreshConnection();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(
+        method === 'token' ? tokenErrorMessage(e) : e instanceof Error ? e.message : String(e),
+      );
     } finally {
       setBusy(false);
     }
@@ -95,9 +100,25 @@ export function Onboarding() {
         </div>
         {method === 'token' ? (
           <div>
-            <label className="label" htmlFor="token">
-              Access token
-            </label>
+            <div className="flex items-baseline justify-between gap-2">
+              <label className="label" htmlFor="token">
+                Access token
+              </label>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 text-xs text-accent hover:underline"
+                aria-expanded={help}
+                aria-controls="token-help"
+                onClick={() => setHelp(!help)}
+              >
+                <HelpCircle className="h-3.5 w-3.5" aria-hidden />
+                How do I get a token?
+                <ChevronDown
+                  className={`h-3.5 w-3.5 transition-transform ${help ? 'rotate-180' : ''}`}
+                  aria-hidden
+                />
+              </button>
+            </div>
             <input
               id="token"
               type="password"
@@ -106,10 +127,18 @@ export function Onboarding() {
               onChange={(e) => setToken(e.target.value)}
               autoComplete="off"
             />
-            <p className="mt-1 text-xs text-muted">
-              In Canvas: <b>Account → Settings → Approved Integrations → + New Access Token</b>.
-              It’s stored in your system keychain.
-            </p>
+            {help ? (
+              <div
+                id="token-help"
+                className="mt-2 rounded-md border border-border bg-surface p-3 animate-fade-in"
+              >
+                <TokenHelp address={baseUrl} />
+              </div>
+            ) : (
+              <p className="mt-1 text-xs text-muted">
+                Made in Canvas under <b>Account → Settings</b>. It’s stored in your system keychain.
+              </p>
+            )}
           </div>
         ) : (
           <>

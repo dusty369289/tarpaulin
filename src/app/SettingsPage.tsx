@@ -1,5 +1,15 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Download, Loader2, LogOut, RefreshCw, RotateCcw, Upload } from 'lucide-react';
+import {
+  ArrowLeft,
+  Download,
+  HelpCircle,
+  KeyRound,
+  Loader2,
+  LogOut,
+  RefreshCw,
+  RotateCcw,
+  Upload,
+} from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useCanvas } from '../canvas/CanvasProvider';
 import { useCatalog } from '../canvas/hooks';
@@ -10,6 +20,10 @@ import { BackgroundPicker, LookPicker, SkinPicker } from '../theme/pickers';
 import { pickSettings, useSettings } from './settingsStore';
 import { NotificationsSection, StartupSection } from './DesktopSettings';
 import { FoldedList, Row, Section, Switch } from '../ui';
+import { TokenHelpDialog } from '../onboarding/TokenHelp';
+import { ReplaceToken } from './ReplaceToken';
+import { useFormatExpiry } from './TokenBanner';
+import { useAuthFailure, useTokenExpiry } from './tokenHealth';
 import { appVersion, useUpdater } from './updater';
 
 function UpdatesSection() {
@@ -95,6 +109,56 @@ function UpdatesSection() {
   );
 }
 
+/** The access token's health, its expiry date, and the help and replace-in-place controls. */
+function TokenRows() {
+  const { connection } = useCanvas();
+  const expiry = useTokenExpiry();
+  const rejected = useAuthFailure();
+  const formatExpiry = useFormatExpiry();
+  const [open, setOpen] = useState<'help' | 'replace' | null>(null);
+  const e = expiry.data;
+  const status = rejected
+    ? 'Canvas rejected it: it has expired or been revoked.'
+    : expiry.isLoading
+      ? 'Checking when it expires…'
+      : e?.status === 'expires'
+        ? `Expires ${formatExpiry(e.expiresAt)}.`
+        : e?.status === 'never'
+          ? 'No expiry date: it works until you delete it in Canvas.'
+          : 'Canvas didn’t say when it expires.';
+  return (
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-2" data-testid="token-status">
+        <div>
+          <div className="text-sm">Access token</div>
+          <div className={`text-xs ${rejected ? 'text-danger' : 'text-muted'}`}>{status}</div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button type="button" className="btn" onClick={() => setOpen('help')}>
+            <HelpCircle className="h-4 w-4" /> How to get a token
+          </button>
+          <button
+            type="button"
+            className={`btn ${rejected ? 'btn-primary' : ''}`}
+            aria-expanded={open === 'replace'}
+            onClick={() => setOpen(open === 'replace' ? null : 'replace')}
+          >
+            <KeyRound className="h-4 w-4" /> Replace token
+          </button>
+        </div>
+      </div>
+      {open === 'replace' && (
+        <div className="rounded-md border border-border p-3 animate-fade-in">
+          <ReplaceToken onDone={() => setOpen(null)} />
+        </div>
+      )}
+      {open === 'help' && (
+        <TokenHelpDialog address={connection?.baseUrl} onClose={() => setOpen(null)} />
+      )}
+    </>
+  );
+}
+
 function AppVersion() {
   const [version, setVersion] = useState('');
   useEffect(() => {
@@ -165,6 +229,7 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
                 : connection?.method}
           </span>
         </Row>
+        {(connection?.method === 'token' || connection?.method === 'dev-proxy') && <TokenRows />}
         {transport.canManageCredentials && (
           <Row label="Disconnect" help="Removes the credentials from your keychain.">
             <button

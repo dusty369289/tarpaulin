@@ -8,6 +8,7 @@ import { exposeSettle } from './app/settle';
 import { resumeAfterUpdate } from './app/updater';
 import { CanvasProvider } from './canvas/CanvasProvider';
 import { CatalogProvider } from './canvas/hooks';
+import { isAuthError } from './canvas/token';
 import { createDefaultTransport } from './canvas/transport';
 import { ReaderProvider } from './reader/ReaderProvider';
 import { ThemeProvider } from './theme/ThemeProvider';
@@ -15,7 +16,12 @@ import './index.css';
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: 1, refetchOnWindowFocus: true, gcTime: 24 * 60 * 60_000 },
+    queries: {
+      // A rejected token won't work a second later; retrying only delays the banner.
+      retry: (failures, error) => failures < 1 && !isAuthError(error),
+      refetchOnWindowFocus: true,
+      gcTime: 24 * 60 * 60_000,
+    },
   },
 });
 
