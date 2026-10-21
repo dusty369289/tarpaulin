@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Switch } from '../../ui';
 import { baseType, numberBounds, readMeta, type FieldMeta } from './fields';
 
 export interface CourseOption {
@@ -77,24 +78,12 @@ function Field({ name, schema, meta, value, onChange, courses }: FieldProps) {
   if (base instanceof z.ZodBoolean) {
     return (
       <div>
-        <label
-          htmlFor={id}
-          className="flex cursor-pointer items-center justify-between gap-3 text-sm"
-        >
-          <span>{meta.label}</span>
-          <span className="relative inline-flex">
-            <input
-              id={id}
-              type="checkbox"
-              role="switch"
-              className="peer sr-only"
-              checked={Boolean(value)}
-              onChange={(e) => onChange(e.target.checked)}
-            />
-            <span className="h-5 w-9 rounded-full bg-border transition-colors peer-checked:bg-accent peer-focus-visible:ring-2 peer-focus-visible:ring-accent" />
-            <span className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4" />
-          </span>
-        </label>
+        <Switch
+          label={meta.label}
+          checked={Boolean(value)}
+          onChange={onChange}
+          className="flex w-full justify-between"
+        />
         {help}
       </div>
     );
