@@ -16,7 +16,10 @@ export interface Director {
   scroll: (dy: number, ms?: number) => Promise<void>;
   /** Move the pointer to a point on screen (eased). */
   moveTo: (x: number, y: number) => Promise<void>;
-  caption: (title: string, sub?: string, hold?: number) => Promise<void>;
+  /** Show a caption (empty title hides it); `near` puts it beside that element. */
+  caption: (title: string, sub?: string, hold?: number, near?: Locator) => Promise<void>;
+  /** Make a change on screen as a cross-fade from the old frame. */
+  crossfade: (change: () => Promise<void>, ms?: number) => Promise<void>;
   /** Keep rendering until the element is visible. */
   until: (target: Locator) => Promise<void>;
   /** Let animations finish (a fixed hold, so every render takes identical frames). */
@@ -37,6 +40,7 @@ export async function story({
   scroll,
   moveTo,
   caption,
+  crossfade,
   until,
   settle,
   startRecording,
@@ -55,29 +59,23 @@ export async function story({
     await dashboard(hold);
   };
   type Mode = 'light' | 'dark';
-  /** Light ↔ dark as an on-screen effect: every colour cross-fades (see src/dev/demoHooks.ts). */
+  /** Light ↔ dark as an on-screen effect (see src/dev/demoHooks.ts). */
   const fadeTo = async (mode: Mode, hold = 1400) => {
-    await page.evaluate(() => document.documentElement.classList.add('demo-fade'));
-    await pause(34);
-    await page.evaluate((m) => window.__tarpaulinDemo!.setMode(m), mode);
-    await pause(900);
-    await page.evaluate(() => document.documentElement.classList.remove('demo-fade'));
+    await crossfade(() => page.evaluate((m) => window.__tarpaulinDemo!.setMode(m), mode));
     await pause(hold);
   };
-  /** A new look (textures can't cross-fade) swapped in behind a brief frosted blur. */
+  /** Another look (and mode), dissolved in. */
   const dipTo = async (id: string, mode: Mode, hold = 1400) => {
-    await page.evaluate(() => document.getElementById('demo-dip')!.classList.add('on'));
-    await pause(300);
-    await page.evaluate(
-      ([l, m]) => {
-        window.__tarpaulinDemo!.setMode(m as Mode);
-        window.__tarpaulinDemo!.applyLook(l);
-      },
-      [id, mode],
+    await crossfade(() =>
+      page.evaluate(
+        ([l, m]) => {
+          window.__tarpaulinDemo!.setMode(m as Mode);
+          window.__tarpaulinDemo!.applyLook(l);
+        },
+        [id, mode],
+      ),
     );
-    await pause(200);
-    await page.evaluate(() => document.getElementById('demo-dip')!.classList.remove('on'));
-    await pause(380 + hold);
+    await pause(hold);
   };
 
   await page.goto(`${appUrl}/?demo`);
@@ -87,6 +85,8 @@ export async function story({
   });
   await page.reload();
   await until(page.getByLabel('Canvas address'));
+  // Every look's fonts, loaded up front so none swaps in mid-scene.
+  await page.evaluate(() => Promise.all([...document.fonts].map((f) => f.load().catch(() => {}))));
   await settle();
   startRecording();
   await pause(400);
@@ -97,20 +97,31 @@ export async function story({
   );
 
   // ── Connect ──────────────────────────────────────────────────────────────────────────────────
-  await caption('Connect your Canvas account', 'Your Canvas address and an access token', 400);
+  await caption(
+    'Connect your Canvas account',
+    'Your Canvas address and an access token',
+    400,
+    page.getByLabel('Canvas address'),
+  );
   await type(page.getByLabel('Canvas address'), 'canvas.youruni.edu');
   await type(page.getByLabel('Access token'), '7~DemoTokenForTheVideo');
   await caption(
     'The token goes straight into the system keychain',
     'Tarpaulin only ever reads from Canvas. It never submits or changes anything',
     300,
+    page.getByRole('button', { name: 'Test & connect' }),
   );
   await click(page.getByRole('button', { name: 'Test & connect' }), 300);
   await until(page.getByRole('heading', { name: 'Make it yours' }));
   await settle();
 
   // ── First run: looks apply live ─────────────────────────────────────────────────────────────
-  await caption('Pick a look', 'Every choice applies live, and can be changed any time', 500);
+  await caption(
+    'Pick a look',
+    'Every choice applies live, and can be changed any time',
+    500,
+    page.getByTestId('look-cork'),
+  );
   await click(page.getByTestId('look-cork'), 1000);
   await click(page.getByTestId('look-terminal'), 1000);
   await click(page.getByTestId('look-plain'), 600);
@@ -124,6 +135,7 @@ export async function story({
     'Everything that matters, at a glance',
     'The next deadline, what’s due, your to-dos, calendar and announcements',
     900,
+    widget('due-soon'),
   );
   await point(widget('countdown'), 0.5, 0.45);
   await pause(700);
@@ -135,6 +147,7 @@ export async function story({
     'Read it without leaving',
     'Assignments and announcements open right here, in Tarpaulin’s own layout',
     300,
+    page.getByTestId('due-item').first(),
   );
   await click(page.getByTestId('due-item').first(), 300);
   await until(page.getByTestId('reader-content'));
@@ -149,13 +162,19 @@ export async function story({
     'Canvas HTML is cleaned up and restyled',
     'Images, tables and files work; outside links ask before opening',
     1400,
+    page.getByTestId('reader-content'),
   );
   await page.keyboard.press('Escape');
   await settle();
 
   // ── Layout ──────────────────────────────────────────────────────────────────────────────────
-  await caption('Rearrange anything', 'Drag widgets around the grid, and resize them', 300);
-  await click(page.getByRole('button', { name: 'Edit', exact: true }), 600);
+  await click(page.getByRole('button', { name: 'Edit', exact: true }), 300);
+  await caption(
+    'Rearrange anything',
+    'Drag widgets around the grid, and resize them',
+    300,
+    widget('countdown'),
+  );
   await drag(widget('countdown').locator('.widget-drag-handle'), 1060, 0, { x: 0.3, y: 0.5 });
   await settle();
   await drag(widget('calendar').locator('.react-resizable-handle-se'), 230, 170);
@@ -163,15 +182,15 @@ export async function story({
   await pause(500);
   await click(page.getByRole('button', { name: 'Done' }), 800);
 
-  await caption(
-    'Widgets use the space they’re given',
-    'A wide clock puts the greeting beside a time sized to fill its half',
-    300,
-  );
   await click(page.getByRole('button', { name: 'Add page' }), 600);
   await click(page.getByRole('button', { name: /Minimal/ }), 400);
   await settle();
-  await pause(1600);
+  await caption(
+    'Widgets use the space they’re given',
+    'A wide clock puts the greeting beside a time sized to fill its half',
+    1800,
+    widget('clock'),
+  );
   await click(page.getByRole('tab', { name: /Home/ }), 300);
   await settle();
 
@@ -198,12 +217,13 @@ export async function story({
 
   // ── One widget, its own style ───────────────────────────────────────────────────────────────
   await dipTo('plain', 'light', 300);
+  await click(page.getByRole('button', { name: 'Edit', exact: true }), 300);
   await caption(
     'Mix and match',
     'Give one widget its own style, or a page its own background',
     300,
+    widget('countdown'),
   );
-  await click(page.getByRole('button', { name: 'Edit', exact: true }), 500);
   await click(widget('countdown').getByRole('button', { name: /^Settings for/ }), 500);
   const panel = page.getByRole('dialog', { name: /settings$/ });
   await click(panel.getByTestId('skin-postit'), 500);
@@ -220,6 +240,7 @@ export async function story({
     'A top bar that gets out of the way',
     'Frosted glass by default; it can fold away until you need it',
     300,
+    page.locator('header.app-bar'),
   );
   await settings();
   const fold = page.getByRole('switch', { name: 'Fold away the top bar' });
@@ -231,22 +252,29 @@ export async function story({
   await settle();
   await moveTo(720, 560);
   await pause(1400);
-  await caption('Move to the top edge and it slides back in', undefined, 0);
+  await caption(
+    'Move to the top edge and it slides back in',
+    undefined,
+    0,
+    page.locator('header.app-bar'),
+  );
   await moveTo(720, 4);
   await pause(1300);
   await moveTo(720, 560);
   await pause(1200);
 
   // ── Settings ────────────────────────────────────────────────────────────────────────────────
-  await caption(
-    'Tuned to how you study',
-    'Hide courses, nickname them, and get reminders before deadlines',
-    300,
-  );
   await moveTo(720, 4);
   await pause(400);
   await settings();
   const search = page.getByRole('searchbox', { name: 'Search courses' });
+  await search.scrollIntoViewIfNeeded();
+  await caption(
+    'Tuned to how you study',
+    'Hide courses, nickname them, and get reminders before deadlines',
+    300,
+    search,
+  );
   await point(search);
   await pause(200);
   await type(search, 'mach');

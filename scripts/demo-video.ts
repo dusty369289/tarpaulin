@@ -29,6 +29,7 @@ const CHUNK = FPS * 2; // frames per interleaved chunk
 const OUT = 'screenshots/demo';
 const SIZE = { width: 1440, height: 900 };
 const CURSOR_TIP = 5; // the pointer's tip, in the cursor image
+const EPOCH = Date.now(); // every browser's virtual clock starts here
 
 // Click ripple and caption banner. The pointer itself is drawn by ffmpeg from the logged positions,
 // so frames where only the pointer moves don't need re-rendering.
@@ -43,16 +44,13 @@ const OVERLAY = () => {
         background:rgba(17,24,39,.88);color:#fff;padding:12px 22px;border-radius:14px;font:600 20px/1.3 ui-sans-serif,system-ui,sans-serif;text-align:center;max-width:780px;box-shadow:0 12px 40px -10px rgba(0,0,0,.5);backdrop-filter:blur(6px)}
       #demo-caption small{display:block;font-weight:400;font-size:15px;opacity:.8;margin-top:3px}
       #demo-caption.show{opacity:1;transform:translate(-50%,0)}
-      html.demo-fade *,html.demo-fade *::before,html.demo-fade *::after{transition:background-color 800ms ease,color 800ms ease,border-color 800ms ease,fill 800ms ease,stroke 800ms ease,box-shadow 800ms ease!important}
-      #demo-dip{position:fixed;inset:0;z-index:2147483644;pointer-events:none;opacity:0;transition:opacity 300ms ease;backdrop-filter:blur(18px) saturate(1.15);background:rgba(128,128,128,.12)}
-      #demo-dip.on{opacity:1}`;
+      #demo-caption.near{bottom:auto;max-width:560px;transform:translateY(6px)}
+      #demo-caption.near.show{transform:none}
+      #demo-xfade{position:fixed;inset:0;width:100vw;height:100vh;z-index:2147483640;pointer-events:none}`;
     document.head.appendChild(style);
     const caption = document.createElement('div');
     caption.id = 'demo-caption';
     document.body.appendChild(caption);
-    const dip = document.createElement('div');
-    dip.id = 'demo-dip';
-    document.body.appendChild(dip);
     document.addEventListener(
       'mousedown',
       (e) => {
@@ -65,10 +63,11 @@ const OVERLAY = () => {
       },
       true,
     );
-    (window as unknown as { __demoCaption: (t: string, s?: string) => void }).__demoCaption = (
-      title,
-      sub,
-    ) => {
+    (
+      window as unknown as {
+        __demoCaption: (t: string, s?: string, at?: { left: number; top: number }) => void;
+      }
+    ).__demoCaption = (title, sub, at) => {
       if (!title) return caption.classList.remove('show');
       caption.innerHTML = '';
       caption.append(title);
@@ -77,6 +76,9 @@ const OVERLAY = () => {
         small.textContent = sub;
         caption.append(small);
       }
+      caption.classList.toggle('near', !!at);
+      caption.style.left = at ? `${at.left}px` : '';
+      caption.style.top = at ? `${at.top}px` : '';
       caption.classList.add('show');
     };
   };
@@ -98,6 +100,7 @@ async function render(browser: Browser, appUrl: string, worker: number): Promise
   const context = await browser.newContext({ viewport: SIZE });
   // tsx (esbuild keepNames) wraps inner functions in __name(); give the page a no-op for it.
   await context.addInitScript({ content: 'window.__name = (f) => f;' });
+  await context.addInitScript({ content: `window.__vtEpoch = ${EPOCH};` });
   await context.addInitScript({ path: new URL('./virtual-time.js', import.meta.url).pathname });
   await context.addInitScript(OVERLAY);
   const page: Page = await context.newPage();
@@ -115,6 +118,7 @@ async function render(browser: Browser, appUrl: string, worker: number): Promise
 
   const out: Render = { total: 0, frames: new Map(), pointer: [], rendered: 0 };
   let recording = false;
+  let videoMs = 0;
   let last: Buffer | null = null;
   let mouse = { x: SIZE.width / 2, y: SIZE.height / 2 };
 
@@ -126,6 +130,7 @@ async function render(browser: Browser, appUrl: string, worker: number): Promise
       FRAME_MS,
     );
     if (!recording) return;
+    videoMs += FRAME_MS;
     const i = out.total++;
     out.pointer.push([Math.round(mouse.x), Math.round(mouse.y)]);
     if (owner(i) !== worker) {
@@ -237,16 +242,66 @@ async function render(browser: Browser, appUrl: string, worker: number): Promise
     await page.mouse.up();
     await pause(700);
   }
-  async function caption(title: string, sub?: string, hold = 0) {
+  // Captions stay up long enough to read (about 0.9s plus 0.28s a word) before the next one
+  // replaces them, and can sit beside the element the action is on instead of at the bottom.
+  let captionDue = 0;
+  async function caption(title: string, sub?: string, hold = 0, near?: Locator) {
+    if (videoMs < captionDue) await pause(captionDue - videoMs);
+    let at: { left: number; top: number } | undefined;
+    if (near && title) {
+      const box = await near.boundingBox();
+      if (box) {
+        const width = 560; // the caption's max width, roughly
+        const left = Math.min(
+          Math.max(16, box.x + box.width / 2 - width / 2),
+          SIZE.width - width - 16,
+        );
+        // Below the element when it's near the top, otherwise just above it.
+        const top = box.y < 200 ? Math.min(box.y + box.height + 14, SIZE.height - 110) : box.y - 92;
+        at = { left, top: Math.max(16, top) };
+      }
+    }
     await page.evaluate(
-      ([t, s]) =>
-        (window as unknown as { __demoCaption: (t: string, s?: string) => void }).__demoCaption(
-          t,
-          s,
-        ),
-      [title, sub] as const,
+      ([t, s, a]) =>
+        (
+          window as unknown as {
+            __demoCaption: (t: string, s?: string, at?: { left: number; top: number }) => void;
+          }
+        ).__demoCaption(t, s, a),
+      [title, sub, at] as const,
     );
+    const words = `${title} ${sub ?? ''}`.trim().split(/\s+/).length;
+    captionDue = title ? videoMs + 900 + 280 * words : 0;
     if (hold) await pause(hold);
+  }
+  /** Change the screen (a mode, a look) as a cross-fade: the old frame dissolves into the new. */
+  async function crossfade(change: () => Promise<void>, ms = 850) {
+    await networkIdle();
+    // Snapshot without the caption, so it isn't doubled while fading.
+    await page.evaluate(() =>
+      document.getElementById('demo-caption')!.style.setProperty('visibility', 'hidden'),
+    );
+    const shot = await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: 92 });
+    await page.evaluate(() =>
+      document.getElementById('demo-caption')!.style.removeProperty('visibility'),
+    );
+    await page.evaluate(async (src) => {
+      const img = document.createElement('img');
+      img.id = 'demo-xfade';
+      img.src = src;
+      document.body.appendChild(img);
+      await img.decode();
+    }, `data:image/jpeg;base64,${shot.data}`);
+    await change();
+    await pause(200); // the new look renders under the snapshot
+    await page.evaluate((d) => {
+      const img = document.getElementById('demo-xfade')!;
+      img.style.transition = `opacity ${d}ms cubic-bezier(.45,0,.55,1)`;
+      void img.offsetWidth;
+      img.style.opacity = '0';
+    }, ms);
+    await pause(ms + 40);
+    await page.evaluate(() => document.getElementById('demo-xfade')?.remove());
   }
   async function scroll(dy: number, ms = 900) {
     const n = frames(ms);
@@ -275,6 +330,7 @@ async function render(browser: Browser, appUrl: string, worker: number): Promise
     scroll,
     moveTo,
     caption,
+    crossfade,
     until,
     settle: () => pause(500),
     startRecording: () => {
