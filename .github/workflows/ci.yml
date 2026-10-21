@@ -36,7 +36,7 @@ jobs:
         id: app
         with:
           # A file counts if it matches every pattern: anything except docs, Markdown and the
-          # release workflow (CI never runs it; the workflow lint below checks it).
+          # release workflows (CI never runs them; the workflow lint below checks them).
           predicate-quantifier: every
           filters: |
             app:
@@ -45,6 +45,7 @@ jobs:
               - '!docs/**'
               - '!LICENSE'
               - '!.github/workflows/release.yml'
+              - '!.github/workflows/release-cache.yml'
       - uses: dorny/paths-filter@v3
         if: github.event_name == 'pull_request'
         id: workflows
@@ -127,6 +128,10 @@ jobs:
       - uses: ./.github/actions/setup-browser
       # Starts its own mock Canvas and Vite server; no secrets or network needed.
       - run: pnpm test:ui
+      # The smallest window, dialogs by keyboard, a failing network (checks still waiting on a
+      # fix report as pending and don't fail).
+      - if: success() || failure()
+        run: pnpm test:ui:passes
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
