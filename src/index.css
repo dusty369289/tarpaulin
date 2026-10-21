@@ -293,14 +293,20 @@ body {
   .clock-greet,
   .clock-date {
     display: block;
-    font-size: clamp(0.8125rem, min(2.4cqw, 19cqh), 2rem);
+    font-size: clamp(0.8125rem, min(2.4cqw, 17cqh), 2rem);
+    line-height: 1.25;
   }
   .clock-greet {
     font-weight: 600;
   }
+  /* Capped at two lines so wider fonts can't push the column past the box. */
   .clock-sum {
-    display: block;
-    font-size: clamp(0.75rem, min(1.7cqw, 11cqh), 1.25rem);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    font-size: clamp(0.75rem, min(1.7cqw, 10cqh), 1.25rem);
   }
 }
 @container (min-height: 72px) and (min-width: 340px) and (min-aspect-ratio: 9 / 4) and (max-height: 112px) {
