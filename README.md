@@ -74,8 +74,12 @@ Prebuilt installers for macOS (Apple silicon and Intel), Windows (x64 `.msi`/`.e
 and Linux (`.deb`, `.rpm` and AppImage, x64 and arm64) are on
 the [Releases](https://github.com/dusty369289/tarpaulin/releases) page. Installed copies keep
 themselves up to date: Tarpaulin checks GitHub Releases once a day (you can turn this off in
-**Settings → Updates**), shows a banner when a new version is out, and installs it with **Install &
-restart**. Updates are only applied if they're signed with the project's updater key.
+**Settings → Updates**), shows a banner when a new version is out, and installs it with **Update now**: one click,
+then Tarpaulin downloads, installs silently, and reopens in the same window position on the same
+page with all your data (dashboards, settings and cached Canvas data live in the app's data
+folder, which updates don't touch). Updates are only applied if they're signed with the
+project's updater key. The version you're on is in Settings › Updates and at the bottom of
+Settings.
 
 The builds aren't code-signed with Apple or Microsoft certificates yet, so the first launch shows a
 warning. On macOS, right-click the app and choose **Open**. On Windows, choose **More info → Run anyway**.
@@ -84,8 +88,10 @@ warning. On macOS, right-click the app and choose **Open**. On Windows, choose *
 
 Changes go to `main` through pull requests. `.github/workflows/ci.yml` runs on every pull request
 into `main` and on every push to `main`: format, lint, typecheck, unit tests, build, the widget
-sweeps, the theme sweep, the UI check and the Rust tests. Docs-only changes skip the heavy jobs,
-and Rust tests only run when `src-tauri/` changes. A final **CI passed** job sums it up, and
+sweeps, the theme sweep, the UI check and the Rust tests. On pull requests the slow parts only
+run when they can be affected: the widget and theme sweeps when widget, theme, Canvas-data or
+mock code changes, Rust tests when `src-tauri/` changes, and docs-only changes skip it all.
+Pushes to `main` always run everything. A final **CI passed** job sums it up, and
 `main` requires it, so nothing merges until it's green.
 
 ### Cutting a release

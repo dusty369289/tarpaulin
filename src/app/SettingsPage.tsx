@@ -76,7 +76,7 @@ function UpdatesSection() {
                   ? `Downloading${state.total ? ` ${Math.round((state.received / state.total) * 100)}%` : '…'}`
                   : state.status === 'installing'
                     ? 'Installing…'
-                    : 'Install & restart'}
+                    : 'Update now'}
               </button>
             ) : (
               <button type="button" className="btn" onClick={() => void check()} disabled={busy}>
@@ -93,6 +93,14 @@ function UpdatesSection() {
       )}
     </Section>
   );
+}
+
+function AppVersion() {
+  const [version, setVersion] = useState('');
+  useEffect(() => {
+    void appVersion().then(setVersion);
+  }, []);
+  return <span data-testid="app-version">{version ? `v${version}` : ''}</span>;
 }
 
 export function SettingsPage({ onBack }: { onBack: () => void }) {
@@ -504,7 +512,7 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
       <StartupSection />
       <UpdatesSection />
       <p className="pb-6 text-center text-xs text-muted">
-        Tarpaulin reads Canvas only. Notes and checklists stay on this device.
+        Tarpaulin <AppVersion /> · reads Canvas only. Notes and checklists stay on this device.
       </p>
     </div>
   );

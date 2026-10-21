@@ -60,4 +60,42 @@ describe('updater', () => {
     invoke.mockRejectedValueOnce(new Error('signature mismatch'));
     expect(await u.checkForUpdates()).toEqual({ status: 'error', message: 'signature mismatch' });
   });
+
+  it('remembers the page before installing and reopens it after the restart', async () => {
+    const u = await load();
+    invoke.mockResolvedValueOnce({
+      version: '0.2.0',
+      currentVersion: '0.1.0',
+      notes: null,
+      date: null,
+    });
+    await u.checkForUpdates();
+    location.hash = '#/settings';
+    invoke.mockResolvedValueOnce(undefined); // install_update (the real one restarts the app)
+    await u.installUpdate();
+    location.hash = '';
+    // The "new version" starts:
+    const next = await load();
+    next.resumeAfterUpdate();
+    expect(location.hash).toBe('#/settings');
+    expect(next.updatedFrom()).toBe('0.1.0');
+    // Only once.
+    location.hash = '';
+    const again = await load();
+    again.resumeAfterUpdate();
+    expect(location.hash).toBe('');
+    expect(again.updatedFrom()).toBeNull();
+  });
+
+  it('ignores a stale resume record', async () => {
+    localStorage.setItem(
+      'tarpaulin.updates.resume',
+      JSON.stringify({ hash: '#/settings', from: '0.0.9', at: Date.now() - 60 * 60_000 }),
+    );
+    location.hash = '';
+    const u = await load();
+    u.resumeAfterUpdate();
+    expect(location.hash).toBe('');
+    expect(u.updatedFrom()).toBeNull();
+  });
 });

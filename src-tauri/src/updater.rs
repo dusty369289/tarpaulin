@@ -2,6 +2,10 @@
 //! `latest.json` manifest; the updater only installs artifacts signed with the key whose public
 //! half is in tauri.conf.json. Exposed through the app's own commands so the web view needs no
 //! plugin permissions.
+//!
+//! Installs are hands-off: the Windows installer runs silently (installMode "quiet" in
+//! tauri.conf.json), the app relaunches itself, the window state plugin puts the window back
+//! where it was, and the web side reopens the page you were on (see src/app/updater.ts).
 
 use std::sync::Mutex;
 
@@ -9,6 +13,10 @@ use serde::Serialize;
 use tauri::ipc::Channel;
 use tauri::{AppHandle, State};
 use tauri_plugin_updater::{Update, UpdaterExt};
+use tauri_plugin_window_state::{AppHandleExt, StateFlags};
+
+/// What the window state plugin remembers: everything except visibility.
+pub const WINDOW_STATE: StateFlags = StateFlags::all().difference(StateFlags::VISIBLE);
 
 #[derive(Default)]
 pub struct PendingUpdate(Mutex<Option<Update>>);
@@ -73,5 +81,7 @@ pub async fn install_update(
         )
         .await
         .map_err(|e| e.to_string())?;
+    // Save the window's place before the old version goes, so the new one opens on top of it.
+    let _ = app.save_window_state(WINDOW_STATE);
     app.restart();
 }

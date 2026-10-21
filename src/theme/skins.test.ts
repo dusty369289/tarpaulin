@@ -122,3 +122,15 @@ describe('backgrounds and looks', () => {
     expect(LOOKS[0]).toMatchObject({ background: 'plain', widgetStyle: 'card' });
   });
 });
+
+describe('CI theme sweep', () => {
+  it('has one matrix job per widget style', async () => {
+    const { readFileSync } = await import('node:fs');
+    const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
+    const list = ci
+      .match(/style: \[([^\]]+)\]/)?.[1]
+      .split(',')
+      .map((s) => s.trim());
+    expect(list?.sort()).toEqual([...SKIN_IDS].sort());
+  });
+});

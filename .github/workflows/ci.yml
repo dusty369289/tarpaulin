@@ -27,6 +27,7 @@ jobs:
     outputs:
       app: ${{ steps.app.outputs.app }}
       rust: ${{ steps.rust.outputs.rust }}
+      sweeps: ${{ steps.sweeps.outputs.sweeps }}
     # Pull requests only (the filter asks the API for the PR's files); other events test everything.
     steps:
       - uses: dorny/paths-filter@v3
@@ -49,6 +50,31 @@ jobs:
             rust:
               - 'src-tauri/**'
               - '.github/workflows/ci.yml'
+      # The widget and theme sweeps are slow; on pull requests they only run when something that
+      # can change a widget's layout changed. Pushes to main always run them.
+      - uses: dorny/paths-filter@v3
+        if: github.event_name == 'pull_request'
+        id: sweeps
+        with:
+          filters: |
+            sweeps:
+              - 'src/widgets/**'
+              - 'src/theme/**'
+              - 'src/canvas/**'
+              - 'src/dev/**'
+              - 'src/lib/**'
+              - 'src/index.css'
+              - 'src/dashboard/Grid.tsx'
+              - 'src/dashboard/WidgetHost.tsx'
+              - 'src/app/settle.ts'
+              - 'mock-canvas/**'
+              - 'scripts/widget-lab.ts'
+              - 'scripts/theme-sweep.ts'
+              - 'scripts/browser.ts'
+              - 'tailwind.config.ts'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - '.github/workflows/ci.yml'
 
   web:
     name: Lint, unit tests, widget sweeps, UI check
@@ -58,57 +84,58 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-browser
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
-      # Browser binaries are cached per Playwright version; system libraries are always installed.
-      - name: Playwright version
-        id: pw
-        run: echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v4
-        id: pw-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
-      - name: Install Chromium
-        if: steps.pw-cache.outputs.cache-hit != 'true'
-        run: pnpm exec playwright install chromium
-      - name: Install Chromium system dependencies
-        # The runner image ships a Microsoft apt source that sometimes refuses requests (403),
-        # which fails apt-get update for everything; nothing here needs it.
-        run: |
-          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list /etc/apt/sources.list.d/microsoft*.list
-          pnpm exec playwright install-deps chromium
-      # Both start their own mock Canvas and Vite server; no secrets or network needed.
-      - run: pnpm test:widgets
-      # Again with a wide monospace font forced, so layouts never depend on one font's metrics.
-      - run: pnpm test:widgets --scenario=dense --font="DejaVu Sans Mono"
+      # These start their own mock Canvas and Vite server; no secrets or network needed.
       - run: pnpm test:ui
-      # Every widget style gets the same sweep. Styles whose files (and the shared widget code)
-      # hash the same as their last pass are skipped; the pass record lives in the Actions cache.
-      - uses: actions/cache/restore@v4
-        with:
-          path: .cache/theme-sweep.json
-          key: theme-sweep-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: theme-sweep-
-      - run: pnpm test:themes
-      - if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: .cache/theme-sweep.json
-          key: theme-sweep-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Widget sweep (every widget, size and mock scenario)
+        if: needs.changes.outputs.sweeps == 'true' || github.event_name != 'pull_request'
+        run: pnpm test:widgets
+      # Again with a wide monospace font forced, so layouts never depend on one font's metrics.
+      - name: Widget sweep with a wide fallback font
+        if: needs.changes.outputs.sweeps == 'true' || github.event_name != 'pull_request'
+        run: pnpm test:widgets --scenario=dense --font="DejaVu Sans Mono"
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: screenshots
+          path: screenshots/
+          retention-days: 7
+  # Every widget style gets the widget sweep too, one job per style so they run side by side.
+  # Styles whose files (and the shared widget code) hash the same as their last pass are
+  # skipped; each style's pass record lives in the Actions cache. Keep the list in step with
+  # src/theme/skins/index.ts (a unit test checks).
+  themes:
+    name: Theme sweep (${{ matrix.style }})
+    needs: changes
+    if: needs.changes.outputs.sweeps == 'true' || github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        style: [card, postit, index-card, terminal, pixel, swiss, blueprint, journal]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-browser
+      - uses: actions/cache/restore@v4
+        with:
+          path: .cache/theme-sweep.json
+          key: theme-sweep-${{ matrix.style }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: theme-sweep-${{ matrix.style }}-
+      - run: pnpm test:themes --styles=${{ matrix.style }}
+      - if: always() && hashFiles('.cache/theme-sweep.json') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/theme-sweep.json
+          key: theme-sweep-${{ matrix.style }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-${{ matrix.style }}
           path: screenshots/
           retention-days: 7
 
@@ -135,7 +162,7 @@ jobs:
 
   passed:
     name: CI passed
-    needs: [changes, web, rust]
+    needs: [changes, web, themes, rust]
     # Not when the run itself was cancelled (a newer push superseded it): that's not a failure,
     # and the newer run reports instead.
     if: ${{ always() && !cancelled() }}

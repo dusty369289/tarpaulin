@@ -28,6 +28,9 @@ export type UpdateState =
   | { status: 'error'; message: string };
 
 const LAST_CHECK_KEY = 'tarpaulin.updates.lastCheck';
+/** Written just before installing; read once by the new version when it starts. */
+const RESUME_KEY = 'tarpaulin.updates.resume';
+const RESUME_MAX_AGE = 30 * 60_000;
 const DAY = 24 * 60 * 60_000;
 
 async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
@@ -84,11 +87,42 @@ export async function installUpdate(): Promise<void> {
   };
   set({ status: 'downloading', update, received: 0, total: null });
   try {
+    localStorage.setItem(
+      RESUME_KEY,
+      JSON.stringify({ hash: location.hash, from: update.currentVersion, at: Date.now() }),
+    );
+  } catch {
+    /* storage unavailable: the new version just opens on the dashboard */
+  }
+  try {
     await invoke('install_update', { onEvent: channel }); // restarts the app on success
   } catch (e) {
     set({ status: 'error', message: e instanceof Error ? e.message : String(e) });
   }
 }
+
+let resumedFrom: string | null = null;
+
+/**
+ * Called once at startup, before the app renders: if this launch is the restart after an
+ * update, reopen the page that was showing and remember which version we came from.
+ */
+export function resumeAfterUpdate(): void {
+  try {
+    const raw = localStorage.getItem(RESUME_KEY);
+    if (!raw) return;
+    localStorage.removeItem(RESUME_KEY);
+    const r = JSON.parse(raw) as { hash?: string; from?: string; at?: number };
+    if (!r.at || Date.now() - r.at > RESUME_MAX_AGE) return;
+    if (r.hash && r.hash !== location.hash) location.hash = r.hash;
+    resumedFrom = r.from ?? null;
+  } catch {
+    /* nothing to resume */
+  }
+}
+
+/** The version this launch updated from, if it's the restart after an update. */
+export const updatedFrom = () => resumedFrom;
 
 /** Synchronous state subscription (the hook below is built on it). */
 export function subscribeUpdates(listener: (s: UpdateState) => void): () => void {

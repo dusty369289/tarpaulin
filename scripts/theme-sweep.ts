@@ -8,6 +8,7 @@
 //   pnpm test:themes                 # sweep changed styles, record passes in .cache/theme-sweep.json
 //   pnpm test:themes --all           # ignore the cache
 //   pnpm test:themes --modes=dark    # only these modes (default: light,dark)
+//   pnpm test:themes --styles=postit # only these styles (CI runs one style per job)
 //   pnpm test:themes --dry-run       # just print what would run
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -23,6 +24,10 @@ const MODES = (
   process.env.THEME_MODES ??
   'light,dark'
 ).split(',');
+const STYLES = process.argv
+  .find((a) => a.startsWith('--styles='))
+  ?.split('=')[1]
+  ?.split(',');
 const SKIN_DIR = 'src/theme/skins';
 // Scenarios each style is swept against: everyday data and the awkward stuff.
 const SCENARIOS = process.env.THEME_SCENARIOS ?? 'realistic,edge';
@@ -76,22 +81,32 @@ function skinFiles(): Record<string, string> {
   return out;
 }
 
+const known = skinFiles();
+const unknown = (STYLES ?? []).filter((id) => !known[id]);
+if (unknown.length) {
+  console.error(
+    `Unknown widget style(s): ${unknown.join(', ')}. Known: ${Object.keys(known).join(', ')}`,
+  );
+  process.exit(2);
+}
 const shared = hashFiles(SHARED);
 // Keyed "<style>:<mode>", e.g. "postit:dark".
 const hashes = Object.fromEntries(
-  Object.entries(skinFiles()).flatMap(([id, f]) => {
-    const own = hashFiles([join(SKIN_DIR, `${f}.ts`), join(SKIN_DIR, `${f}.css`)]);
-    return MODES.map((mode) => [
-      `${id}:${mode}`,
-      createHash('sha256')
-        .update(shared)
-        .update(own)
-        .update(mode)
-        .update(SCENARIOS)
-        .digest('hex')
-        .slice(0, 16),
-    ]).filter(([key]) => !COVERED.has(key));
-  }),
+  Object.entries(known)
+    .filter(([id]) => !STYLES || STYLES.includes(id))
+    .flatMap(([id, f]) => {
+      const own = hashFiles([join(SKIN_DIR, `${f}.ts`), join(SKIN_DIR, `${f}.css`)]);
+      return MODES.map((mode) => [
+        `${id}:${mode}`,
+        createHash('sha256')
+          .update(shared)
+          .update(own)
+          .update(mode)
+          .update(SCENARIOS)
+          .digest('hex')
+          .slice(0, 16),
+      ]).filter(([key]) => !COVERED.has(key));
+    }),
 );
 
 const passed: Record<string, string> = existsSync(CACHE)
