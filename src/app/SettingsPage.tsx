@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Download, Loader2, LogOut, RefreshCw, RotateCcw, Upload } from 'lucide-react';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useCanvas } from '../canvas/CanvasProvider';
 import { useCatalog } from '../canvas/hooks';
 import { exportDashboard, importDashboard, ImportError } from '../dashboard/exportImport';
@@ -8,28 +8,8 @@ import { buildPage, PRESETS, presetById } from '../dashboard/presets';
 import { useDashboard } from '../dashboard/store';
 import { BackgroundPicker, LookPicker, SkinPicker } from '../theme/pickers';
 import { pickSettings, useSettings } from './settingsStore';
+import { Row, Section, Switch } from '../ui';
 import { appVersion, useUpdater } from './updater';
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="card flex flex-col gap-3 p-5">
-      <h2 className="font-semibold">{title}</h2>
-      {children}
-    </section>
-  );
-}
-
-function Row({ label, children, help }: { label: string; children: ReactNode; help?: string }) {
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <div>
-        <div className="text-sm">{label}</div>
-        {help && <div className="text-xs text-muted">{help}</div>}
-      </div>
-      <div className="flex items-center gap-2">{children}</div>
-    </div>
-  );
-}
 
 function UpdatesSection() {
   const { state, check, install } = useUpdater();
@@ -298,6 +278,30 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
             className="accent-[rgb(var(--accent))]"
           />
           <span className="w-10 text-right text-xs tabular-nums">{settings.radius}px</span>
+        </Row>
+        <Row label="Top bar" help="Frosted glass that the page shows through, or a plain strip.">
+          <select
+            className="input w-auto"
+            aria-label="Top bar style"
+            value={settings.barStyle}
+            onChange={(e) =>
+              settings.update({ barStyle: e.target.value as typeof settings.barStyle })
+            }
+          >
+            <option value="frosted">Frosted</option>
+            <option value="basic">Basic</option>
+          </select>
+        </Row>
+        <Row
+          label="Fold away the top bar"
+          help="Gives the page the full window. Point at the top edge or press Tab to bring it back. Always shown on touch screens."
+        >
+          <Switch
+            hideLabel
+            label="Fold away the top bar"
+            checked={settings.barFoldAway}
+            onChange={(on) => settings.update({ barFoldAway: on })}
+          />
         </Row>
         <Row label="Clock">
           <select

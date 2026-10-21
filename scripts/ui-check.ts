@@ -402,6 +402,150 @@ await step('back to plain everywhere', async () => {
   );
 });
 
+// ---- Top bar: styles and fold-away -------------------------------------------------------
+const bar = () => page.locator('header.app-bar');
+const barClip = { x: 0, y: 0, width: 1440, height: 160 };
+const barState = () =>
+  page.evaluate(() => {
+    const el = document.querySelector<HTMLElement>('header.app-bar')!;
+    const r = el.getBoundingClientRect();
+    const { barStyle, fold, folded } = el.dataset;
+    return { barStyle, fold, folded, top: r.top, bottom: r.bottom };
+  });
+/** Waits until the bar is (or isn't) folded and has finished sliding. */
+async function barFolded(folded: boolean) {
+  await page.waitForFunction(
+    (want) => {
+      const el = document.querySelector<HTMLElement>('header.app-bar');
+      if (!el || el.dataset.folded !== String(want)) return false;
+      const r = el.getBoundingClientRect();
+      return want ? r.bottom <= 0 : r.top >= 0;
+    },
+    folded,
+    { timeout: 5_000 },
+  );
+  await settled();
+}
+async function setBar(patch: { style?: 'frosted' | 'basic'; fold?: boolean }) {
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  if (patch.style) await page.getByLabel('Top bar style').selectOption(patch.style);
+  if (patch.fold !== undefined) {
+    const sw = page.getByRole('switch', { name: 'Fold away the top bar' });
+    await sw.setChecked(patch.fold, { force: true });
+  }
+  await page.getByRole('button', { name: 'Dashboard' }).click();
+  await page.getByRole('tab', { name: /Home/ }).waitFor();
+  await settled();
+}
+
+await step('top bar: frosted and basic both render', async () => {
+  for (const style of ['basic', 'frosted'] as const) {
+    await setBar({ style });
+    const s = await barState();
+    assert(s.barStyle === style, `bar style is ${s.barStyle}`);
+    const blur = await bar()
+      .locator('.app-bar-surface')
+      .evaluate((el) => getComputedStyle(el).backdropFilter);
+    assert(
+      style === 'frosted' ? blur.includes('blur') : blur === 'none',
+      `${style} bar backdrop is ${blur}`,
+    );
+    for (const name of ['Edit', 'Refresh from Canvas', 'Settings'])
+      assert(
+        await page.getByRole('button', { name, exact: true }).isVisible(),
+        `${name} not visible`,
+      );
+    await page.screenshot({ path: `${dir}/13-bar-${style}.png`, clip: barClip });
+  }
+});
+
+await step('top bar: fold away hides, reveals on pointer, focus and edit mode', async () => {
+  await setBar({ fold: true });
+  const widgetTop = () =>
+    page
+      .locator('[data-widget-id]')
+      .evaluateAll((els) => Math.min(...els.map((el) => el.getBoundingClientRect().top)));
+  // Folded: out of view, and the grid has the room the bar used to take.
+  await page.mouse.move(720, 600);
+  await barFolded(true);
+  const topFolded = await widgetTop();
+  assert(topFolded < 40, `grid did not take the freed space (first widget at ${topFolded}px)`);
+  await page.screenshot({ path: `${dir}/14-bar-folded.png`, clip: barClip });
+
+  // Pointer at the top edge brings it back, over the page (nothing below moves).
+  await page.mouse.move(720, 3);
+  await barFolded(false);
+  assert((await widgetTop()) === topFolded, 'the grid jumped when the bar came out');
+  await page.screenshot({ path: `${dir}/14-bar-revealed.png`, clip: barClip });
+  // It stays while the pointer is on it, then folds once the pointer leaves.
+  await page.mouse.move(720, 30);
+  await page.waitForTimeout(900);
+  assert((await barState()).folded === 'false', 'bar folded while the pointer was on it');
+  await page.mouse.move(720, 600);
+  await barFolded(true);
+
+  // Keyboard: Tab from the top of the page lands in the bar and brings it out.
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await page.keyboard.press('Tab');
+  await barFolded(false);
+  assert(
+    await page.evaluate(() => !!document.activeElement?.closest('header.app-bar')),
+    'Tab did not land in the bar',
+  );
+  await page.screenshot({ path: `${dir}/14-bar-keyboard.png`, clip: barClip });
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await barFolded(true);
+
+  // Edit mode keeps it out.
+  await page.mouse.move(720, 3);
+  await barFolded(false);
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await page.mouse.move(720, 600);
+  await page.waitForTimeout(1_000);
+  assert((await barState()).folded === 'false', 'bar folded away in edit mode');
+  assert(
+    await page.getByRole('button', { name: 'Add widget' }).isVisible(),
+    'Add widget not reachable in edit mode',
+  );
+  await page.screenshot({ path: `${dir}/14-bar-editing.png`, clip: barClip });
+  await page.getByRole('button', { name: 'Done' }).click();
+  await page.mouse.move(720, 600);
+  await barFolded(true);
+
+  // The Settings button is reachable from a folded bar (reveal first), and turning it off
+  // puts the bar back in the flow.
+  await page.mouse.move(720, 3);
+  await barFolded(false);
+  await setBar({ fold: false });
+  const s = await barState();
+  assert(s.fold === 'off' && s.folded === 'false', `bar still folding: ${JSON.stringify(s)}`);
+});
+
+await step('top bar: touch screens never fold it', async () => {
+  const touch = await browser.newContext({
+    viewport: { width: 900, height: 700 },
+    hasTouch: true,
+    isMobile: true,
+  });
+  const p = await touch.newPage();
+  await p.goto(stack.appUrl);
+  await p.evaluate(() =>
+    localStorage.setItem(
+      'tarpaulin.settings',
+      JSON.stringify({ state: { onboarded: true, barFoldAway: true }, version: 1 }),
+    ),
+  );
+  await p.reload();
+  await p.getByRole('tab', { name: /Home/ }).waitFor({ timeout: 20_000 });
+  await settled(p);
+  const fold = await p.evaluate(
+    () => document.querySelector<HTMLElement>('header.app-bar')?.dataset.fold,
+  );
+  await touch.close();
+  assert(fold === 'off', `fold-away is ${fold} on a touch screen`);
+});
+
 await step('layout survives a reload', async () => {
   const before = await activePage();
   await page.reload();

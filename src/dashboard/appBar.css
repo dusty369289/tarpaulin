@@ -1,0 +1,390 @@
+/* The dashboard's top bar (AppBar). Two styles, chosen in Settings › Appearance:
+   - frosted: a floating pane of glass, inset from the window edges, that the page shows through;
+   - basic:   a quiet, solid, full-width strip with a hairline under it.
+   Colours come from the theme tokens, so every look and mode gets a matching bar. */
+
+.app-bar {
+  --bar-glass: 0.72;
+  --bar-highlight: 0.45;
+  --bar-shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 12px 32px -16px rgb(0 0 0 / 0.32);
+  --bar-ink: var(--text);
+  --bar-radius: min(calc(var(--radius) + 4px), 1.25rem);
+  --bar-control-radius: min(calc(var(--radius) * 0.75), 0.75rem);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  transition:
+    transform 340ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 240ms ease;
+}
+html[data-theme='dark'] .app-bar,
+html[data-background='crt'] .app-bar,
+html[data-background='blueprint'] .app-bar,
+html[data-background='night-sky'] .app-bar {
+  --bar-highlight: 0.07;
+  --bar-shadow: 0 1px 2px rgb(0 0 0 / 0.25), 0 14px 36px -14px rgb(0 0 0 / 0.6);
+}
+/* Busier textures get a little more frost, so text stays crisp over them. */
+html[data-background]:not([data-background='plain']) .app-bar {
+  --bar-glass: 0.8;
+}
+html[data-theme='high-contrast'] .app-bar {
+  --bar-glass: 1;
+}
+
+.app-bar-surface {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3.25rem;
+  padding: 0.375rem 0.5rem 0.375rem 0.875rem;
+  transition:
+    border-color 200ms ease,
+    box-shadow 200ms ease;
+}
+
+/* ---------- frosted ---------- */
+.app-bar[data-bar-style='frosted'] {
+  padding: 0.5rem 0.75rem 0;
+}
+.app-bar[data-bar-style='frosted'] .app-bar-surface {
+  border-radius: var(--bar-radius);
+  border: 1px solid rgb(var(--border) / 0.75);
+  background: linear-gradient(
+    rgb(var(--surface) / calc(var(--bar-glass) + 0.06)),
+    rgb(var(--surface) / var(--bar-glass))
+  );
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / var(--bar-highlight)),
+    var(--bar-shadow);
+}
+.app-bar[data-bar-style='frosted'][data-editing] .app-bar-surface {
+  border-color: rgb(var(--accent) / 0.55);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / var(--bar-highlight)),
+    0 0 0 3px rgb(var(--accent) / 0.14),
+    var(--bar-shadow);
+}
+
+/* ---------- basic ---------- */
+.app-bar[data-bar-style='basic'] .app-bar-surface {
+  padding-block: 0;
+  padding-inline: 1rem 0.75rem;
+  background: rgb(var(--bg));
+  border-bottom: 1px solid rgb(var(--border));
+}
+/* On a texture the page colour is the texture's, so the strip takes the surface colour. */
+html[data-background]:not([data-background='plain'])
+  .app-bar[data-bar-style='basic']
+  .app-bar-surface {
+  background: rgb(var(--surface));
+}
+.app-bar[data-bar-style='basic'][data-fold='on'] .app-bar-surface {
+  box-shadow: 0 10px 28px -18px rgb(0 0 0 / 0.45);
+}
+.app-bar[data-bar-style='basic'][data-editing] .app-bar-surface {
+  border-bottom-color: rgb(var(--accent) / 0.6);
+}
+
+/* Swiss poster: hard edges and a heavy rule, like the rest of the look. */
+html[data-background='poster'] .app-bar[data-bar-style='basic'] .app-bar-surface {
+  border-bottom: 6px solid #111;
+}
+html[data-background='poster'] .app-bar[data-bar-style='frosted'] {
+  padding: 1.25rem 1.25rem 0;
+}
+html[data-background='poster'] .app-bar[data-bar-style='frosted'] .app-bar-surface {
+  border: 2px solid #111;
+  border-radius: 0;
+  box-shadow: 5px 5px 0 #111;
+}
+
+/* ---------- fold away ---------- */
+/* The bar floats over the page instead of taking room, so the grid keeps the full height and
+   nothing shifts when it comes and goes. */
+.app-bar[data-fold='on'] {
+  position: fixed;
+  left: 0;
+  right: 0;
+}
+.app-bar[data-folded='true'] {
+  transform: translateY(calc(-100% - 12px));
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* No sliding: the bar just appears in place. */
+  .app-bar[data-folded='true'] {
+    transform: none;
+    pointer-events: none;
+  }
+}
+/* A small tab at the top edge hints where the bar went. */
+.app-bar-peek {
+  position: fixed;
+  top: 5px;
+  left: 50%;
+  z-index: 29;
+  width: 3rem;
+  height: 5px;
+  margin-left: -1.5rem;
+  border-radius: 999px;
+  background: rgb(var(--text) / 0.28);
+  box-shadow: 0 0 0 1px rgb(var(--surface) / 0.5);
+  opacity: 0;
+  transform: translateY(-8px);
+  transition:
+    opacity 200ms ease,
+    transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  pointer-events: none;
+}
+.app-bar-peek[data-shown] {
+  opacity: 1;
+  transform: none;
+  transition-delay: 180ms;
+}
+
+/* ---------- contents ---------- */
+.bar-brand {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.bar-brand-name {
+  font-size: 0.9375rem;
+}
+@media (max-width: 899px) {
+  .bar-brand-name {
+    display: none;
+  }
+}
+
+.bar-pages {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.bar-tabs {
+  position: relative; /* offsetParent for keeping the active tab in view */
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.125rem;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  padding: 2px;
+}
+.bar-tabs::-webkit-scrollbar {
+  display: none;
+}
+.bar-tabs[data-fade-right] {
+  mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
+}
+.bar-tabs[data-fade-left] {
+  mask-image: linear-gradient(to left, #000 calc(100% - 2.5rem), transparent);
+}
+.bar-tabs[data-fade-left][data-fade-right] {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 2.5rem,
+    #000 calc(100% - 2.5rem),
+    transparent
+  );
+}
+
+.bar-tab {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.45rem;
+  height: 2.125rem;
+  padding: 0 0.8rem;
+  border-radius: var(--bar-control-radius);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: rgb(var(--muted));
+  white-space: nowrap;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+}
+.bar-tab:hover {
+  color: rgb(var(--text));
+  background: rgb(var(--bar-ink) / 0.06);
+}
+.bar-tab[aria-selected='true'] {
+  color: rgb(var(--text));
+  font-weight: 600;
+}
+.bar-tab[aria-selected='true'] .bar-tab-icon {
+  color: rgb(var(--accent));
+}
+/* Inside the scrolling strip an outside ring would be clipped, so it is drawn inside. */
+.bar-tab:focus-visible {
+  outline-offset: -2px;
+}
+.app-bar[data-bar-style='frosted'] .bar-tab[aria-selected='true'] {
+  background: rgb(var(--surface));
+  box-shadow:
+    0 0 0 1px rgb(var(--border)),
+    0 1px 3px rgb(0 0 0 / 0.1);
+}
+/* Basic: full-height tabs with an accent underline on the bar's bottom edge. */
+.app-bar[data-bar-style='basic'] .bar-pages-slot,
+.app-bar[data-bar-style='basic'] .bar-pages,
+.app-bar[data-bar-style='basic'] .bar-tabs {
+  align-self: stretch;
+}
+.app-bar[data-bar-style='basic'] .bar-pages-slot {
+  display: flex;
+}
+.app-bar[data-bar-style='basic'] .bar-tabs {
+  align-items: stretch;
+  padding-block: 0;
+}
+.app-bar[data-bar-style='basic'] .bar-tab {
+  height: auto;
+  border-radius: 0;
+}
+.app-bar[data-bar-style='basic'] .bar-tab:hover {
+  background: none;
+}
+.app-bar[data-bar-style='basic'] .bar-tab::after {
+  content: '';
+  position: absolute;
+  left: 0.65rem;
+  right: 0.65rem;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: rgb(var(--accent));
+  transform: scaleX(0);
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.app-bar[data-bar-style='basic'] .bar-tab[aria-selected='true']::after {
+  transform: none;
+}
+.app-bar[data-bar-style='basic'] .bar-tab:hover:not([aria-selected='true'])::after {
+  transform: scaleX(0.5);
+  opacity: 0.35;
+}
+
+.bar-rename {
+  width: 9rem;
+  height: 2.125rem;
+  align-self: center;
+  flex-shrink: 0;
+}
+
+/* Buttons */
+.bar-icon,
+.bar-btn {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  height: 2.125rem;
+  border-radius: var(--bar-control-radius);
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+}
+.bar-icon {
+  width: 2.125rem;
+  color: rgb(var(--muted));
+}
+.bar-btn {
+  gap: 0.4rem;
+  padding: 0 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: rgb(var(--text));
+}
+.bar-icon:hover,
+.bar-btn:hover,
+.bar-icon[aria-expanded='true'] {
+  color: rgb(var(--text));
+  background: rgb(var(--bar-ink) / 0.07);
+}
+.bar-btn-primary,
+.bar-btn-primary:hover {
+  color: rgb(var(--accent-fg));
+  background: rgb(var(--accent));
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.15);
+}
+.bar-btn-primary:hover {
+  background: rgb(var(--accent) / 0.9);
+}
+.bar-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  margin-right: 0.25rem;
+  border-radius: calc(var(--bar-control-radius) + 2px);
+  background: rgb(var(--bar-ink) / 0.05);
+  box-shadow: inset 0 0 0 1px rgb(var(--border) / 0.8);
+}
+.bar-group .bar-btn {
+  height: 1.875rem;
+  padding: 0 0.65rem;
+}
+.bar-divider {
+  width: 1px;
+  height: 1.25rem;
+  margin: 0 0.25rem;
+  background: rgb(var(--border));
+}
+@media (max-width: 1099px) {
+  .bar-btn-label {
+    display: none;
+  }
+  .bar-group .bar-btn {
+    width: 1.875rem;
+    padding: 0;
+  }
+}
+
+/* Menus that drop from the bar */
+.bar-menu {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  z-index: 40;
+  max-height: calc(100vh - 5rem);
+  overflow-y: auto;
+  padding: 0.25rem;
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius);
+  background: rgb(var(--surface));
+  color: rgb(var(--text));
+  box-shadow:
+    0 2px 6px rgb(0 0 0 / 0.08),
+    0 22px 48px -16px rgb(0 0 0 / 0.35);
+}
+.bar-menu-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: calc(var(--radius) * 0.6);
+  padding: 0.4rem 0.5rem;
+  text-align: left;
+  font-size: 0.875rem;
+}
+.bar-menu-item:hover:not(:disabled) {
+  background: rgb(var(--surface-2));
+}
+.bar-menu-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}

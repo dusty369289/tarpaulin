@@ -22,6 +22,10 @@ export const SettingsSchema = z.object({
   clock: z.enum(['auto', '12h', '24h']).default('auto'),
   weekStartsOn: z.enum(['monday', 'sunday']).default('monday'),
   autoCheckUpdates: z.boolean().default(true),
+  /** The dashboard's top bar: translucent frosted glass, or a quiet solid strip. */
+  barStyle: z.enum(['frosted', 'basic']).default('frosted'),
+  /** Slide the top bar away until the pointer nears the top edge (never on touch screens). */
+  barFoldAway: z.boolean().default(false),
   /** Set once the first-launch "Make it yours" step is done or skipped. */
   onboarded: z.boolean().default(false),
 });
