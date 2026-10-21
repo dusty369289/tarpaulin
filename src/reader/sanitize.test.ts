@@ -47,7 +47,7 @@ describe('sanitizeCanvasHtml', () => {
     expect(mail.dataset.href).toBeUndefined();
   });
 
-  it('turns Canvas file images into file ids, keeps public images', () => {
+  it('turns Canvas file images into file ids, holds back images from other sites', () => {
     const div = dom(
       `${fileImage('12', 345, 'Diagram')}<img src="https://cdn.example.org/a.png" alt="a"><img src="/courses/12/files/678/preview" alt="b"><img src="data:image/png;base64,AAAA" alt="c"><img src="data:text/html;base64,AAAA" alt="d">`,
     );
@@ -59,7 +59,10 @@ describe('sanitizeCanvasHtml', () => {
     expect(file.hasAttribute('src')).toBe(false);
     expect(file.getAttribute('style')).toBeNull();
     expect(file.getAttribute('alt')).toBe('Diagram');
-    expect(pub.getAttribute('src')).toBe('https://cdn.example.org/a.png');
+    // Nothing loads from another site until the reader sets src from data-remote-src.
+    expect(pub.hasAttribute('src')).toBe(false);
+    expect(pub.dataset.remoteSrc).toBe('https://cdn.example.org/a.png');
+    expect(pub.dataset.host).toBe('cdn.example.org');
     expect(rel.dataset.fileId).toBe('678');
     expect(data.getAttribute('src')).toMatch(/^data:image\/png/);
   });
@@ -83,8 +86,24 @@ describe('sanitizeCanvasHtml', () => {
     expect(div.querySelector('a[data-file]')?.textContent).toBe('report-template.docx');
     const imgs = [...div.querySelectorAll('img')];
     expect(imgs.filter((i) => i.hasAttribute('data-inline'))).toHaveLength(1);
-    expect(imgs.some((i) => !i.hasAttribute('src') && !i.dataset.fileId)).toBe(false);
+    expect(
+      imgs.some((i) => !i.hasAttribute('src') && !i.dataset.fileId && !i.dataset.remoteSrc),
+    ).toBe(false);
     expect(div.querySelector('[style]')).toBeNull();
+  });
+
+  it('keeps images on the Canvas host, turns plain-http images into links', () => {
+    const div = dom(
+      '<img src="https://canvas.mock/images/emoji/smile.png" alt="smile"><img src="http://old.example.org/pic.jpg" alt="A chart"><img src="http://old.example.org/x.gif">',
+    );
+    const imgs = [...div.querySelectorAll('img')];
+    expect(imgs).toHaveLength(1);
+    expect(imgs[0].getAttribute('src')).toBe('https://canvas.mock/images/emoji/smile.png');
+    const links = [...div.querySelectorAll('a[data-image-link]')];
+    expect(links.map((a) => a.textContent)).toEqual(['Image: A chart', 'Image: old.example.org']);
+    expect(links[0].getAttribute('href')).toBe('#');
+    expect((links[0] as HTMLElement).dataset.href).toBe('http://old.example.org/pic.jpg');
+    expect((links[0] as HTMLElement).dataset.canvas).toBe('false');
   });
 
   it('labels video embeds', () => {

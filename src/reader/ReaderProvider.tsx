@@ -1,9 +1,24 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  lazy,
+  Suspense,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 import { useSettings } from '../app/settingsStore';
 import { useCanvas } from '../canvas/CanvasProvider';
-import { ItemReader } from './ItemReader';
 import type { ReaderItem } from './items';
-import './reader.css';
+
+// The reader, its HTML sanitiser (DOMPurify) and its styles are a separate chunk, so the
+// dashboard starts without them. It is fetched a couple of seconds after start, so the first item
+// still opens at once.
+let loading: Promise<typeof import('./ItemReader')> | null = null;
+const loadReader = () => (loading ??= import('./ItemReader'));
+const ItemReader = lazy(() => loadReader().then((m) => ({ default: m.ItemReader })));
 
 const ReaderContext = createContext<((item: ReaderItem) => void) | null>(null);
 
@@ -11,10 +26,18 @@ const ReaderContext = createContext<((item: ReaderItem) => void) | null>(null);
 export function ReaderProvider({ children }: { children: ReactNode }) {
   const [item, setItem] = useState<ReaderItem | null>(null);
   const close = useCallback(() => setItem(null), []);
+  useEffect(() => {
+    const t = setTimeout(() => void loadReader().catch(() => (loading = null)), 2_000);
+    return () => clearTimeout(t);
+  }, []);
   return (
     <ReaderContext.Provider value={setItem}>
       {children}
-      {item && <ItemReader key={`${item.kind}:${item.id}`} item={item} onClose={close} />}
+      {item && (
+        <Suspense fallback={null}>
+          <ItemReader key={`${item.kind}:${item.id}`} item={item} onClose={close} />
+        </Suspense>
+      )}
     </ReaderContext.Provider>
   );
 }
