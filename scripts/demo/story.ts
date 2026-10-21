@@ -36,7 +36,6 @@ export async function story({
   point,
   click,
   type,
-  drag,
   scroll,
   moveTo,
   caption,
@@ -47,17 +46,6 @@ export async function story({
   widget,
 }: Director) {
   const settings = () => click(page.getByRole('button', { name: 'Settings', exact: true }), 350);
-  const dashboard = async (hold = 1300) => {
-    await click(page.getByRole('button', { name: 'Dashboard' }), 200);
-    await settle();
-    await pause(hold);
-  };
-  /** Settings › Appearance: pick a look tile, then show it on the dashboard. */
-  const look = async (id: string, hold?: number) => {
-    await settings();
-    await click(page.getByTestId(`look-${id}`), 250);
-    await dashboard(hold);
-  };
   type Mode = 'light' | 'dark';
   /** Light ↔ dark as an on-screen effect (see src/dev/demoHooks.ts). */
   const fadeTo = async (mode: Mode, hold = 1400) => {
@@ -78,6 +66,30 @@ export async function story({
     await pause(hold);
   };
 
+  // Two pages laid out to show the dashboard at its best (built like presets, see demoHooks).
+  const PAGES = [
+    {
+      name: 'This week',
+      icon: 'calendar',
+      widgets: [
+        { type: 'clock', x: 0, y: 0, w: 5, h: 3 },
+        { type: 'countdown', x: 5, y: 0, w: 3, h: 3 },
+        { type: 'grades', x: 8, y: 0, w: 4, h: 8 },
+        { type: 'calendar', x: 0, y: 3, w: 8, h: 11, settings: { view: 'week' } },
+        { type: 'due-soon', x: 8, y: 8, w: 4, h: 6, settings: { daysAhead: 7, groupBy: 'none' } },
+      ],
+    },
+    {
+      name: 'Month',
+      icon: 'sparkles',
+      widgets: [
+        { type: 'calendar', x: 0, y: 0, w: 8, h: 14, settings: { view: 'month' } },
+        { type: 'todo', x: 8, y: 0, w: 4, h: 7, settings: { source: 'both' } },
+        { type: 'announcements', x: 8, y: 7, w: 4, h: 7 },
+      ],
+    },
+  ];
+
   await page.goto(`${appUrl}/?demo`);
   await page.evaluate(() => {
     localStorage.clear();
@@ -89,208 +101,146 @@ export async function story({
   await page.evaluate(() => Promise.all([...document.fonts].map((f) => f.load().catch(() => {}))));
   await settle();
   startRecording();
-  await pause(400);
-  await caption(
-    'Meet Tarpaulin',
-    'A calmer dashboard for Canvas, built from widgets you arrange yourself',
-    2000,
-  );
+  await pause(300);
+  await caption('Meet Tarpaulin', 'A calmer dashboard for Canvas', 1200);
 
   // ── Connect ──────────────────────────────────────────────────────────────────────────────────
   await caption(
     'Connect your Canvas account',
     'Your Canvas address and an access token',
-    400,
+    200,
     page.getByLabel('Canvas address'),
   );
   await type(page.getByLabel('Canvas address'), 'canvas.youruni.edu');
-  await type(page.getByLabel('Access token'), '7~DemoTokenForTheVideo');
+  await type(page.getByLabel('Access token'), '7~DemoToken');
   await caption(
-    'The token goes straight into the system keychain',
-    'Tarpaulin only ever reads from Canvas. It never submits or changes anything',
-    300,
+    'Read-only, and the token stays in your keychain',
+    'Tarpaulin never submits or changes anything in Canvas',
+    1700,
     page.getByRole('button', { name: 'Test & connect' }),
   );
   await click(page.getByRole('button', { name: 'Test & connect' }), 300);
+  await caption('');
   await until(page.getByRole('heading', { name: 'Make it yours' }));
   await settle();
 
-  // ── First run: looks apply live ─────────────────────────────────────────────────────────────
-  await caption(
-    'Pick a look',
-    'Every choice applies live, and can be changed any time',
-    500,
-    page.getByTestId('look-cork'),
-  );
-  await click(page.getByTestId('look-cork'), 1000);
-  await click(page.getByTestId('look-terminal'), 1000);
-  await click(page.getByTestId('look-plain'), 600);
-  await click(page.getByRole('radio', { name: /^Deadline Focus/ }), 400);
+  // ── First run ───────────────────────────────────────────────────────────────────────────────
+  await caption('Pick a look', 'It applies live', 300, page.getByTestId('look-cork'));
+  await click(page.getByTestId('look-cork'), 900);
+  await click(page.getByTestId('look-terminal'), 900);
+  await click(page.getByTestId('look-plain'), 400);
   await click(page.getByRole('button', { name: 'Continue' }), 300);
   await until(page.getByRole('tab', { name: /Home/ }));
   await settle();
+  await crossfade(async () => {
+    await page.evaluate((pages) => window.__tarpaulinDemo!.setPages(pages), PAGES);
+    await settle();
+  });
 
-  // ── At a glance ─────────────────────────────────────────────────────────────────────────────
+  // ── The week ────────────────────────────────────────────────────────────────────────────────
   await caption(
-    'Everything that matters, at a glance',
-    'The next deadline, what’s due, your to-dos, calendar and announcements',
-    900,
-    widget('due-soon'),
+    'Your week at a glance',
+    'Classes, deadlines and events in one calendar',
+    300,
+    widget('calendar'),
   );
-  await point(widget('countdown'), 0.5, 0.45);
-  await pause(700);
-  await point(page.getByTestId('due-item').first(), 0.3, 0.5);
+  await point(widget('calendar'), 0.35, 0.4);
   await pause(600);
+  await click(widget('calendar').getByRole('button', { name: 'Next' }), 900);
+  await click(widget('calendar').getByRole('button', { name: 'Previous' }), 500);
+  await caption(
+    'Widgets fit the space you give them',
+    'A wide clock sits beside its greeting; grades get bars',
+    300,
+    widget('clock'),
+  );
+  await point(widget('clock'), 0.6, 0.5);
+  await pause(700);
+  await point(widget('grades'), 0.5, 0.3);
+  await pause(800);
 
   // ── Reader ──────────────────────────────────────────────────────────────────────────────────
   await caption(
-    'Read it without leaving',
-    'Assignments and announcements open right here, in Tarpaulin’s own layout',
-    300,
+    'Open anything without leaving',
+    'Assignments and announcements, in Tarpaulin’s own layout',
+    200,
     page.getByTestId('due-item').first(),
   );
-  await click(page.getByTestId('due-item').first(), 300);
+  await click(page.getByTestId('due-item').first().getByRole('button').first(), 300);
   await until(page.getByTestId('reader-content'));
   await settle();
-  await pause(500);
   await point(page.getByTestId('reader-content'), 0.5, 0.4);
-  await scroll(520, 1400);
-  await pause(700);
-  await scroll(-520, 700);
-  await pause(400);
-  await caption(
-    'Canvas HTML is cleaned up and restyled',
-    'Images, tables and files work; outside links ask before opening',
-    1400,
-    page.getByTestId('reader-content'),
-  );
+  await scroll(480, 1200);
+  await pause(500);
   await page.keyboard.press('Escape');
   await settle();
 
-  // ── Layout ──────────────────────────────────────────────────────────────────────────────────
+  // ── The month ───────────────────────────────────────────────────────────────────────────────
+  await click(page.getByRole('tab', { name: /Month/ }), 300);
+  await settle();
+  await caption(
+    'Or the whole month',
+    'Pick a day to see everything on it',
+    300,
+    widget('calendar'),
+  );
+  const busyDay = widget('calendar').getByRole('button', { name: /, [1-9]\d* items?$/ });
+  await click(busyDay.nth(3), 1100);
+  await click(busyDay.nth(6), 1100);
+
+  // ── Edit ────────────────────────────────────────────────────────────────────────────────────
   await click(page.getByRole('button', { name: 'Edit', exact: true }), 300);
   await caption(
-    'Rearrange anything',
-    'Drag widgets around the grid, and resize them',
+    'Make it your own',
+    'Drag, resize, and add from nine widgets',
     300,
-    widget('countdown'),
+    page.getByRole('button', { name: 'Add widget' }),
   );
-  await drag(widget('countdown').locator('.widget-drag-handle'), 1060, 0, { x: 0.3, y: 0.5 });
+  await click(page.getByRole('button', { name: 'Add widget' }), 1300);
+  await page.keyboard.press('Escape');
   await settle();
-  await drag(widget('calendar').locator('.react-resizable-handle-se'), 230, 170);
-  await settle();
-  await pause(500);
-  await click(page.getByRole('button', { name: 'Done' }), 800);
-
-  await click(page.getByRole('button', { name: 'Add page' }), 600);
-  await click(page.getByRole('button', { name: /Minimal/ }), 400);
-  await settle();
-  await caption(
-    'Widgets use the space they’re given',
-    'A wide clock puts the greeting beside a time sized to fill its half',
-    1800,
-    widget('clock'),
-  );
-  await click(page.getByRole('tab', { name: /Home/ }), 300);
+  await click(page.getByRole('button', { name: 'Done' }), 300);
+  await click(page.getByRole('tab', { name: /This week/ }), 300);
   await settle();
 
   // ── Looks ───────────────────────────────────────────────────────────────────────────────────
-  await caption('Light or dark', 'Follows your system, or pick one yourself', 300);
-  await fadeTo('dark');
-  await fadeTo('light', 900);
-  await caption(
-    'Seven looks to choose from',
-    'Each pairs a background with a widget style and fonts that belong together',
-    300,
-  );
-  await look('cork', 1400);
-  await caption('Cork board', 'Pinned post-it notes, in light…', 0);
-  await pause(400);
-  await caption('Cork board', '…and in dark', 0);
-  await fadeTo('dark', 1500);
-  await caption('Terminal', 'A green screen, scanlines and all', 0);
-  await dipTo('terminal', 'dark', 1700);
-  await caption('Blueprint', 'Lettered panels on grid paper', 0);
-  await dipTo('blueprint', 'light', 1600);
-  await caption('Arcade', 'Pixel windows under a night sky', 0);
-  await dipTo('arcade', 'dark', 1700);
-
-  // ── One widget, its own style ───────────────────────────────────────────────────────────────
+  await caption('Light or dark', undefined, 0);
+  await fadeTo('dark', 1100);
+  await fadeTo('light', 500);
+  await caption('Seven looks', 'Cork board, in light…', 0);
+  await dipTo('cork', 'light', 1100);
+  await caption('Seven looks', '…and in dark', 0);
+  await fadeTo('dark', 1100);
+  await caption('Terminal', undefined, 0);
+  await dipTo('terminal', 'dark', 1200);
+  await caption('Blueprint', undefined, 0);
+  await dipTo('blueprint', 'light', 1200);
+  await caption('Arcade', undefined, 0);
+  await dipTo('arcade', 'dark', 1200);
+  await caption('');
   await dipTo('plain', 'light', 300);
-  await click(page.getByRole('button', { name: 'Edit', exact: true }), 300);
-  await caption(
-    'Mix and match',
-    'Give one widget its own style, or a page its own background',
-    300,
-    widget('countdown'),
-  );
-  await click(widget('countdown').getByRole('button', { name: /^Settings for/ }), 500);
-  const panel = page.getByRole('dialog', { name: /settings$/ });
-  await click(panel.getByTestId('skin-postit'), 500);
-  await click(panel.getByRole('radio', { name: 'Pink' }), 800);
-  await click(panel.getByRole('button', { name: 'Close' }), 400);
-  await click(page.getByRole('button', { name: 'Style' }), 500);
-  await click(page.getByRole('dialog', { name: /^Style/ }).getByTestId('background-dots'), 900);
-  await page.keyboard.press('Escape');
-  await settle();
-  await click(page.getByRole('button', { name: 'Done' }), 1300);
 
   // ── Top bar ─────────────────────────────────────────────────────────────────────────────────
-  await caption(
-    'A top bar that gets out of the way',
-    'Frosted glass by default; it can fold away until you need it',
-    300,
-    page.locator('header.app-bar'),
-  );
   await settings();
   const fold = page.getByRole('switch', { name: 'Fold away the top bar' });
   await point(fold);
-  await pause(200);
   await fold.setChecked(true, { force: true });
-  await pause(500);
+  await pause(300);
   await click(page.getByRole('button', { name: 'Dashboard' }), 300);
   await settle();
   await moveTo(720, 560);
-  await pause(1400);
   await caption(
-    'Move to the top edge and it slides back in',
-    undefined,
-    0,
-    page.locator('header.app-bar'),
+    'A top bar that folds away',
+    'Move to the top edge to bring it back',
+    900,
+    widget('clock'),
   );
   await moveTo(720, 4);
-  await pause(1300);
-  await moveTo(720, 560);
-  await pause(1200);
-
-  // ── Settings ────────────────────────────────────────────────────────────────────────────────
-  await moveTo(720, 4);
+  await pause(1100);
+  await moveTo(720, 520);
   await pause(400);
-  await settings();
-  const search = page.getByRole('searchbox', { name: 'Search courses' });
-  await search.scrollIntoViewIfNeeded();
-  await caption(
-    'Tuned to how you study',
-    'Hide courses, nickname them, and get reminders before deadlines',
-    300,
-    search,
-  );
-  await point(search);
-  await pause(200);
-  await type(search, 'mach');
-  await pause(900);
-  await click(page.getByRole('button', { name: 'Clear search' }), 400);
-  await point(page.getByRole('heading', { name: /Notifications/ }).first());
-  await pause(1200);
-  await moveTo(720, 4);
-  await pause(300);
-  await dashboard(600);
 
-  await caption(
-    'Tarpaulin',
-    'Your Canvas, your way. And it never changes anything in Canvas',
-    3200,
-  );
+  await caption('Tarpaulin', 'Your Canvas, your way', 2400);
   await caption('');
-  await pause(600);
+  await pause(500);
 }

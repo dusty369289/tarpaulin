@@ -316,6 +316,7 @@ async function render(browser: Browser, appUrl: string, worker: number): Promise
       if (await target.isVisible()) return;
       await frame();
     }
+    await cdp.send("Page.captureScreenshot", { format: "png" }).then((s) => writeFileSync(`${OUT}/.timeout.png`, Buffer.from(s.data, "base64")));
     throw new Error(`Timed out waiting for ${target}`);
   }
 
