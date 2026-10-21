@@ -5,6 +5,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './app/App';
 import { exposeSettle } from './app/settle';
+import { resumeAfterUpdate } from './app/updater';
 import { CanvasProvider } from './canvas/CanvasProvider';
 import { CatalogProvider } from './canvas/hooks';
 import { createDefaultTransport } from './canvas/transport';
@@ -24,6 +25,8 @@ const persister = createSyncStoragePersister({
 });
 
 exposeSettle(queryClient);
+// After an update the new version reopens the page that was showing (see app/updater.ts).
+resumeAfterUpdate();
 
 async function pickTransport() {
   // Dev-only demo mode for recording the product video (see src/dev/demoTransport.ts).
