@@ -79,6 +79,22 @@
   background: repeating-linear-gradient(-45deg, #a9d3c7 0 6px, #bfe0d6 6px 12px);
   transform: rotate(-4deg);
 }
+/* After dark, tape is dimmer and washi is a muted, dusty version of itself. */
+.skin-root[data-mode='dark'] .skin-decor[data-decor='tape'] {
+  background: rgb(255 255 255 / 0.22);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+}
+.skin-root[data-mode='dark'] .skin-decor[data-decor='tape-yellow'] {
+  background: rgb(255 230 140 / 0.32);
+}
+.skin-root[data-mode='dark'] .skin-decor[data-decor='washi-coral'] {
+  opacity: 0.75;
+  background: repeating-linear-gradient(45deg, #9a5c50 0 8px, #ad6e61 8px 16px);
+}
+.skin-root[data-mode='dark'] .skin-decor[data-decor='washi-mint'] {
+  opacity: 0.8;
+  background: repeating-linear-gradient(-45deg, #4f7a70 0 6px, #5f8a80 6px 12px);
+}
 
 /* Widgets on paper skins cast a real shadow so they lift off textured backgrounds. */
 .skin-root[data-skin='postit'] > .skin-frame,
@@ -88,13 +104,23 @@
     0 1px 2px rgb(0 0 0 / 0.12);
 }
 
+/* High contrast drops each style's colours (see resolveSkin), and here its glows, textures and
+   borderless paper: every widget gets a solid edge on the black page. */
+html[data-theme='high-contrast'] .skin-root[data-skin][data-mode] > .skin-frame {
+  text-shadow: none;
+  background-image: none;
+}
+html[data-theme='high-contrast'] .skin-root[data-skin]:not([data-skin='pixel']) > .skin-frame {
+  border-color: rgb(var(--border));
+}
+
 @media (prefers-reduced-motion: reduce) {
   .skin-root {
     transition: none;
   }
 }
 
-/* Picker swatches take the style's edge treatment. */
+/* Picker swatches take the style's edge treatment, in the mode they're shown for. */
 .skin-swatch[data-skin-swatch='postit'] {
   border: 0;
   transform: rotate(-3deg);
@@ -110,19 +136,36 @@
 .skin-swatch[data-skin-swatch='terminal'] {
   border: 1px solid #2fbf5a;
 }
+.skin-swatch[data-skin-swatch='terminal'][data-mode='light'] {
+  border: 1px dashed #2f7a45;
+}
 .skin-swatch[data-skin-swatch='pixel'] {
   border: 0;
   box-shadow:
     0 0 0 2px #f4f1ff,
     0 0 0 4px #1b1238;
 }
+.skin-swatch[data-skin-swatch='pixel'][data-mode='light'] {
+  box-shadow:
+    0 0 0 2px #24124f,
+    0 0 0 4px #ffffff;
+}
 .skin-swatch[data-skin-swatch='swiss'] {
   border: 3px solid #111;
+}
+.skin-swatch[data-skin-swatch='swiss'][data-mode='dark'] {
+  border-color: #f2efe8;
 }
 .skin-swatch[data-skin-swatch='blueprint'] {
   border: 1px solid #eaf4ff;
 }
+.skin-swatch[data-skin-swatch='blueprint'][data-mode='light'] {
+  border-color: #1d4f91;
+}
 .skin-swatch[data-skin-swatch='journal'] {
   border: 2px solid #2d2a32;
   border-radius: 3px 9px 4px 8px;
+}
+.skin-swatch[data-skin-swatch='journal'][data-mode='dark'] {
+  border-color: #d8d3ca;
 }

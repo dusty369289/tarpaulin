@@ -4,7 +4,7 @@ import { useSettings } from '../app/settingsStore';
 import { buildPage, PRESETS } from '../dashboard/presets';
 import { useDashboard } from '../dashboard/store';
 import { GRID_COLS } from '../dashboard/types';
-import { LookPicker } from '../theme/pickers';
+import { LookPicker, LookPreview } from '../theme/pickers';
 import { THEMES, type ThemeName } from '../theme/themes';
 
 // First-launch step after connecting: pick a look, colour mode and a starting layout. Everything
@@ -13,8 +13,8 @@ import { THEMES, type ThemeName } from '../theme/themes';
 
 const MODES: Array<{ id: 'system' | ThemeName; name: string; hint: string }> = [
   { id: 'system', name: 'Match system', hint: 'Light or dark with your OS' },
-  { id: 'light', name: 'Light', hint: 'Always light' },
-  { id: 'dark', name: 'Dark', hint: 'Always dark' },
+  { id: 'light', name: 'Light', hint: 'The light version of your look' },
+  { id: 'dark', name: 'Dark', hint: 'The dark version of your look' },
   { id: 'high-contrast', name: 'High contrast', hint: 'Maximum legibility' },
 ];
 
@@ -22,12 +22,34 @@ const ACCENTS = ['', '#2563eb', '#0891b2', '#059669', '#d97706', '#dc2626', '#db
 
 const rgb = (triple: string) => `rgb(${triple})`;
 
-/** A tiny dashboard drawn in a theme's colours. */
-function ThemePreview({ mode, accent }: { mode: 'system' | ThemeName; accent: string }) {
+/**
+ * The chosen look in a mode: its real background and widget swatches for light and dark, or a
+ * tiny dashboard in the theme's colours for the plain look and high contrast (where textures
+ * give way to the theme).
+ */
+function ThemePreview({
+  mode,
+  accent,
+  look,
+}: {
+  mode: 'system' | ThemeName;
+  accent: string;
+  look: { background: string; widgetStyle: string };
+}) {
   const halves: ThemeName[] = mode === 'system' ? ['light', 'dark'] : [mode];
+  const plain = look.background === 'plain' && look.widgetStyle === 'card';
   return (
     <span aria-hidden className="flex h-20 overflow-hidden rounded-md border border-border">
       {halves.map((name) => {
+        if (!plain && name !== 'high-contrast')
+          return (
+            <LookPreview
+              key={name}
+              look={look}
+              mode={name}
+              className="h-full flex-1 rounded-none"
+            />
+          );
         const t = THEMES[name];
         const acc = accent && name !== 'high-contrast' ? accent : rgb(t.accent);
         return (
@@ -142,7 +164,7 @@ export function Personalize() {
                 onClick={() => update({ theme: m.id })}
                 className={tile(theme === m.id)}
               >
-                <ThemePreview mode={m.id} accent={accent} />
+                <ThemePreview mode={m.id} accent={accent} look={{ background, widgetStyle }} />
                 <span className="flex items-center justify-between text-sm font-medium">
                   {m.name}
                   {m.id === 'system' && (
