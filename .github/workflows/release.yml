@@ -1,10 +1,21 @@
 name: Release
 
-# Push a tag like v0.2.0 (after `pnpm release:version 0.2.0`) to build every platform, publish a
-# GitHub release, and update the latest.json manifest that the in-app updater reads.
+# Builds every platform, publishes a GitHub release and updates the latest.json manifest that the
+# in-app updater reads. Start it either way (after `pnpm release:version 0.2.0` is merged):
+#   - push a tag like v0.2.0 on main, or
+#   - Actions › Release › Run workflow on main with version 0.2.0, which creates the tag itself.
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, e.g. 0.2.0 (must match package.json, Cargo.toml, tauri.conf.json)
+        required: true
+        type: string
+
+env:
+  TAG: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref_name }}
 
 permissions:
   contents: write
@@ -20,15 +31,26 @@ jobs:
       - name: Only release commits that are on main
         run: |
           git fetch origin main
-          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "::error::Tag ${{ github.ref_name }} is not on main"; exit 1; }
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "::error::$TAG ($GITHUB_SHA) is not on main"; exit 1; }
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec tsx scripts/check-version.ts "${{ github.ref_name }}"
+      - run: pnpm exec tsx scripts/check-version.ts "$TAG"
       - run: pnpm test
+      # A run started by hand tags the commit it built. (A tag pushed with the workflow's token
+      # doesn't start another run, so this run does the building.)
+      - name: Create the tag
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            [ "$(git rev-parse "$TAG^{commit}")" = "$GITHUB_SHA" ] || { echo "::error::$TAG already exists on another commit"; exit 1; }
+          else
+            git tag "$TAG" "$GITHUB_SHA"
+            git push origin "refs/tags/$TAG"
+          fi
 
   build:
     needs: check
@@ -91,8 +113,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: Tarpaulin ${{ github.ref_name }}
+          tagName: ${{ env.TAG }}
+          releaseName: Tarpaulin ${{ env.TAG }}
           releaseBody: |
             Download the installer for your platform below. Existing installs update themselves
             (Settings → Updates, or the banner that appears when a new version is out).
