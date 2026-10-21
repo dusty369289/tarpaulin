@@ -84,35 +84,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-browser
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
-      # Browser binaries are cached per Playwright version; system libraries are always installed.
-      - name: Playwright version
-        id: pw
-        run: echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v4
-        id: pw-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
-      - name: Install Chromium
-        if: steps.pw-cache.outputs.cache-hit != 'true'
-        run: pnpm exec playwright install chromium
-      - name: Install Chromium system dependencies
-        # The runner image ships a Microsoft apt source that sometimes refuses requests (403),
-        # which fails apt-get update for everything; nothing here needs it.
-        run: |
-          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list /etc/apt/sources.list.d/microsoft*.list
-          pnpm exec playwright install-deps chromium
       # These start their own mock Canvas and Vite server; no secrets or network needed.
       - run: pnpm test:ui
       - name: Widget sweep (every widget, size and mock scenario)
@@ -122,26 +99,43 @@ jobs:
       - name: Widget sweep with a wide fallback font
         if: needs.changes.outputs.sweeps == 'true' || github.event_name != 'pull_request'
         run: pnpm test:widgets --scenario=dense --font="DejaVu Sans Mono"
-      # Every widget style gets the same sweep. Styles whose files (and the shared widget code)
-      # hash the same as their last pass are skipped; the pass record lives in the Actions cache.
-      - uses: actions/cache/restore@v4
-        if: needs.changes.outputs.sweeps == 'true' || github.event_name != 'pull_request'
-        with:
-          path: .cache/theme-sweep.json
-          key: theme-sweep-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: theme-sweep-
-      - name: Theme sweep (every widget style; unchanged styles skipped)
-        if: needs.changes.outputs.sweeps == 'true' || github.event_name != 'pull_request'
-        run: pnpm test:themes
-      - if: always() && (needs.changes.outputs.sweeps == 'true' || github.event_name != 'pull_request') && hashFiles('.cache/theme-sweep.json') != ''
-        uses: actions/cache/save@v4
-        with:
-          path: .cache/theme-sweep.json
-          key: theme-sweep-${{ github.run_id }}-${{ github.run_attempt }}
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: screenshots
+          path: screenshots/
+          retention-days: 7
+  # Every widget style gets the widget sweep too, one job per style so they run side by side.
+  # Styles whose files (and the shared widget code) hash the same as their last pass are
+  # skipped; each style's pass record lives in the Actions cache. Keep the list in step with
+  # src/theme/skins/index.ts (a unit test checks).
+  themes:
+    name: Theme sweep (${{ matrix.style }})
+    needs: changes
+    if: needs.changes.outputs.sweeps == 'true' || github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        style: [card, postit, index-card, terminal, pixel, swiss, blueprint, journal]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-browser
+      - uses: actions/cache/restore@v4
+        with:
+          path: .cache/theme-sweep.json
+          key: theme-sweep-${{ matrix.style }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: theme-sweep-${{ matrix.style }}-
+      - run: pnpm test:themes --styles=${{ matrix.style }}
+      - if: always() && hashFiles('.cache/theme-sweep.json') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/theme-sweep.json
+          key: theme-sweep-${{ matrix.style }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-${{ matrix.style }}
           path: screenshots/
           retention-days: 7
 
@@ -168,7 +162,7 @@ jobs:
 
   passed:
     name: CI passed
-    needs: [changes, web, rust]
+    needs: [changes, web, themes, rust]
     if: always()
     runs-on: ubuntu-latest
     steps:
