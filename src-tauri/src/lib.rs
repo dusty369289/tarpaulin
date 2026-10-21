@@ -73,6 +73,29 @@ async fn canvas_request(
     }
 }
 
+/// When the connected access token expires, looked up with the token itself: Canvas finds a
+/// user's token by its hint (`GET /api/v1/users/self/tokens/:hint`). The token and its hint stay
+/// here; the frontend gets only the date. A rejected token is an error, so the app shows its
+/// "token expired" banner; anything else Canvas refuses (an old token without a hint, a scoped
+/// token, an admin restriction) just means the date can't be known.
+#[tauri::command]
+async fn token_expiry(state: State<'_, AppState>) -> Result<canvas::TokenExpiry, String> {
+    let creds = connected(&state).map_err(err)?;
+    let Credentials::Token { base_url, token } = &creds else {
+        return Ok(canvas::TokenExpiry::NotApplicable);
+    };
+    let Some(hint) = canvas::token_hint(token) else {
+        return Ok(canvas::TokenExpiry::Unknown);
+    };
+    let base = normalize_base_url(base_url).map_err(err)?;
+    let path = format!("/api/v1/users/self/tokens/{hint}");
+    match canvas::get_all(&state.http, &base, token, &path, &[]).await {
+        Ok(body) => Ok(canvas::read_token_expiry(&body, &hint)),
+        Err(CanvasError::Http { .. } | CanvasError::Decode(_)) => Ok(canvas::TokenExpiry::Unknown),
+        Err(e) => Err(err(e)),
+    }
+}
+
 #[tauri::command]
 fn auth_status(state: State<'_, AppState>) -> Result<ConnectionInfo, String> {
     Ok(match state.vault.get()? {
@@ -207,6 +230,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             canvas_request,
             auth_status,
+            token_expiry,
             save_token,
             oauth_login,
             logout,

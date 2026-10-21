@@ -9,6 +9,12 @@ import {
   normalizeBaseUrl,
   validateApiPath,
 } from './src/canvas/http';
+import {
+  isCredentialRejection,
+  readTokenExpiry,
+  tokenHint,
+  tokenLookupPath,
+} from './src/canvas/token';
 
 const PROXY_PREFIX = '/canvas-proxy';
 
@@ -46,6 +52,20 @@ function canvasDevProxy(): Plugin {
           return send(res, 503, {
             error: 'Set CANVAS_BASE_URL and CANVAS_TOKEN to use live data.',
           });
+        }
+        if (url.pathname === '/token-expiry') {
+          // Same lookup as the desktop app's token_expiry command (src-tauri/src/lib.rs).
+          const hint = tokenHint(token);
+          if (!hint) return send(res, 200, { status: 'unknown' });
+          return void fetchAllPages(baseUrl, token, tokenLookupPath(hint), [])
+            .then((body) => send(res, 200, readTokenExpiry(body, hint)))
+            .catch((e: unknown) => {
+              if (!(e instanceof CanvasHttpError))
+                return send(res, 502, { error: e instanceof Error ? e.message : String(e) });
+              if (isCredentialRejection(e.status, e.message))
+                return send(res, 401, { error: e.message });
+              send(res, 200, { status: 'unknown' });
+            });
         }
         if (!validateApiPath(url.pathname)) {
           return send(res, 403, { error: `Path not allowed: ${url.pathname}` });

@@ -4,7 +4,8 @@ import type { ConnectionInfo } from '../canvas/types';
 
 // Dev-only (`/?demo`): shows the desktop onboarding flow in a browser. "Connecting" accepts any
 // address and token, then reads Canvas through the dev proxy (normally pointed at the mock
-// Canvas). Used to record the product demo video; never part of a production build.
+// Canvas). Used to record the product demo video and by the UI check for the sign-in and
+// replace-token screens; never part of a production build.
 
 const KEY = 'tarpaulin.demo.connection';
 
@@ -21,6 +22,9 @@ export class DemoTransport implements Transport {
     return saved
       ? (JSON.parse(saved) as ConnectionInfo)
       : { connected: false, baseUrl: null, method: null, userName: null };
+  }
+  tokenExpiry() {
+    return this.proxy.tokenExpiry();
   }
   async connectWithToken(baseUrl: string, token: string): Promise<ConnectionInfo> {
     await new Promise((r) => setTimeout(r, 700));
@@ -42,5 +46,8 @@ export class DemoTransport implements Transport {
     sessionStorage.removeItem(KEY);
   }
   async openExternal() {}
-  async openWebLink() {}
+  // Opens like the browser build does, so the UI check can see where the token help links to.
+  openWebLink(url: string) {
+    return this.proxy.openWebLink(url);
+  }
 }

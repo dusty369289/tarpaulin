@@ -1,4 +1,5 @@
 import { assertApiPath, encodePairs, toQueryPairs, type Query } from './http';
+import { CanvasAuthError, isAuthError, isCredentialRejection, type TokenExpiry } from './token';
 import type { ConnectionInfo } from './types';
 
 /**
@@ -9,6 +10,8 @@ export interface Transport {
   readonly kind: 'tauri' | 'dev-proxy' | 'fixtures';
   get(path: string, query?: Query): Promise<unknown>;
   status(): Promise<ConnectionInfo>;
+  /** When the connected access token expires, if Canvas will say (see src/canvas/token.ts). */
+  tokenExpiry(): Promise<TokenExpiry>;
   /** Only the Tauri transport manages credentials; the others are configured externally. */
   readonly canManageCredentials: boolean;
   connectWithToken(baseUrl: string, token: string): Promise<ConnectionInfo>;
@@ -34,7 +37,12 @@ export class TauriTransport implements Transport {
 
   private async invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
     const { invoke } = await import('@tauri-apps/api/core');
-    return invoke<T>(cmd, args);
+    try {
+      return await invoke<T>(cmd, args);
+    } catch (e) {
+      // Commands reject with the Rust error's text; a rejected token gets its own class.
+      throw isAuthError(e) ? new CanvasAuthError(String(e)) : e;
+    }
   }
 
   get(path: string, query?: Query) {
@@ -43,6 +51,9 @@ export class TauriTransport implements Transport {
   }
   status() {
     return this.invoke<ConnectionInfo>('auth_status');
+  }
+  tokenExpiry() {
+    return this.invoke<TokenExpiry>('token_expiry');
   }
   connectWithToken(baseUrl: string, token: string) {
     return this.invoke<ConnectionInfo>('save_token', { baseUrl, token });
@@ -72,14 +83,22 @@ export class DevProxyTransport implements Transport {
     assertApiPath(path);
     const qs = encodePairs(toQueryPairs(query));
     const res = await fetch(`${this.prefix}${path}${qs ? `?${qs}` : ''}`, { method: 'GET' });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok)
-      throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`);
-    return body;
+    return this.read(res);
   }
   async status(): Promise<ConnectionInfo> {
     const res = await fetch(`${this.prefix}/status`);
     return (await res.json()) as ConnectionInfo;
+  }
+  async tokenExpiry() {
+    return (await this.read(await fetch(`${this.prefix}/token-expiry`))) as TokenExpiry;
+  }
+  private async read(res: Response): Promise<unknown> {
+    const body = await res.json().catch(() => ({}));
+    if (res.ok) return body;
+    const message = (body as { error?: string }).error ?? `Request failed (${res.status})`;
+    throw isCredentialRejection(res.status, message)
+      ? new CanvasAuthError(message)
+      : new Error(message);
   }
   connectWithToken = unsupported('Connecting');
   connectWithOAuth = unsupported('Connecting');
@@ -117,6 +136,9 @@ export class FixtureTransport implements Transport {
       method: 'fixtures',
       userName: null,
     };
+  }
+  async tokenExpiry(): Promise<TokenExpiry> {
+    return { status: 'unknown' };
   }
   connectWithToken = unsupported('Connecting');
   connectWithOAuth = unsupported('Connecting');
