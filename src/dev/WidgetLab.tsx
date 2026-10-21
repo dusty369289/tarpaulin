@@ -5,6 +5,7 @@ import { GRID_MARGIN, ROW_HEIGHT } from '../dashboard/Grid';
 import { WidgetHost } from '../dashboard/WidgetHost';
 import { GRID_COLS, type WidgetInstance } from '../dashboard/types';
 import { waitForSettled } from '../app/settle';
+import { SettingsSchema, useSettings } from '../app/settingsStore';
 import type { LabCase, LabIssue, LabReport } from './labTypes';
 import { defaultSettings, getWidget, widgetRegistry, widgetTypes } from '../widgets/registry';
 
@@ -129,6 +130,12 @@ export function WidgetLab() {
     new URLSearchParams(location.hash.split('?')[1] ?? '').get('gallery'),
   );
   const gallerySkin = new URLSearchParams(location.hash.split('?')[1] ?? '').get('skin') ?? '';
+  // `theme=dark` etc. in the URL renders the gallery in that mode (for per-mode screenshots).
+  const galleryTheme = new URLSearchParams(location.hash.split('?')[1] ?? '').get('theme');
+  useEffect(() => {
+    const parsed = SettingsSchema.shape.theme.safeParse(galleryTheme);
+    if (galleryTheme && parsed.success) useSettings.getState().update({ theme: parsed.data });
+  }, [galleryTheme]);
 
   useEffect(() => {
     const render = async (c: LabCase): Promise<LabReport> => {
@@ -147,6 +154,11 @@ export function WidgetLab() {
       types: widgetTypes,
       minSize: (type) => getWidget(type)!.minSize,
       render,
+      setTheme: async (theme) => {
+        useSettings.getState().update({ theme: SettingsSchema.shape.theme.parse(theme) });
+        await waitForSettled(queryClient, { quietFrames: 2 });
+        return document.documentElement.dataset.mode ?? '';
+      },
       sweep: async (cases) => {
         const out: LabReport[] = [];
         for (const c of cases) out.push(await render(c));

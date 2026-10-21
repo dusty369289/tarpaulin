@@ -2,10 +2,13 @@ import { Check } from 'lucide-react';
 import type { CSSProperties, ReactNode } from 'react';
 import { BACKGROUNDS, getBackground } from './backgrounds';
 import { LOOKS, type Look } from './looks';
+import { useMode } from './mode';
 import { getSkin, SKINS } from './skins';
+import type { Mode } from './themes';
 
 // Pickers for looks, page backgrounds and widget styles, shared by first-launch setup, Settings,
-// the page style drawer and each widget's settings.
+// the page style drawer and each widget's settings. Every swatch draws the variant of the current
+// mode (light, or dark for dark and high contrast) unless it is given one.
 
 function Tile({
   selected,
@@ -42,26 +45,39 @@ function Tile({
   );
 }
 
+interface SwatchProps {
+  id: string;
+  className?: string;
+  /** Which variant to draw; defaults to the current mode. */
+  mode?: Mode;
+}
+
 /** A background's texture, as a small swatch. */
-export function BackgroundSwatch({ id, className = '' }: { id: string; className?: string }) {
+export function BackgroundSwatch({ id, className = '', mode }: SwatchProps) {
+  const current = useMode();
+  const m = mode ?? current;
   const bg = getBackground(id);
   return (
     <span
       aria-hidden
+      data-mode={m}
       className={`block rounded-md border border-border/60 ${bg.tokens ? `bg-pattern-${bg.id}` : ''} ${className}`}
-      style={bg.tokens ? undefined : { background: bg.swatch }}
+      style={bg.tokens ? undefined : { background: bg.swatch[m] }}
     />
   );
 }
 
 /** A widget style's look, as a small swatch shaped like the widget. */
-export function SkinSwatch({ id, className = '' }: { id: string; className?: string }) {
+export function SkinSwatch({ id, className = '', mode }: SwatchProps) {
+  const current = useMode();
+  const m = mode ?? current;
   const skin = getSkin(id);
-  const style: CSSProperties = { background: skin.swatch };
+  const style: CSSProperties = { background: skin.swatch[m] };
   return (
     <span
       aria-hidden
       data-skin-swatch={skin.id}
+      data-mode={m}
       className={`skin-swatch block border border-border ${className}`}
       style={style}
     />
@@ -69,12 +85,20 @@ export function SkinSwatch({ id, className = '' }: { id: string; className?: str
 }
 
 /** A background with two widgets in a style on it. */
-function LookPreview({ look }: { look: Look }) {
+export function LookPreview({
+  look,
+  mode,
+  className = 'h-16',
+}: {
+  look: Pick<Look, 'background' | 'widgetStyle'>;
+  mode?: Mode;
+  className?: string;
+}) {
   return (
-    <span className="relative flex h-16 gap-1.5 overflow-hidden rounded-md p-2">
-      <BackgroundSwatch id={look.background} className="absolute inset-0 rounded-md" />
-      <SkinSwatch id={look.widgetStyle} className="relative h-full flex-[3]" />
-      <SkinSwatch id={look.widgetStyle} className="relative h-3/4 flex-[2]" />
+    <span className={`relative flex gap-1.5 overflow-hidden rounded-md p-2 ${className}`}>
+      <BackgroundSwatch id={look.background} mode={mode} className="absolute inset-0 rounded-md" />
+      <SkinSwatch id={look.widgetStyle} mode={mode} className="relative h-full flex-[3]" />
+      <SkinSwatch id={look.widgetStyle} mode={mode} className="relative h-3/4 flex-[2]" />
     </span>
   );
 }
@@ -204,11 +228,12 @@ export function PaperPicker({
   value: string;
   onChange: (paper: string) => void;
 }) {
+  const mode = useMode();
   const skin = getSkin(skinId);
   if (!skin.papers?.length) return null;
   const options = [
     { id: 'auto', name: skin.mixPapers ? 'Mixed' : 'Default', swatch: '' },
-    ...skin.papers,
+    ...skin.papers.map((p) => ({ id: p.id, name: p.name, swatch: p.swatch[mode] })),
   ];
   return (
     <div role="radiogroup" aria-label="Paper colour" className="flex flex-wrap items-center gap-2">

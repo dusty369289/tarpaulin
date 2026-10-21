@@ -1,6 +1,16 @@
 export type ThemeName = 'light' | 'dark' | 'high-contrast';
 export type ThemeChoice = ThemeName | 'system';
 
+/** Every look comes in a light and a dark variant. High contrast draws on the dark one. */
+export type Mode = 'light' | 'dark';
+export const MODES: Mode[] = ['light', 'dark'];
+export interface ByMode<T> {
+  light: T;
+  dark: T;
+}
+/** The light/dark variant a theme uses for textures and decorations. */
+export const modeOf = (theme: ThemeName): Mode => (theme === 'light' ? 'light' : 'dark');
+
 export interface ThemeTokens {
   bg: string;
   surface: string;

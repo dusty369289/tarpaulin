@@ -1,4 +1,15 @@
 /* Pixel: stepped double border, square everything, blocky icons. */
+.skin-root[data-skin='pixel'] {
+  --pixel-outline: #1b1238;
+  --pixel-drop: rgb(0 0 0 / 0.4);
+  --pixel-digit-shadow: #e94f8a;
+}
+/* Daytime: dark inner border, a white outline like a sprite edge, a soft blue drop. */
+.skin-root[data-skin='pixel'][data-mode='light'] {
+  --pixel-outline: #ffffff;
+  --pixel-drop: rgb(20 40 110 / 0.25);
+  --pixel-digit-shadow: #ffd23f;
+}
 .skin-root[data-skin='pixel'] > .skin-frame {
   border-color: transparent;
   margin: 6px;
@@ -9,8 +20,8 @@
     0 6px 0 0 rgb(var(--border)),
     -6px 0 0 0 rgb(var(--border)),
     6px 0 0 0 rgb(var(--border)),
-    0 0 0 6px #1b1238,
-    8px 8px 0 6px rgb(0 0 0 / 0.4);
+    0 0 0 6px var(--pixel-outline),
+    8px 8px 0 6px var(--pixel-drop);
 }
 .skin-root[data-skin='pixel'] * {
   border-radius: 0 !important;
@@ -34,7 +45,7 @@
 .skin-root[data-skin='pixel'] .fit-digits {
   color: rgb(var(--accent));
   font-weight: 400;
-  text-shadow: 0.08em 0.08em 0 #e94f8a;
+  text-shadow: 0.08em 0.08em 0 var(--pixel-digit-shadow);
 }
 .skin-root[data-skin='pixel'] input[type='checkbox'] {
   accent-color: rgb(var(--accent));

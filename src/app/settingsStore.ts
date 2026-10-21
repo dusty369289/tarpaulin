@@ -14,7 +14,8 @@ export const SettingsSchema = z.object({
   radius: z.number().min(0).max(24).default(12),
   fontScale: z.number().min(0.85).max(1.3).default(1),
   refreshMinutes: z.number().min(1).max(120).default(10),
-  courseScope: z.enum(['current', 'all']).default('current'),
+  /** Every course by default; hide individual ones, or narrow to the current term. */
+  courseScope: z.enum(['current', 'all']).default('all'),
   hiddenCourseIds: z.array(z.string()).default([]),
   courseColors: z.record(z.string()).default({}),
   courseNicknames: z.record(z.string()).default({}),
@@ -66,7 +67,14 @@ export const useSettings = create<SettingsState>()(
     }),
     {
       name: 'tarpaulin.settings',
-      version: 1,
+      version: 2,
+      // v1 defaulted to the current term only, which hid whole terms when Canvas's term dates
+      // were misleading. Almost nobody changed it, so 'current' moves to the new default.
+      migrate: (persisted, version) => {
+        const state = { ...(persisted as Record<string, unknown>) };
+        if (version < 2 && state.courseScope === 'current') state.courseScope = 'all';
+        return state as unknown as SettingsState;
+      },
       merge: (persisted, current) => {
         const parsed = SettingsSchema.safeParse({ ...DEFAULT_SETTINGS, ...(persisted as object) });
         return { ...current, ...(parsed.success ? parsed.data : {}) };

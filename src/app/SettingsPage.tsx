@@ -197,7 +197,8 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
       <Section title="Look">
         <p className="-mt-1 text-sm text-muted">
           A look sets the background and the widget style together, on every page. Each page can
-          have its own (Edit › Style), and each widget too (its settings).
+          have its own (Edit › Style), and each widget too (its settings). Every look has a light
+          and a dark version, picked by Mode under Appearance.
         </p>
         <LookPicker
           value={settings}
@@ -224,7 +225,10 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
       </Section>
 
       <Section title="Appearance">
-        <Row label="Mode" help="Colours of the Plain background, Card widgets and menus.">
+        <Row
+          label="Mode"
+          help="Every look has a light and a dark version. High contrast swaps in maximum-contrast colours and keeps each style's shape and fonts."
+        >
           <select
             className="input w-auto"
             value={settings.theme}
@@ -341,7 +345,14 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
       </Section>
 
       <Section title="Courses">
-        <Row label="Show courses from" help={term ? `Current term: ${term}` : undefined}>
+        <Row
+          label="Show courses from"
+          help={
+            term
+              ? `Current term looks like ${term}. Hide single courses below.`
+              : 'Hide single courses below.'
+          }
+        >
           <select
             className="input w-auto"
             value={settings.courseScope}
@@ -349,8 +360,8 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
               settings.update({ courseScope: e.target.value as typeof settings.courseScope })
             }
           >
-            <option value="current">Current term</option>
-            <option value="all">All active enrolments</option>
+            <option value="all">All courses</option>
+            <option value="current">Current term only</option>
           </select>
         </Row>
         <ul className="flex flex-col divide-y divide-border">

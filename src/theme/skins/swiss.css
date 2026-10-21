@@ -1,7 +1,7 @@
 /* Swiss: heavy black rule, all-caps tracked labels, poster numerals. */
 .skin-root[data-skin='swiss'] > .skin-frame {
   border-width: 4px;
-  border-color: #111;
+  border-color: rgb(var(--border));
 }
 .skin-root[data-skin='swiss'] * {
   border-radius: 0 !important;

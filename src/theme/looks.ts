@@ -39,7 +39,7 @@ export const LOOKS: Look[] = [
   {
     id: 'terminal',
     name: 'Terminal',
-    description: 'Green phosphor on a CRT.',
+    description: 'Phosphor screen or green-bar printout.',
     background: 'crt',
     widgetStyle: 'terminal',
   },
@@ -53,7 +53,7 @@ export const LOOKS: Look[] = [
   {
     id: 'arcade',
     name: 'Arcade',
-    description: '8-bit panels under a starry sky.',
+    description: '8-bit panels in a day or night sky.',
     background: 'night-sky',
     widgetStyle: 'pixel',
   },
