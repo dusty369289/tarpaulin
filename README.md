@@ -69,6 +69,14 @@ restart**. Updates are only applied if they're signed with the project's updater
 The builds aren't code-signed with Apple or Microsoft certificates yet, so the first launch shows a
 warning. On macOS, right-click the app and choose **Open**. On Windows, choose **More info → Run anyway**.
 
+### Contributing and CI
+
+Changes go to `main` through pull requests. `.github/workflows/ci.yml` runs on every pull request
+into `main` and on every push to `main`: format, lint, typecheck, unit tests, build, the widget
+sweeps, the theme sweep, the UI check and the Rust tests. Docs-only changes skip the heavy jobs,
+and Rust tests only run when `src-tauri/` changes. A final **CI passed** job sums it up, and
+`main` requires it, so nothing merges until it's green.
+
 ### Cutting a release
 
 ```sh

@@ -1,19 +1,60 @@
 name: CI
 
-# Every pull request, and every push to main (i.e. each merge).
+# Runs on every pull request into main and on every push to main (each merge), plus by hand.
+# No schedule: nothing changes between commits. Jobs are skipped when a change can't affect them
+# (docs only, or no Rust changes), and the "CI passed" job is the single check that branch
+# protection requires, so skipped jobs never block a merge.
 on:
   pull_request:
+    branches: [main]
   push:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pull-requests: read
+
+# A new push to a pull request cancels its older run; runs on main always finish.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.app.outputs.app }}
+      rust: ${{ steps.rust.outputs.rust }}
+    # Pull requests only (the filter asks the API for the PR's files); other events test everything.
+    steps:
+      - uses: dorny/paths-filter@v3
+        if: github.event_name == 'pull_request'
+        id: app
+        with:
+          # A file counts if it matches every pattern: anything except docs and Markdown.
+          predicate-quantifier: every
+          filters: |
+            app:
+              - '**'
+              - '!**/*.md'
+              - '!docs/**'
+              - '!LICENSE'
+      - uses: dorny/paths-filter@v3
+        if: github.event_name == 'pull_request'
+        id: rust
+        with:
+          filters: |
+            rust:
+              - 'src-tauri/**'
+              - '.github/workflows/ci.yml'
+
   web:
-    name: Lint, unit tests, widget sweep, UI check
+    name: Lint, unit tests, widget sweeps, UI check
+    needs: changes
+    # Manual and main-branch runs always test everything.
+    if: needs.changes.outputs.app == 'true' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -69,6 +110,8 @@ jobs:
 
   rust:
     name: Rust tests
+    needs: changes
+    if: needs.changes.outputs.rust == 'true' || github.event_name != 'pull_request'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v5
@@ -85,3 +128,13 @@ jobs:
       - run: mkdir -p dist
       - run: cargo test --locked
         working-directory: src-tauri
+
+  passed:
+    name: CI passed
+    needs: [changes, web, rust]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every job passed or was skipped as not affected
+        run: |
+          echo '${{ toJSON(needs) }}' | jq -e 'all(.[]; .result == "success" or .result == "skipped")'
