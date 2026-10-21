@@ -107,6 +107,7 @@ export function ItemReader({ item, onClose }: { item: ReaderItem; onClose: () =>
     <Drawer
       wide
       title={kind.label}
+      label={title ? `${kind.label}: ${title}` : kind.label}
       onClose={onClose}
       footer={
         <div className="flex items-center justify-between gap-2">
