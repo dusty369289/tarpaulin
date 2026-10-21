@@ -1,5 +1,6 @@
 mod auth;
 mod canvas;
+mod desktop;
 mod updater;
 
 use std::sync::Mutex;
@@ -165,6 +166,11 @@ pub fn run() {
         .plugin(tauri_plugin_oauth::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec![desktop::AUTOSTART_ARG]),
+        ))
         .manage(updater::PendingUpdate::default())
         .manage(AppState {
             http,
@@ -180,7 +186,14 @@ pub fn run() {
             open_external,
             updater::app_version,
             updater::check_update,
-            updater::install_update
+            updater::install_update,
+            desktop::notification_permission,
+            desktop::request_notification_permission,
+            desktop::notify,
+            desktop::autostart_enabled,
+            desktop::set_autostart,
+            desktop::launched_at_login,
+            desktop::minimize_window
         ])
         .run(tauri::generate_context!())
         .expect("error while running Tarpaulin");

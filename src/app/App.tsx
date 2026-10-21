@@ -3,7 +3,9 @@ import { Loader2 } from 'lucide-react';
 import { useCanvas } from '../canvas/CanvasProvider';
 import { Dashboard } from '../dashboard/Dashboard';
 import { Onboarding } from '../onboarding/Onboarding';
+import { NotificationRunner } from '../notifications/useNotifications';
 import { Personalize } from '../onboarding/Personalize';
+import { minimizeIfLaunchedAtLogin } from './desktop';
 import { useSettings } from './settingsStore';
 import { SettingsPage } from './SettingsPage';
 
@@ -25,6 +27,9 @@ export function App() {
   const [route, setRoute] = useState<Route>(routeFromHash);
   const onboarded = useSettings((s) => s.onboarded);
 
+  useEffect(() => {
+    void minimizeIfLaunchedAtLogin(useSettings.getState().startMinimized).catch(() => {});
+  }, []);
   useEffect(() => {
     const onHash = () => setRoute(routeFromHash());
     window.addEventListener('hashchange', onHash);
@@ -58,6 +63,15 @@ export function App() {
     );
   }
   if (!onboarded) return <Personalize />;
-  if (route === 'settings') return <SettingsPage onBack={() => go('dashboard')} />;
-  return <Dashboard onOpenSettings={() => go('settings')} />;
+  return (
+    <>
+      {/* Reminders run whichever page is showing. */}
+      <NotificationRunner />
+      {route === 'settings' ? (
+        <SettingsPage onBack={() => go('dashboard')} />
+      ) : (
+        <Dashboard onOpenSettings={() => go('settings')} />
+      )}
+    </>
+  );
 }

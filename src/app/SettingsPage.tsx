@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Download, Loader2, LogOut, RefreshCw, RotateCcw, Upload } from 'lucide-react';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useCanvas } from '../canvas/CanvasProvider';
 import { useCatalog } from '../canvas/hooks';
 import { exportDashboard, importDashboard, ImportError } from '../dashboard/exportImport';
@@ -8,28 +8,9 @@ import { buildPage, PRESETS, presetById } from '../dashboard/presets';
 import { useDashboard } from '../dashboard/store';
 import { BackgroundPicker, LookPicker, SkinPicker } from '../theme/pickers';
 import { pickSettings, useSettings } from './settingsStore';
+import { NotificationsSection, StartupSection } from './DesktopSettings';
+import { Row, Section } from './settingsUi';
 import { appVersion, useUpdater } from './updater';
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="card flex flex-col gap-3 p-5">
-      <h2 className="font-semibold">{title}</h2>
-      {children}
-    </section>
-  );
-}
-
-function Row({ label, children, help }: { label: string; children: ReactNode; help?: string }) {
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <div>
-        <div className="text-sm">{label}</div>
-        {help && <div className="text-xs text-muted">{help}</div>}
-      </div>
-      <div className="flex items-center gap-2">{children}</div>
-    </div>
-  );
-}
 
 function UpdatesSection() {
   const { state, check, install } = useUpdater();
@@ -490,6 +471,8 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
           </button>
         </Row>
       </Section>
+      <NotificationsSection />
+      <StartupSection />
       <UpdatesSection />
       <p className="pb-6 text-center text-xs text-muted">
         Tarpaulin reads Canvas only. Notes and checklists stay on this device.

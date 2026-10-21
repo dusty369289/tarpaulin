@@ -11,6 +11,13 @@ fn main() {
             "app_version",
             "check_update",
             "install_update",
+            "notification_permission",
+            "request_notification_permission",
+            "notify",
+            "autostart_enabled",
+            "set_autostart",
+            "launched_at_login",
+            "minimize_window",
         ]),
     ))
     .expect("failed to run tauri-build");
