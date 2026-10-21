@@ -325,7 +325,14 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
       </Section>
 
       <Section title="Courses">
-        <Row label="Show courses from" help={term ? `Current term: ${term}` : undefined}>
+        <Row
+          label="Show courses from"
+          help={
+            term
+              ? `Current term looks like ${term}. Hide single courses below.`
+              : 'Hide single courses below.'
+          }
+        >
           <select
             className="input w-auto"
             value={settings.courseScope}
@@ -333,8 +340,8 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
               settings.update({ courseScope: e.target.value as typeof settings.courseScope })
             }
           >
-            <option value="current">Current term</option>
-            <option value="all">All active enrolments</option>
+            <option value="all">All courses</option>
+            <option value="current">Current term only</option>
           </select>
         </Row>
         <ul className="flex flex-col divide-y divide-border">

@@ -73,6 +73,8 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
+    // Agent worktrees live under .claude/; their copies of the tests aren't ours.
+    exclude: ['**/node_modules/**', '**/dist/**', '.claude/**'],
     css: false,
   },
 });
