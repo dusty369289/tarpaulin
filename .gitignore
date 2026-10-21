@@ -9,3 +9,4 @@ coverage/
 /test-results/
 /screenshots/
 /.cache/
+/.claude/worktrees/

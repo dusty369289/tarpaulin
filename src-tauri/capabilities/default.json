@@ -19,6 +19,7 @@
     "allow-autostart-enabled",
     "allow-set-autostart",
     "allow-launched-at-login",
-    "allow-minimize-window"
+    "allow-set-close-to-tray",
+    "allow-send-to-background"
   ]
 }

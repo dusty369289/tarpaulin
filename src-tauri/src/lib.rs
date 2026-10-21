@@ -1,6 +1,7 @@
 mod auth;
 mod canvas;
 mod desktop;
+mod tray;
 mod updater;
 
 use std::sync::Mutex;
@@ -172,6 +173,12 @@ pub fn run() {
             Some(vec![desktop::AUTOSTART_ARG]),
         ))
         .manage(updater::PendingUpdate::default())
+        .manage(tray::CloseToTray::default())
+        .setup(|app| {
+            tray::setup(app.handle())?;
+            Ok(())
+        })
+        .on_window_event(tray::on_window_event)
         .manage(AppState {
             http,
             vault: CredentialVault::new(Box::new(KeyringStore)),
@@ -193,8 +200,17 @@ pub fn run() {
             desktop::autostart_enabled,
             desktop::set_autostart,
             desktop::launched_at_login,
-            desktop::minimize_window
+            tray::set_close_to_tray,
+            tray::send_to_background
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Tarpaulin");
+        .build(tauri::generate_context!())
+        .expect("error while building Tarpaulin")
+        .run(|app, event| {
+            // macOS: clicking the Dock icon while the window is hidden brings it back.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = event {
+                tray::show_main(app);
+            }
+            let _ = (app, event);
+        });
 }

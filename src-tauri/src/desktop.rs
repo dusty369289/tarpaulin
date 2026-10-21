@@ -1,7 +1,7 @@
 //! Desktop integration: system notifications and opening at login. Like the updater, these are
 //! the app's own commands, so the web view needs no plugin permissions.
 
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use tauri_plugin_autostart::ManagerExt as _;
 use tauri_plugin_notification::{NotificationExt, PermissionState};
 
@@ -56,14 +56,6 @@ pub fn set_autostart(app: AppHandle, enabled: bool) -> Result<bool, String> {
 #[tauri::command]
 pub fn launched_at_login() -> bool {
     std::env::args().any(|a| a == AUTOSTART_ARG)
-}
-
-#[tauri::command]
-pub fn minimize_window(app: AppHandle) -> Result<(), String> {
-    match app.get_webview_window("main") {
-        Some(w) => w.minimize().map_err(|e| e.to_string()),
-        None => Ok(()),
-    }
 }
 
 fn clip(s: &str, max: usize) -> String {

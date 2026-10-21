@@ -17,7 +17,8 @@ fn main() {
             "autostart_enabled",
             "set_autostart",
             "launched_at_login",
-            "minimize_window",
+            "set_close_to_tray",
+            "send_to_background",
         ]),
     ))
     .expect("failed to run tauri-build");

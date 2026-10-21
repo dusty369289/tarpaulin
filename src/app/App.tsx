@@ -5,7 +5,7 @@ import { Dashboard } from '../dashboard/Dashboard';
 import { Onboarding } from '../onboarding/Onboarding';
 import { NotificationRunner } from '../notifications/useNotifications';
 import { Personalize } from '../onboarding/Personalize';
-import { minimizeIfLaunchedAtLogin } from './desktop';
+import { backgroundIfLaunchedAtLogin, setCloseToTray } from './desktop';
 import { useSettings } from './settingsStore';
 import { SettingsPage } from './SettingsPage';
 
@@ -27,9 +27,18 @@ export function App() {
   const [route, setRoute] = useState<Route>(routeFromHash);
   const onboarded = useSettings((s) => s.onboarded);
 
+  const closeToTray = useSettings((s) => s.closeToTray);
   useEffect(() => {
-    void minimizeIfLaunchedAtLogin(useSettings.getState().startMinimized).catch(() => {});
+    // Order matters: the shell must know about the tray before deciding where to send the window.
+    void setCloseToTray(closeToTray)
+      .then(() => backgroundIfLaunchedAtLogin(useSettings.getState().startMinimized))
+      .catch(() => {});
+    // Only the first run sends the window away; later runs just sync the setting.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  useEffect(() => {
+    void setCloseToTray(closeToTray).catch(() => {});
+  }, [closeToTray]);
   useEffect(() => {
     const onHash = () => setRoute(routeFromHash());
     window.addEventListener('hashchange', onHash);

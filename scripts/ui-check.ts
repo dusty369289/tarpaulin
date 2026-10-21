@@ -421,6 +421,41 @@ await step('back to plain everywhere', async () => {
   );
 });
 
+await step('settings: course list folds and searches; tray switch is desktop-only', async () => {
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const list = page.getByRole('list', { name: 'courses' });
+  await list.waitFor();
+  const folded = await list.getByRole('listitem').count();
+  const more = page.getByRole('button', { name: /^Show all \d+ courses/ });
+  assert(folded === 5 && (await more.isVisible()), `course list not folded (${folded} rows)`);
+  const total = Number((await more.innerText()).match(/Show all (\d+)/)![1]);
+  await more.click();
+  await settled();
+  assert((await list.getByRole('listitem').count()) === total, 'show all did not show all');
+  await page.getByRole('button', { name: 'Show fewer courses' }).click();
+  const firstName = await list
+    .getByRole('listitem')
+    .first()
+    .locator('.truncate.text-xs')
+    .innerText();
+  const query = firstName.split(' · ')[0].slice(0, 8);
+  await page.getByRole('searchbox', { name: 'Search courses' }).fill(query);
+  await settled();
+  const hits = await list.getByRole('listitem').count();
+  assert(hits >= 1 && hits < total, `search for "${query}" matched ${hits} of ${total}`);
+  await page.getByRole('searchbox', { name: 'Search courses' }).fill('zzzz-no-such-course');
+  assert(await page.getByText(/No courses match/).isVisible(), 'no empty message');
+  await page.getByRole('button', { name: 'Clear search' }).click();
+  assert(
+    await page.getByRole('switch', { name: 'Keep running in the tray when closed' }).isDisabled(),
+    'tray switch should be desktop-only in the browser',
+  );
+  await settled();
+  await shot('13a-settings-courses');
+  await page.getByRole('button', { name: 'Dashboard' }).click();
+  await settled();
+});
+
 await step('notifications: baseline is quiet, reminders fire once, test works', async () => {
   const first = await notes();
   assert(
@@ -431,7 +466,7 @@ await step('notifications: baseline is quiet, reminders fire once, test works', 
   await page.getByRole('heading', { name: 'Notifications' }).waitFor();
   assert(
     (await page.getByRole('switch', { name: 'Open Tarpaulin when I log in' }).isDisabled()) &&
-      (await page.getByText('Available in the desktop app.').isVisible()),
+      (await page.getByText('Available in the desktop app.').first().isVisible()),
     'opening at login should be desktop-only in the browser',
   );
   // A week's lead puts plenty of the mock's deadlines inside the window.

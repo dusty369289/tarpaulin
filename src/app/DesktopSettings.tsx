@@ -11,30 +11,7 @@ import {
   type NotificationPermission,
 } from './desktop';
 import { useSettings } from './settingsStore';
-import { Row, Section } from './settingsUi';
-
-function Switch({
-  label,
-  checked,
-  onChange,
-  disabled,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (on: boolean) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <input
-      type="checkbox"
-      role="switch"
-      aria-label={label}
-      checked={checked}
-      disabled={disabled}
-      onChange={(e) => onChange(e.target.checked)}
-    />
-  );
-}
+import { Row, Section, Switch } from '../ui';
 
 export function NotificationsSection() {
   const prefs = useSettings((s) => s.notifications);
@@ -57,6 +34,7 @@ export function NotificationsSection() {
         help="Reminders and news from Canvas while Tarpaulin is open (it can stay minimised)."
       >
         <Switch
+          hideLabel
           label="Desktop notifications"
           checked={prefs.enabled}
           onChange={(enabled) => set({ enabled })}
@@ -84,6 +62,7 @@ export function NotificationsSection() {
       )}
       <Row label="Deadline reminders" help="For work you haven’t handed in yet.">
         <Switch
+          hideLabel
           label="Deadline reminders"
           checked={prefs.deadlines}
           disabled={off}
@@ -120,6 +99,7 @@ export function NotificationsSection() {
       </div>
       <Row label="New announcements">
         <Switch
+          hideLabel
           label="New announcements"
           checked={prefs.announcements}
           disabled={off}
@@ -128,6 +108,7 @@ export function NotificationsSection() {
       </Row>
       <Row label="Grades" help="Newly graded work and changes to course grades.">
         <Switch
+          hideLabel
           label="Grades"
           checked={prefs.grades}
           disabled={off}
@@ -162,6 +143,7 @@ export function NotificationsSection() {
           </>
         )}
         <Switch
+          hideLabel
           label="Quiet hours"
           checked={prefs.quietHours.enabled}
           disabled={off}
@@ -189,6 +171,7 @@ export function NotificationsSection() {
 
 export function StartupSection() {
   const startMinimized = useSettings((s) => s.startMinimized);
+  const closeToTray = useSettings((s) => s.closeToTray);
   const update = useSettings((s) => s.update);
   const supported = autostartSupported();
   const [enabled, setEnabled] = useState(false);
@@ -198,7 +181,23 @@ export function StartupSection() {
   }, [supported]);
 
   return (
-    <Section title="Startup">
+    <Section title="Startup and tray">
+      <Row
+        label="Keep running in the tray when closed"
+        help={
+          supported
+            ? 'Closing the window keeps reminders coming. Quit from the tray icon.'
+            : 'Available in the desktop app.'
+        }
+      >
+        <Switch
+          hideLabel
+          label="Keep running in the tray when closed"
+          checked={closeToTray}
+          disabled={!supported}
+          onChange={(on) => update({ closeToTray: on })}
+        />
+      </Row>
       <Row
         label="Open Tarpaulin when I log in"
         help={
@@ -208,6 +207,7 @@ export function StartupSection() {
         }
       >
         <Switch
+          hideLabel
           label="Open Tarpaulin when I log in"
           checked={enabled}
           disabled={!supported}
@@ -217,9 +217,17 @@ export function StartupSection() {
           }}
         />
       </Row>
-      <Row label="Start minimised" help="When opened at login.">
+      <Row
+        label="Start in the background"
+        help={
+          closeToTray
+            ? 'When opened at login: straight to the tray.'
+            : 'When opened at login: minimised.'
+        }
+      >
         <Switch
-          label="Start minimised"
+          hideLabel
+          label="Start in the background"
           checked={startMinimized}
           disabled={!supported || !enabled}
           onChange={(on) => update({ startMinimized: on })}

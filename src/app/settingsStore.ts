@@ -26,6 +26,8 @@ export const SettingsSchema = z.object({
   /** When the OS opens Tarpaulin at login, start minimised. (Opening at login itself is an OS
    *  setting, read and written through the desktop bridge.) */
   startMinimized: z.boolean().default(true),
+  /** Closing the window keeps Tarpaulin running in the tray, so reminders keep arriving. */
+  closeToTray: z.boolean().default(true),
   /** Set once the first-launch "Make it yours" step is done or skipped. */
   onboarded: z.boolean().default(false),
 });

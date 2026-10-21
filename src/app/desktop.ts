@@ -45,8 +45,13 @@ export async function setAutostart(enabled: boolean): Promise<boolean> {
   return isTauri() ? invoke<boolean>('set_autostart', { enabled }) : false;
 }
 
-/** Minimises the window when the OS opened the app at login and the user wants that. */
-export async function minimizeIfLaunchedAtLogin(startMinimized: boolean): Promise<void> {
+/** When the OS opened the app at login and the user wants that: tray (or minimised). */
+export async function backgroundIfLaunchedAtLogin(startMinimized: boolean): Promise<void> {
   if (!isTauri() || !startMinimized) return;
-  if (await invoke<boolean>('launched_at_login')) await invoke('minimize_window');
+  if (await invoke<boolean>('launched_at_login')) await invoke('send_to_background');
+}
+
+/** Tells the desktop shell whether closing the window should hide it to the tray. */
+export async function setCloseToTray(enabled: boolean): Promise<void> {
+  if (isTauri()) await invoke('set_close_to_tray', { enabled });
 }
