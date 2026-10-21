@@ -203,6 +203,13 @@ async function render(browser: Browser, appUrl: string, worker: number): Promise
     );
     if (hold) await pause(hold);
   }
+  async function scroll(dy: number, ms = 900) {
+    const n = frames(ms);
+    for (let k = 1; k <= n; k++) {
+      await page.mouse.wheel(0, dy * (ease(k / n) - ease((k - 1) / n)));
+      await frame();
+    }
+  }
   async function until(target: Locator) {
     for (let n = frames(15_000); n > 0; n--) {
       await networkIdle();
@@ -220,6 +227,8 @@ async function render(browser: Browser, appUrl: string, worker: number): Promise
     click,
     type,
     drag,
+    scroll,
+    moveTo,
     caption,
     until,
     settle: () => pause(500),
