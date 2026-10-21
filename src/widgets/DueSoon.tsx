@@ -127,7 +127,8 @@ export const DueSoon = defineWidget({
                 : '',
           );
           return (
-            <div className="flex flex-col w-gap">
+            // Narrow: one column. Wide: groups side by side, and a lone group spreads its items out.
+            <div className="wide-groups">
               {[...groups].map(([label, group]) => (
                 <section key={label || 'all'} aria-label={label || 'Due soon'}>
                   {label && (
@@ -137,7 +138,7 @@ export const DueSoon = defineWidget({
                       {label}
                     </h3>
                   )}
-                  <ul className="flex flex-col w-gap">
+                  <ul className="wide-grid">
                     {group.map((d) => (
                       <li key={d.key} className="flex items-start gap-2" data-testid="due-item">
                         <CourseDot color={d.color} className="mt-1.5" />

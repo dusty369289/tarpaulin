@@ -1,4 +1,5 @@
 import { GraduationCap } from 'lucide-react';
+import type { CSSProperties } from 'react';
 import { z } from 'zod';
 import { useCanvas } from '../canvas/CanvasProvider';
 import { useCatalog, useCatalogStatus, useCourseIds } from '../canvas/hooks';
@@ -47,29 +48,34 @@ export const Grades = defineWidget({
               : courses.byName();
           if (courses.isEmpty) return <EmptyState>No grades to show yet.</EmptyState>;
           return (
-            <ul className="flex flex-col w-gap">
+            // Courses flow into columns when wide; rows share any spare height, and roomy cells
+            // turn into cards with a big score (`.grades` in index.css).
+            <ul className="fill-rows grades wide-grid [--col:15em]" data-bars={settings.showBars}>
               {courses.map((course) => {
                 const { grade } = course;
                 const low = grade.isLow(settings.warnBelow);
                 return (
-                  <li key={course.id}>
+                  <li key={course.id} className="grade-cell">
                     <button
                       type="button"
                       onClick={() => openLink(grade.url)}
-                      className="block w-full text-left"
+                      className="grade-btn block w-full text-left"
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="grade-row flex items-center gap-2">
                         <CourseDot color={course.color} />
                         <span className="min-w-0 flex-1 truncate">{course.name}</span>
                         <span
-                          className={`shrink-0 tabular-nums font-semibold ${low ? 'text-danger' : ''}`}
+                          className={`grade-score shrink-0 tabular-nums font-semibold ${low ? 'text-danger' : ''}`}
+                          style={
+                            { '--len': grade.format(settings.display).length } as CSSProperties
+                          }
                         >
                           {grade.format(settings.display)}
                         </span>
                       </div>
                       {settings.showBars && (
                         <div
-                          className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-2"
+                          className="grade-bar mt-1 h-1.5 overflow-hidden rounded-full bg-surface-2"
                           aria-hidden
                         >
                           <div

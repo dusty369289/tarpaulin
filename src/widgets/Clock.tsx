@@ -48,36 +48,36 @@ export const Clock = defineWidget({
 
     const due = deadlines.data.work().undone().inCourses(ids).between(now, addDays(now, 7)).length;
 
+    // The layout (stacked, side by side, or one line) follows the widget's shape: see `.clock`
+    // in index.css.
     return (
-      <div
-        className={`fit-box gap-[0.2em] ${settings.align === 'center' ? 'items-center text-center' : ''}`}
-      >
-        {settings.showGreeting && (
-          <div className="fit-line fit-hide-xs max-w-full truncate font-medium">
-            {greeting(now)}
-            {name && `, ${name}`}
-          </div>
-        )}
-        {settings.showTime && (
-          <div
-            className="fit-time max-w-full whitespace-nowrap font-semibold tabular-nums tracking-tight"
-            style={{ '--chars': time.length } as CSSProperties}
-          >
-            {time}
-          </div>
-        )}
-        {settings.showDate && (
-          <div className="fit-line fit-hide-sm max-w-full truncate text-muted">
-            {format(now, 'EEEE d MMMM')}
-          </div>
-        )}
-        {settings.showSummary && deadlines.query.data !== undefined && (
-          <div className="fit-hide-md max-w-full truncate text-xs text-muted">
-            {due === 0
-              ? 'Nothing due in the next 7 days.'
-              : `${due} thing${due === 1 ? '' : 's'} due in the next 7 days.`}
-          </div>
-        )}
+      <div className="fit-box">
+        <div className="clock" data-align={settings.align}>
+          {settings.showGreeting && (
+            <div className="clock-greet truncate font-medium">
+              {greeting(now)}
+              {name && `, ${name}`}
+            </div>
+          )}
+          {settings.showTime && (
+            <div
+              className="fit-time clock-time whitespace-nowrap font-semibold tabular-nums tracking-tight"
+              style={{ '--chars': time.length } as CSSProperties}
+            >
+              {time}
+            </div>
+          )}
+          {settings.showDate && (
+            <div className="clock-date truncate text-muted">{format(now, 'EEEE d MMMM')}</div>
+          )}
+          {settings.showSummary && deadlines.query.data !== undefined && (
+            <div className="clock-sum truncate text-muted">
+              {due === 0
+                ? 'Nothing due in the next 7 days.'
+                : `${due} thing${due === 1 ? '' : 's'} due in the next 7 days.`}
+            </div>
+          )}
+        </div>
       </div>
     );
   },

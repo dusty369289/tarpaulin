@@ -51,7 +51,8 @@ export const Announcements = defineWidget({
             );
           }
           return (
-            <ul className="flex flex-col w-gap">
+            // Newest first, flowing left to right across a wide widget.
+            <ul className="wide-grid [--col:18em]">
               {items.map((a) => (
                 <li key={a.id}>
                   <button
