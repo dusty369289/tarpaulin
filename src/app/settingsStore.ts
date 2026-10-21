@@ -21,6 +21,8 @@ export const SettingsSchema = z.object({
   clock: z.enum(['auto', '12h', '24h']).default('auto'),
   weekStartsOn: z.enum(['monday', 'sunday']).default('monday'),
   autoCheckUpdates: z.boolean().default(true),
+  /** Clicking an assignment, announcement or event: read it in Tarpaulin, or open Canvas. */
+  openItemsIn: z.enum(['app', 'canvas']).default('app'),
   /** Set once the first-launch "Make it yours" step is done or skipped. */
   onboarded: z.boolean().default(false),
 });

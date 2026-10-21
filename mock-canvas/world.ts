@@ -8,6 +8,8 @@
 //   - planner/todo html_url values are relative paths
 // Everything is relative to `now` and seeded, so a scenario is deterministic for a given clock.
 
+import { eventDescription, HOSTILE_HTML, workDescription } from './content';
+
 export type Json = Record<string, unknown>;
 
 export interface World {
@@ -244,6 +246,8 @@ interface AssignmentOpts {
   score?: number | null;
   types?: string[];
   markedComplete?: boolean;
+  /** HTML body; a generated one by default. */
+  description?: string | null;
 }
 
 function addAssignment(b: Builder, course: Json, o: AssignmentOpts): Json {
@@ -255,7 +259,15 @@ function addAssignment(b: Builder, course: Json, o: AssignmentOpts): Json {
   const a: Json = {
     id,
     name: o.name,
-    description: '<p>Instructions for this task.</p>',
+    description:
+      o.description !== undefined
+        ? o.description
+        : workDescription(
+            o.quiz ? 'quiz' : o.discussion ? 'discussion' : 'assignment',
+            o.name ?? 'Untitled',
+            cid,
+            id,
+          ),
     due_at: o.dueAt !== null ? iso(o.dueAt) : null,
     unlock_at: null,
     lock_at: o.dueAt !== null ? iso(o.dueAt + 7 * DAY) : null,
@@ -453,7 +465,7 @@ function addEvent(
     context_code: contextCode,
     context_name: contextName,
     context_color: null,
-    description: null,
+    description: eventDescription(title ?? '', location || null),
     html_url: `https://canvas.mock/calendar?event_id=${id}&include_contexts=${contextCode}`,
     url: `https://canvas.mock/api/v1/calendar_events/${id}`,
     type: 'event',
@@ -746,6 +758,9 @@ function edgeCases(w: WorldBuilder) {
       `<p>Hello &amp; welcome&nbsp;to <b>week 5</b>!</p>${xss}<p>Line two</p>`,
     )
     .announcement(null, w.at({ hours: -2 }), null)
+    .assignment('Hostile description', w.at({ days: 2 }), { description: HOSTILE_HTML })
+    .assignment('No description at all', w.at({ days: 4 }), { description: null })
+    .announcement('Hostile announcement body', w.at({ hours: -3 }), HOSTILE_HTML)
     .event(`Seminar ${xss}`, w.on(1, 14), w.on(1, 15), { location: `Room ${'Z'.repeat(80)}` });
 
   term

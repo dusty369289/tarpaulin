@@ -154,6 +154,17 @@ fn open_external(app: AppHandle, state: State<'_, AppState>, url: String) -> Res
     app.opener().open_url(target.as_str(), None::<&str>).map_err(err)
 }
 
+/// Opens a web page from Canvas content (a link in an assignment, say) in the system browser.
+/// Only http and https; the app asks the user before calling this for non-Canvas links.
+#[tauri::command]
+fn open_web_link(app: AppHandle, url: String) -> Result<(), String> {
+    let target = url::Url::parse(&url).map_err(err)?;
+    if !matches!(target.scheme(), "http" | "https") {
+        return Err("only web links can be opened".into());
+    }
+    app.opener().open_url(target.as_str(), None::<&str>).map_err(err)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let http = reqwest::Client::builder()
@@ -178,6 +189,7 @@ pub fn run() {
             oauth_login,
             logout,
             open_external,
+            open_web_link,
             updater::app_version,
             updater::check_update,
             updater::install_update

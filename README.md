@@ -15,6 +15,10 @@ announcements and a countdown to your next deadline. Each widget can be dragged,
   also be mixed separately, set per page, and set per widget (with paper colours and tilt),
   with one-click "apply to all on this page / all pages".
 - **Themes**: light, dark, high contrast and system, with a custom accent, font, text size and corner radius.
+- **Read things in Tarpaulin**: clicking an assignment, quiz, discussion, announcement or event
+  opens a reader with its full description, due and lock dates, points, attempts, submission
+  types and your submission status, in Tarpaulin's own typography (or open it in Canvas, if you
+  prefer; Settings › Appearance). Content is cached, so it reopens instantly and offline.
 - **Export / import** your dashboard as JSON.
 - **Read-only by design**: Tarpaulin never submits, edits or marks anything in Canvas. Notes and
   checklists stay on your device.
@@ -124,6 +128,12 @@ scripts/              smoke test, fixture recorder, widget-lab sweep, UI check
 - **Models over plain data.** Responses are mapped once into plain JSON (which is cached and
   persisted), then wrapped in model classes when read. Widgets read like
   `deadlines.inCourses(ids).undone().sortByDue()` and `course.grade.format('both')`.
+- **Canvas content is untrusted.** Item bodies are stored as Canvas sent them and sanitised
+  (DOMPurify, a strict allowlist) every time they're shown: no scripts, styles, forms, frames or
+  event handlers survive, and inline styles give way to our CSS. Links are inert until clicked:
+  Canvas links open on your Canvas host, other sites only after a prompt. Canvas file images are
+  fetched as signed URLs through the API, since their normal URLs need a browser login. The edge
+  mock scenario carries a hostile body that the UI check opens to prove nothing runs.
 - **Caching.** Every resource is cached per account with TanStack Query. It's fresh for the whole
   refresh interval (default 10 minutes, set in Settings), refreshed in the background, and
   persisted to local storage, so the app opens instantly. All planner-based widgets share a single

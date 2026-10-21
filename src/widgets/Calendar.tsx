@@ -17,7 +17,8 @@ import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { z } from 'zod';
 import { useSettings } from '../app/settingsStore';
-import { useCanvas } from '../canvas/CanvasProvider';
+import { fromDeadline, fromEvent, type ReaderItem } from '../reader/items';
+import { useOpenItem } from '../reader/ReaderProvider';
 import { useCourseIds, useDeadlines, useEvents } from '../canvas/hooks';
 import { useTimeFormat } from '../lib/dates';
 import { courseFilter, field } from './settings/fields';
@@ -48,6 +49,8 @@ export interface CalendarEntry {
   kind: 'work' | 'event' | 'announcement';
   done: boolean;
   url: string | null;
+  /** What the reader opens; null opens Canvas. */
+  item: ReaderItem | null;
 }
 
 function range(
@@ -85,7 +88,7 @@ export const Calendar = defineWidget({
     const [cursor, setCursor] = useState(() => new Date());
     const [selected, setSelected] = useState<Date | null>(null);
     const courseIds = useCourseIds(settings.courseIds);
-    const { openLink } = useCanvas();
+    const openItem = useOpenItem();
     const timeFmt = useTimeFormat();
     // A month grid needs room; fall back to agenda in narrow widgets.
     const view = settings.view === 'month' && size.w < 4 ? 'agenda' : settings.view;
@@ -112,6 +115,7 @@ export const Calendar = defineWidget({
           kind: d.isAnnouncement ? 'announcement' : 'work',
           done: d.isDone,
           url: d.url,
+          item: fromDeadline(d),
         });
       }
       if (settings.showEvents) {
@@ -125,6 +129,7 @@ export const Calendar = defineWidget({
             kind: 'event',
             done: false,
             url: e.url,
+            item: fromEvent(e),
           });
         }
       }
@@ -165,7 +170,7 @@ export const Calendar = defineWidget({
     const EntryRow = ({ e }: { e: CalendarEntry }) => (
       <button
         type="button"
-        onClick={() => openLink(e.url)}
+        onClick={() => openItem(e.item, e.url)}
         className="flex w-full items-center gap-2 rounded px-1 py-0.5 text-left hover:bg-surface-2"
       >
         <span className="w-[4.25rem] shrink-0 whitespace-nowrap text-xs tabular-nums text-muted">

@@ -1,6 +1,7 @@
 import { Megaphone } from 'lucide-react';
 import { z } from 'zod';
-import { useCanvas } from '../canvas/CanvasProvider';
+import { fromAnnouncement } from '../reader/items';
+import { useOpenItem } from '../reader/ReaderProvider';
 import { useAnnouncements, useCatalogStatus, useCourseIds, useNow } from '../canvas/hooks';
 import { relative } from '../lib/dates';
 import { courseFilter, field } from './settings/fields';
@@ -33,7 +34,7 @@ export const Announcements = defineWidget({
     const announcements = useAnnouncements(ids, settings.days);
     const status = useCatalogStatus();
     const now = useNow(60_000);
-    const { openLink } = useCanvas();
+    const openItem = useOpenItem();
 
     if (ids.length === 0 && !status.isLoading) return <EmptyState>No courses selected.</EmptyState>;
     return (
@@ -56,7 +57,7 @@ export const Announcements = defineWidget({
                 <li key={a.id}>
                   <button
                     type="button"
-                    onClick={() => openLink(a.url)}
+                    onClick={() => openItem(fromAnnouncement(a))}
                     className="block w-full rounded-md text-left hover:bg-surface-2/60"
                   >
                     <div className="flex items-center gap-2">

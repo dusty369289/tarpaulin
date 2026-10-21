@@ -1,7 +1,8 @@
 import { ListTodo, Plus, X } from 'lucide-react';
 import { useState } from 'react';
 import { z } from 'zod';
-import { useCanvas } from '../canvas/CanvasProvider';
+import { fromTodo } from '../reader/items';
+import { useOpenItem } from '../reader/ReaderProvider';
 import { useCourseIds, useNow, useTodos } from '../canvas/hooks';
 import { newId } from '../lib/id';
 import { formatDue, useTimeFormat } from '../lib/dates';
@@ -40,7 +41,7 @@ export const Todo = defineWidget({
     const ids = useCourseIds(settings.courseIds);
     const now = useNow(60_000);
     const timeFmt = useTimeFormat();
-    const { openLink } = useCanvas();
+    const openItem = useOpenItem();
     const [draft, setDraft] = useState('');
     const local = ChecklistData.safeParse(data ?? {}).data ?? { items: [] };
     const save = (items: ChecklistData['items']) => setData({ items });
@@ -71,7 +72,7 @@ export const Todo = defineWidget({
                       <CourseDot color={t.color} className="mt-1.5" />
                       <div className="min-w-0 flex-1">
                         <LinkButton
-                          onClick={() => openLink(t.url)}
+                          onClick={() => openItem(fromTodo(t), t.url)}
                           className="block truncate font-medium"
                         >
                           {t.title}

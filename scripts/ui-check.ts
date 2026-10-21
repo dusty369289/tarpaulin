@@ -402,6 +402,114 @@ await step('back to plain everywhere', async () => {
   );
 });
 
+/** Clicks items in a widget until the reader opens one of the wanted kind. */
+async function openInReader(widgetType: string, kinds: string[]) {
+  const buttons = page.locator(
+    `[data-widget-type="${widgetType}"] [data-testid="widget-body"] button`,
+  );
+  const n = Math.min(await buttons.count(), 12);
+  for (let i = 0; i < n; i++) {
+    await buttons.nth(i).click();
+    const reader = page.getByTestId('item-reader');
+    if (await reader.isVisible().catch(() => false)) {
+      await settled();
+      if (kinds.includes((await reader.getAttribute('data-kind')) ?? '')) return reader;
+      await page.keyboard.press('Escape');
+      await settled();
+    }
+  }
+  throw new Error(`no ${kinds.join('/')} opened from ${widgetType}`);
+}
+
+await step('reader: an assignment opens in Tarpaulin with its content', async () => {
+  const reader = await openInReader('due-soon', ['assignment']);
+  const content = page.getByTestId('reader-content');
+  await content.waitFor();
+  assert((await content.locator('h2', { hasText: 'Overview' }).count()) === 1, 'no body');
+  assert((await content.locator('script, iframe, [style]').count()) === 0, 'unsafe markup');
+  for (const img of await content.locator('img[data-file-id]').all())
+    assert((await img.getAttribute('data-state')) === 'loaded', 'Canvas file image not loaded');
+  assert(
+    await page.getByRole('button', { name: 'Open in Canvas' }).isVisible(),
+    'no Canvas button',
+  );
+  await shot('14-reader-assignment');
+  // Links outside Canvas ask first.
+  await content.locator('a[data-canvas="false"]').first().click();
+  const confirm = page.getByRole('dialog', { name: 'Open this link?' });
+  await confirm.waitFor();
+  await confirm.getByRole('button', { name: 'Cancel' }).click();
+  assert(await reader.isVisible(), 'reader closed with the link prompt');
+  await page.keyboard.press('Escape');
+  await settled();
+  assert((await page.getByTestId('item-reader').count()) === 0, 'reader did not close');
+});
+
+await step('reader: announcements open with their body; Canvas mode skips the reader', async () => {
+  await openInReader('announcements', ['announcement']);
+  await page.getByTestId('reader-content').waitFor();
+  await shot('15-reader-announcement');
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByLabel('Clicking an assignment or announcement').selectOption('canvas');
+  await page.getByRole('button', { name: 'Dashboard' }).click();
+  await settled();
+  const popup = page.waitForEvent('popup', { timeout: 5_000 });
+  await page
+    .locator('[data-widget-type="due-soon"] [data-testid="widget-body"] button')
+    .first()
+    .click();
+  const opened = await popup;
+  assert(
+    opened.url().includes('canvas.mock') || opened.url().includes('/courses/'),
+    `opened ${opened.url()}`,
+  );
+  await opened.close();
+  assert((await page.getByTestId('item-reader').count()) === 0, 'reader opened in Canvas mode');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByLabel('Clicking an assignment or announcement').selectOption('app');
+  await page.getByRole('button', { name: 'Dashboard' }).click();
+  await settled();
+});
+
+await step('reader: hostile Canvas HTML stays inert (edge data)', async () => {
+  stack.useScenario('edge');
+  await page.evaluate(() => localStorage.removeItem('tarpaulin.cache'));
+  await page.reload();
+  await page.getByRole('tab', { name: /Home/ }).waitFor();
+  await settled();
+  let alerted = false;
+  page.on('dialog', (d) => {
+    alerted = true;
+    void d.dismiss();
+  });
+  for (const [widget, title] of [
+    ['due-soon', 'Hostile description'],
+    ['announcements', 'Hostile announcement body'],
+  ] as const) {
+    await page.locator(`[data-widget-type="${widget}"] button`, { hasText: title }).first().click();
+    const content = page.getByTestId('reader-content');
+    await content.waitFor();
+    await settled();
+    assert(
+      (await content
+        .locator('script, iframe, form, input, object, style, svg, [style], [onerror], [onclick]')
+        .count()) === 0,
+      `${title}: unsafe markup survived`,
+    );
+    assert((await content.innerText()).includes('Safe text after'), `${title}: content missing`);
+    await page.keyboard.press('Escape');
+    await settled();
+  }
+  const xss = await page.evaluate(() => (window as unknown as { __xss?: string }).__xss);
+  assert(xss === undefined && !alerted, `script ran: ${xss ?? 'alert'}`);
+  stack.useScenario(scenario);
+  await page.evaluate(() => localStorage.removeItem('tarpaulin.cache'));
+  await page.reload();
+  await page.getByRole('tab', { name: /Home/ }).waitFor();
+  await settled();
+});
+
 await step('layout survives a reload', async () => {
   const before = await activePage();
   await page.reload();

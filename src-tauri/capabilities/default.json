@@ -10,6 +10,7 @@
     "allow-oauth-login",
     "allow-logout",
     "allow-open-external",
+    "allow-open-web-link",
     "allow-app-version",
     "allow-check-update",
     "allow-install-update"

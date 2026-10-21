@@ -26,6 +26,7 @@ export function nodeTransportFromEnv(): { transport: Transport; baseUrl: string 
     connectWithOAuth: nope,
     disconnect: nope,
     openExternal: nope,
+    openWebLink: nope,
   };
   return { transport, baseUrl };
 }

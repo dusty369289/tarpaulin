@@ -136,6 +136,60 @@ describe('against the mock Canvas', () => {
     });
   });
 
+  describe('item details for the reader', () => {
+    const client = () => clientFor('realistic');
+    async function plannerItems() {
+      return client().fetch(R.Planner(day(subDays(NOW, 30)), day(addDays(NOW, 30))));
+    }
+
+    it('fetches an assignment with its body and submission', async () => {
+      const item = (await plannerItems()).find((p) => p.type === 'assignment' && p.courseId)!;
+      const detail = await client().fetch(R.AssignmentDetail(item.courseId!, item.id));
+      expect(detail).toMatchObject({ kind: 'assignment', title: item.title });
+      expect(detail.html).toContain('<h2>Overview</h2>');
+      expect(detail.submissionTypes.length).toBeGreaterThan(0);
+      expect(detail.htmlUrl).toMatch(/^https?:\/\//);
+      expect(detail.submission).not.toBeNull();
+    });
+
+    it('fetches quizzes and discussions by their planner ids', async () => {
+      const items = await plannerItems();
+      const quiz = items.find((p) => p.type === 'quiz' && p.courseId)!;
+      const q = await client().fetch(R.QuizDetail(quiz.courseId!, quiz.id));
+      expect(q).toMatchObject({ kind: 'quiz', timeLimitMinutes: 30, questionCount: 10 });
+      expect(q.html).toContain('30 minutes');
+      const showcase = clientFor('showcase');
+      const disc = (
+        await showcase.fetch(R.Planner(day(subDays(NOW, 30)), day(addDays(NOW, 30))))
+      ).find((p) => p.type === 'discussion_topic' && p.courseId)!;
+      const d = await showcase.fetch(R.DiscussionDetail(disc.courseId!, disc.id));
+      expect(d.kind).toBe('discussion');
+      expect(d.html).toContain('<blockquote>');
+    });
+
+    it('keeps announcement and event bodies for the reader', async () => {
+      const courses = await client().fetch(R.Courses);
+      const anns = await client().fetch(
+        R.Announcements(
+          courses.map((c) => c.id),
+          day(subDays(NOW, 30)),
+          day(addDays(NOW, 1)),
+        ),
+      );
+      expect(anns.some((a) => (a.html ?? '').includes('<p>'))).toBe(true);
+    });
+
+    it('resolves Canvas file ids to a signed URL', async () => {
+      const file = await client().fetch(R.FileUrl('700002'));
+      expect(file.url).toMatch(/^data:image\/svg\+xml/);
+    });
+
+    it('caps huge bodies', () => {
+      expect(R.capHtml('x'.repeat(R.MAX_HTML + 10)).length).toBe(R.MAX_HTML);
+      expect(R.capHtml(null)).toBe('');
+    });
+  });
+
   it('surfaces failures from the flaky scenario', async () => {
     await expect(clientFor('flaky').fetch(R.Todo)).rejects.toThrow('503');
   });

@@ -310,6 +310,22 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
             <option value="24h">24-hour</option>
           </select>
         </Row>
+        <Row
+          label="Clicking an assignment or announcement"
+          help="Tarpaulin keeps a read-only copy; submitting and replying happen in Canvas."
+        >
+          <select
+            className="input w-auto"
+            aria-label="Clicking an assignment or announcement"
+            value={settings.openItemsIn}
+            onChange={(e) =>
+              settings.update({ openItemsIn: e.target.value as typeof settings.openItemsIn })
+            }
+          >
+            <option value="app">Read it in Tarpaulin</option>
+            <option value="canvas">Open it in Canvas</option>
+          </select>
+        </Row>
         <Row label="Week starts on">
           <select
             className="input w-auto"

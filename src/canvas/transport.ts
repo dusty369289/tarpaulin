@@ -18,7 +18,10 @@ export interface Transport {
     clientSecret: string,
   ): Promise<ConnectionInfo>;
   disconnect(): Promise<void>;
+  /** Opens a page on the connected Canvas host in the system browser. */
   openExternal(url: string): Promise<void>;
+  /** Opens any http(s) page in the system browser. Callers confirm with the user first. */
+  openWebLink(url: string): Promise<void>;
 }
 
 const unsupported = (what: string) => () =>
@@ -53,6 +56,9 @@ export class TauriTransport implements Transport {
   openExternal(url: string) {
     return this.invoke<void>('open_external', { url });
   }
+  openWebLink(url: string) {
+    return this.invoke<void>('open_web_link', { url });
+  }
 }
 
 /** Dev-only: reads live Canvas through the Vite middleware, which holds the token server-side. */
@@ -79,6 +85,9 @@ export class DevProxyTransport implements Transport {
   connectWithOAuth = unsupported('Connecting');
   disconnect = unsupported('Disconnecting');
   async openExternal(url: string) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+  async openWebLink(url: string) {
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 }
@@ -113,6 +122,7 @@ export class FixtureTransport implements Transport {
   connectWithOAuth = unsupported('Connecting');
   disconnect = unsupported('Disconnecting');
   async openExternal() {}
+  async openWebLink() {}
 }
 
 export function isTauri(): boolean {

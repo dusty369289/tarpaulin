@@ -42,4 +42,5 @@ export class DemoTransport implements Transport {
     sessionStorage.removeItem(KEY);
   }
   async openExternal() {}
+  async openWebLink() {}
 }

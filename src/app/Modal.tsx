@@ -46,11 +46,14 @@ export function Drawer({
   onClose,
   children,
   footer,
+  wide,
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  /** Reading width instead of a settings column. */
+  wide?: boolean;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -65,7 +68,7 @@ export function Drawer({
       <aside
         role="dialog"
         aria-label={title}
-        className="flex h-full w-full max-w-sm flex-col border-l border-border bg-surface shadow-2xl animate-slide-in-right"
+        className={`flex h-full w-full ${wide ? 'max-w-2xl' : 'max-w-sm'} flex-col border-l border-border bg-surface shadow-2xl animate-slide-in-right`}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border px-4 py-3">

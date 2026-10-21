@@ -1,7 +1,8 @@
 import { addDays, differenceInCalendarDays, format, startOfDay } from 'date-fns';
 import { CheckCircle2, ClipboardList } from 'lucide-react';
 import { z } from 'zod';
-import { useCanvas } from '../canvas/CanvasProvider';
+import { fromDeadline } from '../reader/items';
+import { useOpenItem } from '../reader/ReaderProvider';
 import { useCourseIds, useNow, useUpcoming } from '../canvas/hooks';
 import type { Deadline, Deadlines, DeadlineStatus } from '../canvas/models';
 import { formatDue, useTimeFormat } from '../lib/dates';
@@ -105,7 +106,7 @@ export const DueSoon = defineWidget({
     const now = useNow(60_000);
     const courseIds = useCourseIds(settings.courseIds);
     const deadlines = useUpcoming(settings.daysAhead, settings.overdueDays);
-    const { openLink } = useCanvas();
+    const openItem = useOpenItem();
     const timeFmt = useTimeFormat();
 
     return (
@@ -143,7 +144,7 @@ export const DueSoon = defineWidget({
                         <CourseDot color={d.color} className="mt-1.5" />
                         <div className="min-w-0 flex-1">
                           <LinkButton
-                            onClick={() => openLink(d.url)}
+                            onClick={() => openItem(fromDeadline(d), d.url)}
                             className={`block truncate font-medium ${d.isDone ? 'text-muted line-through' : ''}`}
                           >
                             {d.title}
