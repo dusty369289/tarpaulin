@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Tarpaulin's only capability: the app's own commands. No generic HTTP, filesystem or shell access from JS.",
+  "windows": ["main"],
+  "permissions": [
+    "allow-canvas-request",
+    "allow-auth-status",
+    "allow-save-token",
+    "allow-oauth-login",
+    "allow-logout",
+    "allow-open-external"
+  ]
+}
