@@ -38,6 +38,20 @@ const ownText = (el: Element) =>
     (n) => n.nodeType === Node.TEXT_NODE && (n.textContent ?? '').trim().length > 1,
   );
 
+/** The elements that reach past the bottom of the body's content box, to show what overflows. */
+function overflowing(body: HTMLElement): string {
+  const limit =
+    body.getBoundingClientRect().bottom - parseFloat(getComputedStyle(body).paddingBottom) + 1;
+  const parts = [...body.querySelectorAll('*')]
+    .filter((el) => el.getBoundingClientRect().bottom > limit)
+    .slice(0, 5)
+    .map((el) => {
+      const r = el.getBoundingClientRect();
+      return `${el.classList[0] ?? el.tagName.toLowerCase()} ${Math.round(r.height)}px +${Math.round(r.bottom - limit + 1)}`;
+    });
+  return parts.length ? ` (${parts.join(', ')})` : '';
+}
+
 export function measure(root: HTMLElement, type: string): LabIssue[] {
   const issues: LabIssue[] = [];
   const frame = root.querySelector<HTMLElement>('[data-testid="widget-frame"]');
@@ -52,7 +66,7 @@ export function measure(root: HTMLElement, type: string): LabIssue[] {
   if (MUST_FIT.has(type) && body.scrollHeight > body.clientHeight + 1) {
     issues.push({
       kind: 'vertical-scroll',
-      detail: `content ${body.scrollHeight}px in ${body.clientHeight}px`,
+      detail: `content ${body.scrollHeight}px in ${body.clientHeight}px${overflowing(body)}`,
     });
   }
   const fr = frame.getBoundingClientRect();

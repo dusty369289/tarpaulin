@@ -273,7 +273,7 @@ body {
 @container (min-height: 72px) and (min-width: 340px) and (min-aspect-ratio: 9 / 4) {
   .clock {
     --tw: 0.58;
-    --th: 78cqh;
+    --th: 74cqh;
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-rows: 1fr auto auto auto 1fr;
     grid-template-areas: '. time' 'greet time' 'date time' 'sum time' '. time';
