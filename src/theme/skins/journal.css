@@ -1,0 +1,26 @@
+/* Journal: inked box with wobbly corners, serif headings, coloured underline. */
+.skin-root[data-skin='journal'] {
+  --wobble: 4px 14px 6px 12px;
+}
+.skin-root[data-skin='journal'] > .skin-frame {
+  border-width: 2px;
+}
+.skin-root[data-skin='journal'] .skin-title {
+  font-size: 1.15em;
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: underline wavy rgb(var(--accent) / 0.75);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 0.3em;
+  padding-bottom: 0.3em;
+}
+.skin-root[data-skin='journal'] .skin-body {
+  line-height: 1.45;
+}
+.skin-root[data-skin='journal'] .chip {
+  border: 1.5px solid currentColor;
+  background: transparent;
+}
+.skin-root[data-skin='journal'] input[type='checkbox'] {
+  accent-color: rgb(var(--text));
+}

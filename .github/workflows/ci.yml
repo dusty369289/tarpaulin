@@ -1,0 +1,140 @@
+name: CI
+
+# Runs on every pull request into main and on every push to main (each merge), plus by hand.
+# No schedule: nothing changes between commits. Jobs are skipped when a change can't affect them
+# (docs only, or no Rust changes), and the "CI passed" job is the single check that branch
+# protection requires, so skipped jobs never block a merge.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+# A new push to a pull request cancels its older run; runs on main always finish.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.app.outputs.app }}
+      rust: ${{ steps.rust.outputs.rust }}
+    # Pull requests only (the filter asks the API for the PR's files); other events test everything.
+    steps:
+      - uses: dorny/paths-filter@v3
+        if: github.event_name == 'pull_request'
+        id: app
+        with:
+          # A file counts if it matches every pattern: anything except docs and Markdown.
+          predicate-quantifier: every
+          filters: |
+            app:
+              - '**'
+              - '!**/*.md'
+              - '!docs/**'
+              - '!LICENSE'
+      - uses: dorny/paths-filter@v3
+        if: github.event_name == 'pull_request'
+        id: rust
+        with:
+          filters: |
+            rust:
+              - 'src-tauri/**'
+              - '.github/workflows/ci.yml'
+
+  web:
+    name: Lint, unit tests, widget sweeps, UI check
+    needs: changes
+    # Manual and main-branch runs always test everything.
+    if: needs.changes.outputs.app == 'true' || github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      # Browser binaries are cached per Playwright version; system libraries are always installed.
+      - name: Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - name: Install Chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install chromium
+      - name: Install Chromium system dependencies
+        run: pnpm exec playwright install-deps chromium
+      # Both start their own mock Canvas and Vite server; no secrets or network needed.
+      - run: pnpm test:widgets
+      # Again with a wide monospace font forced, so layouts never depend on one font's metrics.
+      - run: pnpm test:widgets --scenario=dense --font="DejaVu Sans Mono"
+      - run: pnpm test:ui
+      # Every widget style gets the same sweep. Styles whose files (and the shared widget code)
+      # hash the same as their last pass are skipped; the pass record lives in the Actions cache.
+      - uses: actions/cache/restore@v4
+        with:
+          path: .cache/theme-sweep.json
+          key: theme-sweep-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: theme-sweep-
+      - run: pnpm test:themes
+      - if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/theme-sweep.json
+          key: theme-sweep-${{ github.run_id }}-${{ github.run_attempt }}
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: screenshots/
+          retention-days: 7
+
+  rust:
+    name: Rust tests
+    needs: changes
+    if: needs.changes.outputs.rust == 'true' || github.event_name != 'pull_request'
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Tauri system packages (cached)
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libssl-dev libdbus-1-dev pkg-config
+          version: 1
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      # generate_context! needs the frontend dist folder to exist.
+      - run: mkdir -p dist
+      - run: cargo test --locked
+        working-directory: src-tauri
+
+  passed:
+    name: CI passed
+    needs: [changes, web, rust]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every job passed or was skipped as not affected
+        run: |
+          echo '${{ toJSON(needs) }}' | jq -e 'all(.[]; .result == "success" or .result == "skipped")'

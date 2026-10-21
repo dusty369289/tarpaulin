@@ -1,0 +1,58 @@
+/* Terminal: phosphor glow, scanlines, box-drawn header, bracketed checkboxes. */
+.skin-root[data-skin='terminal'] > .skin-frame {
+  text-shadow: 0 0 6px rgb(var(--text) / 0.45);
+  background-image:
+    repeating-linear-gradient(0deg, rgb(0 0 0 / 0.28) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse at center, rgb(var(--text) / 0.06), transparent 70%);
+}
+.skin-root[data-skin='terminal'] * {
+  border-radius: 0 !important;
+}
+.skin-root[data-skin='terminal'] .skin-title {
+  color: rgb(var(--muted));
+  font-size: 1.35em;
+  font-weight: 400;
+  text-transform: uppercase;
+  text-overflow: clip;
+  letter-spacing: 0.04em;
+}
+.skin-root[data-skin='terminal'] .skin-title::before {
+  content: '┌─ ';
+}
+.skin-root[data-skin='terminal'] .skin-title::after {
+  content: ' ────────────────────────────────────────────────────────────────────────────────';
+}
+.skin-root[data-skin='terminal'] .chip {
+  background: transparent;
+  padding-inline: 0;
+}
+.skin-root[data-skin='terminal'] .chip::before {
+  content: '[';
+}
+.skin-root[data-skin='terminal'] .chip::after {
+  content: ']';
+}
+.skin-root[data-skin='terminal'] input[type='checkbox'] {
+  appearance: none;
+  width: auto;
+  height: auto;
+  margin: 0;
+  color: rgb(var(--text));
+  font: inherit;
+  cursor: pointer;
+}
+.skin-root[data-skin='terminal'] input[type='checkbox']::before {
+  content: '[ ]';
+  white-space: pre;
+}
+.skin-root[data-skin='terminal'] input[type='checkbox']:checked::before {
+  content: '[x]';
+}
+.skin-root[data-skin='terminal'] svg.lucide {
+  stroke-width: 1.5;
+}
+.skin-root[data-skin='terminal'] .fit-time,
+.skin-root[data-skin='terminal'] .fit-digits {
+  color: rgb(var(--accent));
+  font-weight: 400;
+}

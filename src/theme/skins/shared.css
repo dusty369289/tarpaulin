@@ -1,0 +1,128 @@
+/* Shared widget-style plumbing. Each style's own look lives in <style>.css next to this file. */
+
+.skin-root {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  color: rgb(var(--text));
+  font-family: var(--skin-font, inherit);
+  transform: rotate(var(--tilt, 0deg));
+  transition: transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.skin-title {
+  font-family: var(--heading-font, inherit);
+}
+.fit-time,
+.fit-digits {
+  font-family: var(--display-font, inherit);
+}
+
+/* The layout sweep measures widgets upright: a tilt doesn't change layout, but it would skew
+   the bounding boxes the overflow checks compare. */
+#lab-stage .skin-root {
+  transform: none;
+}
+
+/* Decorations sit over the top edge, outside the frame's clipping. */
+.skin-decor {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+}
+.skin-decor[data-decor^='pin'] {
+  top: -9px;
+  left: calc(50% - 11px);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  --pin: #d6332a;
+  --pin-shine: #ff8f86;
+  background: radial-gradient(
+    circle at 36% 34%,
+    var(--pin-shine) 0 3px,
+    var(--pin) 3.5px 9.5px,
+    transparent 10.5px
+  );
+  filter: drop-shadow(1px 4px 2px rgb(0 0 0 / 0.4));
+}
+.skin-decor[data-decor='pin-blue'] {
+  left: auto;
+  right: 18%;
+  --pin: #2b6cd6;
+  --pin-shine: #8fb8ff;
+}
+.skin-decor[data-decor^='tape'],
+.skin-decor[data-decor^='washi'] {
+  top: -11px;
+  left: calc(50% - min(55px, 30%));
+  width: min(110px, 60%);
+  height: 24px;
+  background: rgb(255 255 255 / 0.55);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
+  transform: rotate(-4deg);
+}
+.skin-decor[data-decor='tape-yellow'] {
+  left: 22%;
+  background: rgb(255 240 140 / 0.7);
+  transform: rotate(3deg);
+}
+.skin-decor[data-decor='washi-coral'] {
+  left: auto;
+  right: 10%;
+  opacity: 0.9;
+  background: repeating-linear-gradient(45deg, #f4b6a6 0 8px, #f7c8bb 8px 16px);
+  transform: rotate(3deg);
+}
+.skin-decor[data-decor='washi-mint'] {
+  left: auto;
+  right: 28%;
+  background: repeating-linear-gradient(-45deg, #a9d3c7 0 6px, #bfe0d6 6px 12px);
+  transform: rotate(-4deg);
+}
+
+/* Widgets on paper skins cast a real shadow so they lift off textured backgrounds. */
+.skin-root[data-skin='postit'] > .skin-frame,
+.skin-root[data-skin='index-card'] > .skin-frame {
+  box-shadow:
+    2px 12px 20px -6px rgb(0 0 0 / 0.38),
+    0 1px 2px rgb(0 0 0 / 0.12);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skin-root {
+    transition: none;
+  }
+}
+
+/* Picker swatches take the style's edge treatment. */
+.skin-swatch[data-skin-swatch='postit'] {
+  border: 0;
+  transform: rotate(-3deg);
+  box-shadow: 1px 4px 6px rgb(0 0 0 / 0.25);
+}
+.skin-swatch[data-skin-swatch='index-card'] {
+  border: 0;
+  box-shadow: 1px 3px 5px rgb(0 0 0 / 0.2);
+}
+.skin-swatch[data-skin-swatch='card'] {
+  border-radius: 6px;
+}
+.skin-swatch[data-skin-swatch='terminal'] {
+  border: 1px solid #2fbf5a;
+}
+.skin-swatch[data-skin-swatch='pixel'] {
+  border: 0;
+  box-shadow:
+    0 0 0 2px #f4f1ff,
+    0 0 0 4px #1b1238;
+}
+.skin-swatch[data-skin-swatch='swiss'] {
+  border: 3px solid #111;
+}
+.skin-swatch[data-skin-swatch='blueprint'] {
+  border: 1px solid #eaf4ff;
+}
+.skin-swatch[data-skin-swatch='journal'] {
+  border: 2px solid #2d2a32;
+  border-radius: 3px 9px 4px 8px;
+}

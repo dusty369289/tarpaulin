@@ -1,0 +1,187 @@
+mod auth;
+mod canvas;
+mod updater;
+
+use std::sync::Mutex;
+use std::time::Duration;
+
+use serde_json::Value;
+use tauri::{AppHandle, State};
+use tauri_plugin_oauth::OauthConfig;
+use tauri_plugin_opener::OpenerExt;
+use tokio::sync::{oneshot, Mutex as AsyncMutex};
+
+use auth::{ConnectionInfo, CredentialVault, Credentials, KeyringStore};
+use canvas::{normalize_base_url, CanvasError};
+
+const OAUTH_TIMEOUT: Duration = Duration::from_secs(300);
+const OAUTH_DONE_PAGE: &str = "<!doctype html><html><body style=\"font-family:system-ui;padding:3rem\"><h2>Tarpaulin is connected.</h2><p>You can close this tab and return to the app.</p></body></html>";
+
+struct AppState {
+    http: reqwest::Client,
+    vault: CredentialVault,
+    /// Serialises token refreshes so concurrent 401s don't each spend the refresh token.
+    refresh_lock: AsyncMutex<()>,
+}
+
+fn err(e: impl ToString) -> String {
+    e.to_string()
+}
+
+fn connected(state: &AppState) -> Result<Credentials, CanvasError> {
+    state.vault.get().map_err(CanvasError::Network)?.ok_or(CanvasError::NotConnected)
+}
+
+async fn refreshed(state: &AppState, stale: &Credentials) -> Result<Credentials, CanvasError> {
+    let _guard = state.refresh_lock.lock().await;
+    // Another request may already have refreshed while we waited.
+    let current = connected(state)?;
+    if current.access_token() != stale.access_token() {
+        return Ok(current);
+    }
+    let fresh = auth::refresh(&state.http, &current).await?;
+    state.vault.set(fresh.clone()).map_err(CanvasError::Network)?;
+    Ok(fresh)
+}
+
+async fn fetch_user_name(http: &reqwest::Client, creds: &Credentials) -> Result<Option<String>, CanvasError> {
+    let base = normalize_base_url(creds.base_url())?;
+    let me = canvas::get_all(http, &base, creds.access_token(), "/api/v1/users/self", &[]).await?;
+    Ok(me.get("name").and_then(Value::as_str).map(str::to_string))
+}
+
+/// Read-only Canvas GET. `path` must be under `/api/v1/`; arrays are returned with every page joined.
+#[tauri::command]
+async fn canvas_request(
+    state: State<'_, AppState>,
+    path: String,
+    query: Vec<(String, String)>,
+) -> Result<Value, String> {
+    let mut creds = connected(&state).map_err(err)?;
+    if creds.needs_refresh(auth::now_secs()) {
+        creds = refreshed(&state, &creds).await.map_err(err)?;
+    }
+    let base = normalize_base_url(creds.base_url()).map_err(err)?;
+    match canvas::get_all(&state.http, &base, creds.access_token(), &path, &query).await {
+        Err(CanvasError::Unauthorized) if matches!(creds, Credentials::Oauth { .. }) => {
+            let fresh = refreshed(&state, &creds).await.map_err(err)?;
+            canvas::get_all(&state.http, &base, fresh.access_token(), &path, &query).await.map_err(err)
+        }
+        other => other.map_err(err),
+    }
+}
+
+#[tauri::command]
+fn auth_status(state: State<'_, AppState>) -> Result<ConnectionInfo, String> {
+    Ok(match state.vault.get()? {
+        Some(creds) => ConnectionInfo::from_credentials(&creds, None),
+        None => ConnectionInfo::disconnected(),
+    })
+}
+
+/// Tests the token against `/api/v1/users/self` before storing it.
+#[tauri::command]
+async fn save_token(state: State<'_, AppState>, base_url: String, token: String) -> Result<ConnectionInfo, String> {
+    let base = normalize_base_url(&base_url).map_err(err)?;
+    let creds = Credentials::Token { base_url: base.to_string(), token: token.trim().to_string() };
+    let name = fetch_user_name(&state.http, &creds).await.map_err(err)?;
+    state.vault.set(creds.clone())?;
+    Ok(ConnectionInfo::from_credentials(&creds, name))
+}
+
+/// Runs the OAuth2 authorization-code flow through a loopback redirect in the system browser.
+#[tauri::command]
+async fn oauth_login(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    base_url: String,
+    client_id: String,
+    client_secret: String,
+) -> Result<ConnectionInfo, String> {
+    let base = normalize_base_url(&base_url).map_err(err)?;
+    let expected_state = uuid::Uuid::new_v4().to_string();
+    let (tx, rx) = oneshot::channel::<String>();
+    let tx = Mutex::new(Some(tx));
+    let port = tauri_plugin_oauth::start_with_config(
+        OauthConfig {
+            ports: Some(auth::OAUTH_PORTS.to_vec()),
+            response: Some(OAUTH_DONE_PAGE.into()),
+            redirect_uri: None,
+        },
+        move |url| {
+            if let Some(tx) = tx.lock().unwrap().take() {
+                let _ = tx.send(url);
+            }
+        },
+    )
+    .map_err(|e| format!("could not start the local OAuth listener: {e}"))?;
+    let redirect = auth::redirect_uri(port);
+    let authorize = auth::authorize_url(&base, client_id.trim(), &redirect, &expected_state);
+
+    let result = async {
+        app.opener().open_url(authorize.as_str(), None::<&str>).map_err(err)?;
+        let callback = tokio::time::timeout(OAUTH_TIMEOUT, rx)
+            .await
+            .map_err(|_| "timed out waiting for Canvas to redirect back".to_string())?
+            .map_err(err)?;
+        let code = auth::parse_callback(&callback, &expected_state)?;
+        let creds = auth::exchange_code(&state.http, &base, client_id.trim(), client_secret.trim(), &redirect, &code)
+            .await
+            .map_err(err)?;
+        let name = fetch_user_name(&state.http, &creds).await.map_err(err)?;
+        state.vault.set(creds.clone())?;
+        Ok(ConnectionInfo::from_credentials(&creds, name))
+    }
+    .await;
+    let _ = tauri_plugin_oauth::cancel(port);
+    result
+}
+
+#[tauri::command]
+fn logout(state: State<'_, AppState>) -> Result<(), String> {
+    state.vault.clear()
+}
+
+/// Opens a Canvas page in the system browser. Only links on the connected Canvas host are allowed.
+#[tauri::command]
+fn open_external(app: AppHandle, state: State<'_, AppState>, url: String) -> Result<(), String> {
+    let creds = connected(&state).map_err(err)?;
+    let base = normalize_base_url(creds.base_url()).map_err(err)?;
+    let target = url::Url::parse(&url).map_err(err)?;
+    if target.scheme() != base.scheme() || target.host_str() != base.host_str() {
+        return Err("only Canvas links can be opened".into());
+    }
+    app.opener().open_url(target.as_str(), None::<&str>).map_err(err)
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    let http = reqwest::Client::builder()
+        .user_agent(concat!("Tarpaulin/", env!("CARGO_PKG_VERSION")))
+        .timeout(Duration::from_secs(30))
+        .build()
+        .expect("failed to build HTTP client");
+    tauri::Builder::default()
+        .plugin(tauri_plugin_oauth::init())
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(updater::PendingUpdate::default())
+        .manage(AppState {
+            http,
+            vault: CredentialVault::new(Box::new(KeyringStore)),
+            refresh_lock: AsyncMutex::new(()),
+        })
+        .invoke_handler(tauri::generate_handler![
+            canvas_request,
+            auth_status,
+            save_token,
+            oauth_login,
+            logout,
+            open_external,
+            updater::app_version,
+            updater::check_update,
+            updater::install_update
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running Tarpaulin");
+}
