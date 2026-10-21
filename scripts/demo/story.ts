@@ -2,6 +2,15 @@
 // scripts/demo-video.ts renders it; every helper here is measured in video time.
 import type { Locator, Page } from 'playwright';
 
+/** The dev-only hooks the app exposes in demo mode (src/dev/demoHooks.ts). */
+type DemoWindow = {
+  __tarpaulinDemo: {
+    setMode: (theme: 'light' | 'dark') => void;
+    applyLook: (id: string) => void;
+    setPages: (pages: unknown[]) => void;
+  };
+};
+
 export interface Director {
   page: Page;
   appUrl: string;
@@ -57,7 +66,9 @@ export async function story({
   type Mode = 'light' | 'dark';
   /** Light ↔ dark as an on-screen effect (see src/dev/demoHooks.ts). */
   const fadeTo = async (mode: Mode, hold = 1400) => {
-    await crossfade(() => page.evaluate((m) => window.__tarpaulinDemo!.setMode(m), mode));
+    await crossfade(() =>
+      page.evaluate((m) => (window as unknown as DemoWindow).__tarpaulinDemo.setMode(m), mode),
+    );
     await pause(hold);
   };
   /** Another look (and mode), dissolved in. */
@@ -65,8 +76,8 @@ export async function story({
     await crossfade(() =>
       page.evaluate(
         ([l, m]) => {
-          window.__tarpaulinDemo!.setMode(m as Mode);
-          window.__tarpaulinDemo!.applyLook(l);
+          (window as unknown as DemoWindow).__tarpaulinDemo.setMode(m as Mode);
+          (window as unknown as DemoWindow).__tarpaulinDemo.applyLook(l);
         },
         [id, mode],
       ),
@@ -144,7 +155,10 @@ export async function story({
   await until(page.getByRole('tab', { name: /Home/ }));
   await settle();
   await crossfade(async () => {
-    await page.evaluate((pages) => window.__tarpaulinDemo!.setPages(pages), PAGES);
+    await page.evaluate(
+      (pages) => (window as unknown as DemoWindow).__tarpaulinDemo.setPages(pages),
+      PAGES,
+    );
     await settle();
   });
 
