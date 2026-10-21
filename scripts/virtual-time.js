@@ -6,7 +6,8 @@
 // how long the capture itself took. Plain JS on purpose: it is injected as source text.
 (() => {
   const RealDate = Date;
-  const epoch = RealDate.now();
+  // The recorder passes one start time to all its parallel browsers, so clocks agree.
+  const epoch = window.__vtEpoch || RealDate.now();
   let now = 0;
 
   let nextTimer = 1;
@@ -25,6 +26,26 @@
     }
   }
   window.Date = VirtualDate;
+
+  // Seeded randomness: the parallel recorders each play the whole story, so anything random
+  // (widget ids, and the post-it tilt and pins derived from them) must come out the same in all.
+  let seed = 0x5eed1234;
+  const random = () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  Math.random = random;
+  if (window.crypto) {
+    const hex = (n) =>
+      Array.from({ length: n }, () => Math.floor(random() * 16).toString(16)).join('');
+    crypto.randomUUID = () => `${hex(8)}-${hex(4)}-4${hex(3)}-${hex(4)}-${hex(12)}`;
+    crypto.getRandomValues = (array) => {
+      for (let i = 0; i < array.length; i++) array[i] = Math.floor(random() * 256);
+      return array;
+    };
+  }
 
   const schedule = (fn, ms, args, every) => {
     const id = nextTimer++;

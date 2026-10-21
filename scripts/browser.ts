@@ -7,11 +7,14 @@ import { startMockCanvas, type MockCanvas } from '../mock-canvas/server';
  * Uses the preinstalled Chromium when present (cloud dev box), else Playwright's own. The frame
  * rate is uncapped so requestAnimationFrame-based settle checks run at layout speed, not 60fps.
  */
-export function launch({ uncapped = true }: { uncapped?: boolean } = {}): Promise<Browser> {
+export function launch({
+  uncapped = true,
+  args = [],
+}: { uncapped?: boolean; args?: string[] } = {}): Promise<Browser> {
   const preinstalled = process.env.PW_CHROMIUM ?? '/opt/pw-browsers/chromium';
   return chromium.launch({
     executablePath: existsSync(preinstalled) ? preinstalled : undefined,
-    args: uncapped ? ['--disable-frame-rate-limit', '--disable-gpu-vsync'] : [],
+    args: [...(uncapped ? ['--disable-frame-rate-limit', '--disable-gpu-vsync'] : []), ...args],
   });
 }
 
