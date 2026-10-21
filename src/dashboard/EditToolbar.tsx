@@ -9,6 +9,10 @@ interface EditToolbarProps {
   onOpenSettings: () => void;
 }
 
+/**
+ * The bar's right-hand buttons, in groups: page editing (edit mode only), Edit/Done, then app
+ * actions. Labels drop to icons on narrow windows; every button keeps its accessible name.
+ */
 export function EditToolbar({
   editMode,
   onToggleEdit,
@@ -21,41 +25,61 @@ export function EditToolbar({
   return (
     <div className="flex shrink-0 items-center gap-1">
       {editMode && (
-        <button type="button" className="btn animate-pop-in" onClick={onAddWidget}>
-          <Plus className="h-4 w-4" /> Add widget
-        </button>
-      )}
-      {editMode && (
-        <button type="button" className="btn animate-pop-in" onClick={onOpenStyle}>
-          <Palette className="h-4 w-4" /> Style
-        </button>
+        <div className="bar-group animate-pop-in" role="group" aria-label="Page editing">
+          <button
+            type="button"
+            className="bar-btn"
+            aria-label="Add widget"
+            title="Add widget"
+            onClick={onAddWidget}
+          >
+            <Plus className="h-4 w-4" aria-hidden />
+            <span className="bar-btn-label">Add widget</span>
+          </button>
+          <button
+            type="button"
+            className="bar-btn"
+            aria-label="Style"
+            title="Style this page"
+            onClick={onOpenStyle}
+          >
+            <Palette className="h-4 w-4" aria-hidden />
+            <span className="bar-btn-label">Style</span>
+          </button>
+        </div>
       )}
       <button
         type="button"
-        className={`btn ${editMode ? 'btn-primary' : ''}`}
+        className={`bar-btn ${editMode ? 'bar-btn-primary' : ''}`}
         onClick={onToggleEdit}
         aria-pressed={editMode}
+        title={editMode ? 'Finish editing' : 'Edit this page'}
       >
-        {editMode ? <Check className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+        {editMode ? (
+          <Check className="h-4 w-4" aria-hidden />
+        ) : (
+          <Pencil className="h-4 w-4" aria-hidden />
+        )}
         {editMode ? 'Done' : 'Edit'}
       </button>
+      <span className="bar-divider" aria-hidden />
       <button
         type="button"
-        className="btn-icon"
+        className="bar-icon"
         aria-label="Refresh from Canvas"
         title="Refresh from Canvas"
         onClick={() => queryClient.invalidateQueries({ queryKey: ['canvas'] })}
       >
-        <RefreshCw className={`h-4 w-4 ${fetching ? 'animate-spin' : ''}`} />
+        <RefreshCw className={`h-4 w-4 ${fetching ? 'animate-spin' : ''}`} aria-hidden />
       </button>
       <button
         type="button"
-        className="btn-icon"
+        className="bar-icon"
         aria-label="Settings"
         title="Settings"
         onClick={onOpenSettings}
       >
-        <Settings className="h-4 w-4" />
+        <Settings className="h-4 w-4" aria-hidden />
       </button>
     </div>
   );

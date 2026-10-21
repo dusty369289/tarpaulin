@@ -291,6 +291,30 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
           />
           <span className="w-10 text-right text-xs tabular-nums">{settings.radius}px</span>
         </Row>
+        <Row label="Top bar" help="Frosted glass that the page shows through, or a plain strip.">
+          <select
+            className="input w-auto"
+            aria-label="Top bar style"
+            value={settings.barStyle}
+            onChange={(e) =>
+              settings.update({ barStyle: e.target.value as typeof settings.barStyle })
+            }
+          >
+            <option value="frosted">Frosted</option>
+            <option value="basic">Basic</option>
+          </select>
+        </Row>
+        <Row
+          label="Fold away the top bar"
+          help="Gives the page the full window. Point at the top edge or press Tab to bring it back. Always shown on touch screens."
+        >
+          <Switch
+            hideLabel
+            label="Fold away the top bar"
+            checked={settings.barFoldAway}
+            onChange={(on) => settings.update({ barFoldAway: on })}
+          />
+        </Row>
         <Row label="Clock">
           <select
             className="input w-auto"
