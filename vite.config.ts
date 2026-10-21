@@ -65,7 +65,7 @@ function canvasDevProxy(): Plugin {
 export default defineConfig({
   plugins: [react(), canvasDevProxy()],
   clearScreen: false,
-  server: { port: 1420, strictPort: true, watch: { ignored: ['**/src-tauri/**'] } },
+  server: { port: 1420, strictPort: true, watch: { ignored: ['**/src-tauri/**', '**/.claude/**'] } },
   envPrefix: ['VITE_', 'TAURI_ENV_'],
   define: { 'import.meta.env.VITE_APP_VERSION': JSON.stringify(pkg.version) },
   build: { target: 'es2022', sourcemap: false },
