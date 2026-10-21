@@ -55,7 +55,8 @@ This needs a **developer key** from your institution's Canvas admin:
 
 ## Releases and updates
 
-Prebuilt installers for macOS (Apple silicon and Intel), Windows and Linux (x64 and arm64) are on
+Prebuilt installers for macOS (Apple silicon and Intel), Windows (x64 `.msi`/`.exe` and arm64 `.exe`)
+and Linux (`.deb`, `.rpm` and AppImage, x64 and arm64) are on
 the [Releases](https://github.com/dusty369289/tarpaulin/releases) page. Installed copies keep
 themselves up to date: Tarpaulin checks GitHub Releases once a day (you can turn this off in
 **Settings → Updates**), shows a banner when a new version is out, and installs it with **Install &

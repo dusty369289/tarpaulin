@@ -11,6 +11,7 @@
 //   pnpm test:widgets --only=calendar      # one widget
 //   pnpm test:widgets --shots              # also write screenshots/lab/<scenario>/<widget>.png
 //   pnpm test:widgets --live               # use a running `pnpm dev` (real Canvas) instead
+//   pnpm test:widgets --font="DejaVu Sans" # force a font, to reproduce another OS's metrics
 import { mkdirSync } from 'node:fs';
 import { SCENARIOS } from '../mock-canvas/world';
 import type { LabCase, LabReport } from '../src/dev/labTypes';
@@ -20,6 +21,8 @@ const arg = (name: string) => process.argv.find((a) => a.startsWith(`--${name}=`
 const shots = process.argv.includes('--shots');
 const live = process.argv.includes('--live');
 const only = arg('only');
+// Force a font (e.g. --font="DejaVu Sans") to reproduce another platform's fallback metrics.
+const font = arg('font');
 const scenarios: string[] = live ? ['live'] : arg('scenario') ? [arg('scenario')!] : SCENARIOS;
 
 const WIDTHS = [2, 3, 4, 5, 6, 8, 12];
@@ -85,6 +88,8 @@ for (const scenario of scenarios) {
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await page.waitForFunction(() => Boolean(window.__tarpaulinLab), null, { timeout: 30_000 });
+  if (font)
+    await page.addStyleTag({ content: `:root, body, * { font-family: "${font}" !important; }` });
 
   const types = (await page.evaluate(() => window.__tarpaulinLab!.types)).filter(
     (t) => !only || t === only,

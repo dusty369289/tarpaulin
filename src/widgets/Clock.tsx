@@ -1,5 +1,6 @@
 import { addDays, format } from 'date-fns';
 import { Clock as ClockIcon } from 'lucide-react';
+import type { CSSProperties } from 'react';
 import { z } from 'zod';
 import { useCourseIds, useNow, useProfile, useUpcoming } from '../canvas/hooks';
 import { field } from './settings/fields';
@@ -43,6 +44,7 @@ export const Clock = defineWidget({
     const deadlines = useUpcoming(7);
     const name = settings.name || profile.data?.shortName?.split(' ')[0] || '';
     const fmt = settings.showSeconds ? timeFmt.replace('mm', 'mm:ss') : timeFmt;
+    const time = format(now, fmt);
 
     const due = deadlines.data.work().undone().inCourses(ids).between(now, addDays(now, 7)).length;
 
@@ -57,8 +59,11 @@ export const Clock = defineWidget({
           </div>
         )}
         {settings.showTime && (
-          <div className="fit-time max-w-full whitespace-nowrap font-semibold tabular-nums tracking-tight">
-            {format(now, fmt)}
+          <div
+            className="fit-time max-w-full whitespace-nowrap font-semibold tabular-nums tracking-tight"
+            style={{ '--chars': time.length } as CSSProperties}
+          >
+            {time}
           </div>
         )}
         {settings.showDate && (

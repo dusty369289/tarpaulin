@@ -1,9 +1,11 @@
 name: CI
 
+# Every pull request, and every push to main (i.e. each merge).
 on:
-  push:
-    branches: ['**']
   pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -14,9 +16,9 @@ jobs:
     name: Lint, unit tests, widget sweep, UI check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
@@ -30,6 +32,8 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
       # Both start their own mock Canvas and Vite server; no secrets or network needed.
       - run: pnpm test:widgets
+      # Again with a wide monospace font forced, so layouts never depend on one font's metrics.
+      - run: pnpm test:widgets --scenario=dense --font="DejaVu Sans Mono"
       - run: pnpm test:ui
       - if: failure()
         uses: actions/upload-artifact@v4
@@ -42,7 +46,7 @@ jobs:
     name: Rust tests
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Tauri system packages
         run: |
           sudo apt-get update

@@ -169,8 +169,10 @@ body {
     display: none !important;
   }
 }
+/* Sized by character count (--chars) at a conservative 0.68em per glyph, so the time fits
+   whatever font the platform falls back to, not just the one it was designed with. */
 .fit-time {
-  font-size: clamp(1.25rem, min(17cqw, 36cqh), 7rem);
+  font-size: clamp(1.25rem, min(calc(100cqw / (var(--chars, 7) * 0.68)), 36cqh), 7rem);
   line-height: 1;
   transition: font-size 200ms ease;
 }
