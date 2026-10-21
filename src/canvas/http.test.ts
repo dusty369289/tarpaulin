@@ -1,9 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  CanvasHttpError,
+  CanvasRateLimitError,
   fetchAllPages,
   isAllowedNext,
+  isThrottled,
   normalizeBaseUrl,
   parseNextLink,
+  RETRY,
+  retryDelay,
   toQueryPairs,
   validateApiPath,
 } from './http';
@@ -108,6 +113,70 @@ describe('Link pagination', () => {
     await expect(fetchAllPages('https://c.edu', 't', '/api/v1/me', [], fail)).rejects.toThrow(
       '401',
     );
+  });
+
+  describe('when Canvas throttles', () => {
+    const throttled = (headers: Record<string, string> = {}) =>
+      new Response('403 Forbidden (Rate Limit Exceeded)', { status: 403, headers });
+    const fast = { retry: { attempts: 3, baseMs: 100, maxWaitMs: 1000 } };
+
+    it('waits and tries again, honouring Retry-After', async () => {
+      const sleep = vi.fn(async (_ms: number) => {});
+      const fetchImpl = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(throttled({ 'x-rate-limit-remaining': '0.0' }))
+        .mockResolvedValueOnce(new Response('', { status: 429, headers: { 'retry-after': '0.5' } }))
+        .mockResolvedValueOnce(page([1]));
+      await expect(
+        fetchAllPages('https://c.edu', 't', '/api/v1/x', [], fetchImpl, { ...fast, sleep }),
+      ).resolves.toEqual([1]);
+      expect(fetchImpl).toHaveBeenCalledTimes(3);
+      const [[first], [second]] = sleep.mock.calls;
+      expect(first).toBeGreaterThanOrEqual(50);
+      expect(first).toBeLessThanOrEqual(100);
+      expect(second).toBe(500);
+    });
+
+    it('gives up with a rate-limit error after the last attempt', async () => {
+      const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async () => throttled());
+      const e = await fetchAllPages('https://c.edu', 't', '/api/v1/x', [], fetchImpl, {
+        ...fast,
+        sleep: async () => {},
+      }).catch((x: unknown) => x);
+      expect(e).toBeInstanceOf(CanvasRateLimitError);
+      expect((e as CanvasRateLimitError).status).toBe(403);
+      expect((e as Error).message).toBe('Canvas rate limit exceeded (403); try again in a moment');
+      expect(fetchImpl).toHaveBeenCalledTimes(3);
+    });
+
+    it('does not retry permission errors', async () => {
+      const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+        new Response('{"errors":[{"message":"forbidden"}]}', {
+          status: 403,
+          headers: { 'x-rate-limit-remaining': '640.5' },
+        }),
+      );
+      const sleep = vi.fn(async () => {});
+      const e = await fetchAllPages('https://c.edu', 't', '/api/v1/x', [], fetchImpl, {
+        sleep,
+      }).catch((x: unknown) => x);
+      expect(e).toBeInstanceOf(CanvasHttpError);
+      expect(e).not.toBeInstanceOf(CanvasRateLimitError);
+      expect(sleep).not.toHaveBeenCalled();
+    });
+
+    it('recognises throttling and backs off with jitter', () => {
+      expect(isThrottled(403, null, '{"errors":[{"message":"Rate Limit Exceeded"}]}')).toBe(true);
+      expect(isThrottled(403, 0, '')).toBe(true);
+      expect(isThrottled(429, null, '')).toBe(true);
+      expect(isThrottled(403, 650, 'forbidden')).toBe(false);
+      expect(isThrottled(503, 0, 'Rate Limit Exceeded')).toBe(false);
+      expect(retryDelay(RETRY, 1, null, 1)).toBe(1000);
+      expect(retryDelay(RETRY, 1, null, 0)).toBe(500);
+      expect(retryDelay(RETRY, 2, null, 1)).toBe(2000);
+      expect(retryDelay(RETRY, 9, null, 1)).toBe(RETRY.maxWaitMs);
+      expect(retryDelay(RETRY, 1, 600_000)).toBe(RETRY.maxWaitMs);
+    });
   });
 
   it('refuses disallowed paths before any request', async () => {
