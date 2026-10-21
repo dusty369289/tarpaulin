@@ -168,6 +168,7 @@ export const RawCalendarEvent = z.object({
   start_at: str,
   end_at: str,
   all_day: bool,
+  all_day_date: str,
   location_name: str,
   context_code: str,
   context_name: str,
@@ -301,9 +302,10 @@ export interface AnnouncementData {
   id: string;
   courseId: string | null;
   title: string;
-  /** Plain text, for previews. */
-  message: string;
-  /** The body as Canvas sent it (HTML, capped). Only ever rendered through the sanitiser. */
+  /**
+   * The body as Canvas sent it (HTML, capped). Only ever rendered through the sanitiser; the
+   * plain-text preview is derived from it at read time (`Announcement.message`).
+   */
   html?: string;
   postedAt: string | null;
   author: string;
@@ -317,6 +319,11 @@ export interface CalendarEventData {
   startAt: string | null;
   endAt: string | null;
   allDay: boolean;
+  /**
+   * For all-day events, the day as Canvas means it (YYYY-MM-DD). `startAt` is midnight in the
+   * Canvas account's time zone, which can be another day on this computer.
+   */
+  allDayDate?: string | null;
   location: string | null;
   courseId: string | null;
   contextName: string;
@@ -355,6 +362,7 @@ export interface UserProfile {
   name: string;
   shortName: string;
   avatarUrl: string | null;
+  /** The user's Canvas time zone (IANA name, e.g. "Europe/London"), when it is a valid one. */
   timeZone: string | null;
 }
 

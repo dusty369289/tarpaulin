@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Catalog, Deadlines, Grade } from './models';
-import type { CourseData, PlannerItemData } from './types';
+import type { CalendarEventData, CourseData, PlannerItemData } from './types';
 
 const NOW = new Date('2026-10-21T12:00:00Z');
 const prefs = {
@@ -182,5 +182,93 @@ describe('Grade', () => {
       now: NOW,
     });
     expect(catalog.course('1')!.grade.hasValue).toBe(false);
+  });
+});
+
+describe('CalendarEvent', () => {
+  const catalog = new Catalog({ courses: [], prefs, now: NOW });
+  const event = (over: Partial<CalendarEventData>): CalendarEventData => ({
+    id: 'e',
+    title: 'Event',
+    startAt: null,
+    endAt: null,
+    allDay: false,
+    location: null,
+    courseId: null,
+    contextName: '',
+    htmlUrl: null,
+    ...over,
+  });
+  const local = (d: number, h = 0) => new Date(2026, 9, d, h);
+  const one = (data: CalendarEventData) => catalog.events([data]).first!;
+
+  it('places all-day events on their Canvas date, whatever the device time zone', () => {
+    // Midnight in a Canvas zone far ahead of this computer can be the day before here.
+    const e = one(
+      event({
+        allDay: true,
+        allDayDate: '2026-10-23',
+        startAt: '2026-10-22T10:00:00Z',
+        endAt: '2026-10-22T10:00:00Z',
+      }),
+    );
+    expect(e.start).toEqual(local(23));
+    expect(e.end).toEqual(local(24));
+    expect(e.isMultiDay).toBe(false);
+    expect([22, 23, 24].map((d) => e.occursOn(local(d, 12)))).toEqual([false, true, false]);
+  });
+
+  it('spreads multi-day events across every day they cover', () => {
+    const days = (e: ReturnType<typeof one>) =>
+      [21, 22, 23, 24, 25, 26].filter((d) => e.occursOn(local(d, 12)));
+    const allDay = one(
+      event({
+        allDay: true,
+        allDayDate: '2026-10-22',
+        startAt: '2026-10-21T23:00:00Z',
+        endAt: '2026-10-24T23:00:00Z',
+      }),
+    );
+    expect(days(allDay)).toEqual([22, 23, 24]);
+    expect(allDay.lastDay).toEqual(local(24));
+    // A timed event ending exactly at midnight doesn't spill into that day.
+    const timed = one(
+      event({ startAt: local(23, 20).toISOString(), endAt: local(25, 0).toISOString() }),
+    );
+    expect(days(timed)).toEqual([23, 24]);
+    expect(timed.isMultiDay).toBe(true);
+    const list = catalog.events([allDay.data, timed.data]);
+    expect(list.on(local(22)).map((e) => e.data)).toEqual([allDay.data]);
+    expect(list.on(local(24)).length).toBe(2);
+  });
+
+  it('copes with events cached before allDayDate existed, and with no end', () => {
+    const legacy = one(event({ allDay: true, startAt: local(23, 0).toISOString(), endAt: null }));
+    expect(legacy.start).toEqual(local(23));
+    expect(legacy.end).toEqual(local(24));
+    const point = one(event({ startAt: local(23, 9).toISOString() }));
+    expect(point.end).toBeNull();
+    expect(point.lastDay).toEqual(local(23));
+    expect(one(event({})).occursOn(local(23))).toBe(false);
+  });
+});
+
+describe('Announcement', () => {
+  it('derives the preview text from the cached HTML', () => {
+    const catalog = new Catalog({ courses: [], prefs, now: NOW });
+    const a = catalog.announcements([
+      {
+        id: '1',
+        courseId: null,
+        title: 'Hi',
+        html: '<p>Hello &amp; welcome</p><script>x()</script><p>Second</p>',
+        postedAt: null,
+        author: '',
+        htmlUrl: null,
+        read: false,
+      },
+    ]).first!;
+    expect(a.message).toBe('Hello & welcome\nSecond');
+    expect(catalog.announcements([{ ...a.data, html: undefined }]).first!.message).toBe('');
   });
 });

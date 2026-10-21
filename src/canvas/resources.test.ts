@@ -4,7 +4,9 @@ import { addDays, formatISO, subDays } from 'date-fns';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startMockCanvas, type MockCanvas } from '../../mock-canvas/server';
 import { CanvasClient } from './client';
-import { fetchAllPages, toQueryPairs, type Query } from './http';
+import { canvasErrorKind } from './errors';
+import { fetchAllPages, toQueryPairs, type FetchOptions, type Query } from './http';
+import { Catalog, type CatalogPrefs } from './models';
 import * as R from './resources';
 import { currentTermCourses } from './terms';
 import type { Transport } from './transport';
@@ -13,10 +15,10 @@ const NOW = new Date('2026-10-21T14:00:00Z');
 const day = (d: Date) => formatISO(d, { representation: 'date' });
 let mock: MockCanvas;
 
-function clientFor(scenario: string) {
+function clientFor(scenario: string, options?: FetchOptions) {
   const transport = {
     get: (path: string, query?: Query) =>
-      fetchAllPages(mock.url, `mock-${scenario}`, path, toQueryPairs(query)),
+      fetchAllPages(mock.url, `mock-${scenario}`, path, toQueryPairs(query), fetch, options),
   } as Transport;
   return new CanvasClient(transport, mock.url);
 }
@@ -98,6 +100,20 @@ describe('against the mock Canvas', () => {
   describe('edge-case data', () => {
     const client = () => clientFor('edge');
 
+    it('keeps the Canvas date and end of all-day and multi-day events', async () => {
+      const profile = await client().fetch(R.Profile);
+      const events = await client().fetch(
+        R.CalendarEvents([`user_${profile.id}`], day(subDays(NOW, 7)), day(addDays(NOW, 14))),
+      );
+      const reading = events.find((e) => e.title === 'All-day reading week')!;
+      expect(reading.allDay).toBe(true);
+      expect(reading.allDayDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(reading.allDayDate).toBe(reading.startAt!.slice(0, 10));
+      const trip = events.find((e) => e.title === 'Multi-day field trip')!;
+      expect(trip.allDayDate).toBeNull();
+      expect(Date.parse(trip.endAt!) - Date.parse(trip.startAt!)).toBeGreaterThan(2 * 86_400_000);
+    });
+
     it('drops invalid saved colours', async () => {
       const colors = await client().fetch(R.CourseColors);
       expect(Object.values(colors).every((c) => /^#[0-9a-f]{3,6}$/i.test(c))).toBe(true);
@@ -127,7 +143,17 @@ describe('against the mock Canvas', () => {
           day(addDays(NOW, 1)),
         ),
       );
-      const markup = anns.find((a) => a.title.startsWith('Announcement with markup'))!;
+      // Only the HTML is cached; the preview text is derived by the model.
+      expect(anns.every((a) => !('message' in a))).toBe(true);
+      const prefs = {
+        courseScope: 'all',
+        hiddenCourseIds: [],
+        courseColors: {},
+        courseNicknames: {},
+      };
+      const markup = new Catalog({ courses, prefs: prefs as CatalogPrefs })
+        .announcements(anns)
+        .find((a) => a.title.startsWith('Announcement with markup'))!;
       expect(markup.message).toContain('Hello & welcome to week 5!');
       expect(markup.message).not.toMatch(/<script|onerror|<img/);
       // Delayed posts aren't visible yet; empty/null titles get a fallback.
@@ -190,7 +216,96 @@ describe('against the mock Canvas', () => {
     });
   });
 
+  it('keeps the profile time zone in canonical form', async () => {
+    expect((await clientFor('realistic').fetch(R.Profile)).timeZone).toBe('Europe/London');
+    expect(R.validTimeZone('UTC')).toBe('UTC');
+    expect(R.validTimeZone('Not/A_Zone')).toBeNull();
+    expect(R.validTimeZone('')).toBeNull();
+  });
+
+  it('encodes every id in a path segment', async () => {
+    const paths: string[] = [];
+    const get = async (path: string) => {
+      paths.push(path);
+      return { id: '1' };
+    };
+    const urls = {
+      baseUrl: 'https://c.edu',
+      absolute: (u: string | null | undefined) => u ?? null,
+    };
+    await R.FileUrl('7/../../login').load(get, urls);
+    await R.AssignmentDetail('1?x', '2#y').load(get, urls);
+    await R.QuizDetail('1', 'a b').load(get, urls);
+    await R.DiscussionDetail('1', '2/3').load(get, urls);
+    expect(paths).toEqual([
+      '/api/v1/files/7%2F..%2F..%2Flogin',
+      '/api/v1/courses/1%3Fx/assignments/2%23y',
+      '/api/v1/courses/1/quizzes/a%20b',
+      '/api/v1/courses/1/discussion_topics/2%2F3',
+    ]);
+  });
+
+  it('hints how long each resource stays fresh', () => {
+    expect(R.Profile.staleTime).toBe(R.STALE.rarely);
+    expect(R.CourseColors.staleTime).toBe(R.STALE.rarely);
+    expect(R.Courses.staleTime).toBe(R.STALE.hourly);
+    // Grades, work and news follow the user's refresh interval.
+    expect(R.Enrollments.staleTime).toBeUndefined();
+    expect(R.Planner('2026-10-01', '2026-11-01').staleTime).toBeUndefined();
+    expect(R.Announcements(['1'], '2026-10-01', '2026-11-01').staleTime).toBeUndefined();
+  });
+
   it('surfaces failures from the flaky scenario', async () => {
-    await expect(clientFor('flaky').fetch(R.Todo)).rejects.toThrow('503');
+    const e = await clientFor('flaky')
+      .fetch(R.Todo)
+      .catch((x: unknown) => x);
+    expect((e as Error).message).toContain('503');
+    expect(canvasErrorKind(e)).toBe('server');
+  });
+
+  it('rides out Canvas throttling with retries', async () => {
+    const fast = { retry: { attempts: 3, baseMs: 1, maxWaitMs: 5 } };
+    const client = clientFor('throttled', fast);
+    const before = mock.requests.length;
+    const courses = await client.fetch(R.Courses);
+    const [planner, anns] = await Promise.all([
+      client.fetch(R.Planner(day(subDays(NOW, 7)), day(addDays(NOW, 30)))),
+      client.fetch(
+        R.Announcements(
+          courses.map((c) => c.id),
+          day(subDays(NOW, 30)),
+          day(NOW),
+        ),
+      ),
+      client.fetch(R.Profile),
+      client.fetch(R.Todo),
+    ]);
+    const realistic = clientFor('realistic');
+    expect(courses).toEqual(await realistic.fetch(R.Courses));
+    expect(planner.length).toBeGreaterThan(0);
+    expect(anns.length).toBeGreaterThan(0);
+    const statuses = mock.requests.slice(before).filter((r) => r.scenario === 'throttled');
+    expect(statuses.some((r) => r.status === 403)).toBe(true);
+    expect(statuses.some((r) => r.status === 429)).toBe(true);
+  });
+
+  it('reports throttling that outlasts the retries as rate_limited', async () => {
+    const once = { retry: { attempts: 1, baseMs: 1, maxWaitMs: 1 } };
+    // A fresh mock so the throttled endpoint's request count starts at the throttled first hit.
+    const fresh = await startMockCanvas({ now: NOW });
+    try {
+      const e = await fetchAllPages(
+        fresh.url,
+        'mock-throttled',
+        '/api/v1/users/self/todo',
+        [],
+        fetch,
+        once,
+      ).catch((x: unknown) => x);
+      expect(canvasErrorKind(e)).toBe('rate_limited');
+      expect(fresh.writes).toEqual([]);
+    } finally {
+      await fresh.close();
+    }
   });
 });
