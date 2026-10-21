@@ -8,6 +8,8 @@ import { Grid } from './Grid';
 import { PageStylePanel } from './PageStylePanel';
 import { PageTabs } from './PageTabs';
 import { useActivePage, useDashboard } from './store';
+import { TimeZoneNote } from './TimeZoneNote';
+import { UndoToast } from './UndoToast';
 import { WidgetPicker } from './WidgetPicker';
 import { WidgetSettingsPanel } from './WidgetSettingsPanel';
 
@@ -41,6 +43,7 @@ export function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
       </AppBar>
       <UpdateBanner />
       <TokenBanner />
+      <TimeZoneNote />
       <main className="flex-1 p-4">
         {page.layout.length === 0 ? (
           <div className="page-note mx-auto mt-24 flex max-w-sm flex-col items-center gap-3 text-center text-muted animate-fade-in">
@@ -84,6 +87,7 @@ export function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
           onClose={() => setSettingsFor(null)}
         />
       )}
+      <UndoToast />
     </div>
   );
 }

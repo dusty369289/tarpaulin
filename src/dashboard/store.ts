@@ -23,6 +23,8 @@ interface AppLook {
 /** What one Undo puts back: the pages and look from just before a destructive change. */
 export interface UndoEntry {
   id: number;
+  /** When it happened (ms), so the toast only offers recent changes. */
+  at: number;
   /** What happened, for the toast: "Removed To-do". */
   label: string;
   pages: Page[];
@@ -171,7 +173,7 @@ const currentLook = (): AppLook => {
   const { background, widgetStyle } = useSettings.getState();
   return { background, widgetStyle };
 };
-let tickSnapshot: Omit<UndoEntry, 'id' | 'label'> | null = null;
+let tickSnapshot: Omit<UndoEntry, 'id' | 'at' | 'label'> | null = null;
 let nextUndoId = 1;
 function snapshot(data: DashboardData, look: AppLook) {
   if (!tickSnapshot) {
@@ -195,14 +197,17 @@ export const useDashboard = create<DashboardState>()(
             return next;
           const before = snapshot(s, currentLook());
           const top = s.undoStack[0];
-          // Later changes in the same click join the first one's entry, under the latest label.
+          // Later changes in the same click join the first one's entry.
           const undoStack =
             top && top.pages === before.pages
               ? [
                   { ...top, label: top.label === label ? label : 'Changed the look of every page' },
                   ...s.undoStack.slice(1),
                 ]
-              : [{ id: nextUndoId++, label, ...before }, ...s.undoStack].slice(0, UNDO_LIMIT);
+              : [{ id: nextUndoId++, at: Date.now(), label, ...before }, ...s.undoStack].slice(
+                  0,
+                  UNDO_LIMIT,
+                );
           return { ...next, undoStack };
         });
       const widgetName = (p: Page | undefined, id: string) => {
