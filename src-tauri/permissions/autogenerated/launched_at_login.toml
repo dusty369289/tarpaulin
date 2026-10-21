@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-launched-at-login"
+description = "Enables the launched_at_login command without any pre-configured scope."
+commands.allow = ["launched_at_login"]
+
+[[permission]]
+identifier = "deny-launched-at-login"
+description = "Denies the launched_at_login command without any pre-configured scope."
+commands.deny = ["launched_at_login"]

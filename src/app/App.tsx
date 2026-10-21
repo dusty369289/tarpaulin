@@ -3,7 +3,9 @@ import { Loader2 } from 'lucide-react';
 import { useCanvas } from '../canvas/CanvasProvider';
 import { Dashboard } from '../dashboard/Dashboard';
 import { Onboarding } from '../onboarding/Onboarding';
+import { NotificationRunner } from '../notifications/useNotifications';
 import { Personalize } from '../onboarding/Personalize';
+import { backgroundIfLaunchedAtLogin, setCloseToTray } from './desktop';
 import { useSettings } from './settingsStore';
 import { SettingsPage } from './SettingsPage';
 
@@ -25,6 +27,18 @@ export function App() {
   const [route, setRoute] = useState<Route>(routeFromHash);
   const onboarded = useSettings((s) => s.onboarded);
 
+  const closeToTray = useSettings((s) => s.closeToTray);
+  useEffect(() => {
+    // Order matters: the shell must know about the tray before deciding where to send the window.
+    void setCloseToTray(closeToTray)
+      .then(() => backgroundIfLaunchedAtLogin(useSettings.getState().startMinimized))
+      .catch(() => {});
+    // Only the first run sends the window away; later runs just sync the setting.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    void setCloseToTray(closeToTray).catch(() => {});
+  }, [closeToTray]);
   useEffect(() => {
     const onHash = () => setRoute(routeFromHash());
     window.addEventListener('hashchange', onHash);
@@ -58,6 +72,15 @@ export function App() {
     );
   }
   if (!onboarded) return <Personalize />;
-  if (route === 'settings') return <SettingsPage onBack={() => go('dashboard')} />;
-  return <Dashboard onOpenSettings={() => go('settings')} />;
+  return (
+    <>
+      {/* Reminders run whichever page is showing. */}
+      <NotificationRunner />
+      {route === 'settings' ? (
+        <SettingsPage onBack={() => go('dashboard')} />
+      ) : (
+        <Dashboard onOpenSettings={() => go('settings')} />
+      )}
+    </>
+  );
 }

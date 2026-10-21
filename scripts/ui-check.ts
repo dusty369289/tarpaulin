@@ -22,6 +22,25 @@ const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
 const errors: string[] = [];
 page.on('pageerror', (e) => errors.push(e.message));
+// Stand-in for the browser's notification API: every notification the app shows is recorded
+// in localStorage (so the record survives reloads) instead of popping up.
+// Plain source text: tsx would otherwise wrap the class in helpers the page doesn't have.
+await page.addInitScript(`
+  window.Notification = class {
+    static permission = 'granted';
+    static requestPermission = async () => 'granted';
+    constructor(title, opts) {
+      const all = JSON.parse(localStorage.getItem('__notes') ?? '[]');
+      all.push({ title, body: (opts && opts.body) || '' });
+      localStorage.setItem('__notes', JSON.stringify(all));
+    }
+  };
+`);
+const notes = () =>
+  page.evaluate(
+    () =>
+      JSON.parse(localStorage.getItem('__notes') ?? '[]') as Array<{ title: string; body: string }>,
+  );
 
 let failures = 0;
 const results: string[] = [];
@@ -500,6 +519,79 @@ await step('back to plain everywhere', async () => {
     skins.every((s) => s === 'card'),
     `widgets still styled: ${skins}`,
   );
+});
+
+await step('settings: course list folds and searches; tray switch is desktop-only', async () => {
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const list = page.getByRole('list', { name: 'courses' });
+  await list.waitFor();
+  const folded = await list.getByRole('listitem').count();
+  const more = page.getByRole('button', { name: /^Show all \d+ courses/ });
+  assert(folded === 5 && (await more.isVisible()), `course list not folded (${folded} rows)`);
+  const total = Number((await more.innerText()).match(/Show all (\d+)/)![1]);
+  await more.click();
+  await settled();
+  assert((await list.getByRole('listitem').count()) === total, 'show all did not show all');
+  await page.getByRole('button', { name: 'Show fewer courses' }).click();
+  const firstName = await list
+    .getByRole('listitem')
+    .first()
+    .locator('.truncate.text-xs')
+    .innerText();
+  const query = firstName.split(' · ')[0].slice(0, 8);
+  await page.getByRole('searchbox', { name: 'Search courses' }).fill(query);
+  await settled();
+  const hits = await list.getByRole('listitem').count();
+  assert(hits >= 1 && hits < total, `search for "${query}" matched ${hits} of ${total}`);
+  await page.getByRole('searchbox', { name: 'Search courses' }).fill('zzzz-no-such-course');
+  assert(await page.getByText(/No courses match/).isVisible(), 'no empty message');
+  await page.getByRole('button', { name: 'Clear search' }).click();
+  assert(
+    await page.getByRole('switch', { name: 'Keep running in the tray when closed' }).isDisabled(),
+    'tray switch should be desktop-only in the browser',
+  );
+  await settled();
+  await shot('13a-settings-courses');
+  await page.getByRole('button', { name: 'Dashboard' }).click();
+  await settled();
+});
+
+await step('notifications: baseline is quiet, reminders fire once, test works', async () => {
+  const first = await notes();
+  assert(
+    !first.some((n) => n.body.startsWith('New announcement') || n.title.startsWith('Graded')),
+    `first look announced existing items: ${JSON.stringify(first)}`,
+  );
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('heading', { name: 'Notifications' }).waitFor();
+  assert(
+    (await page.getByRole('switch', { name: 'Open Tarpaulin when I log in' }).isDisabled()) &&
+      (await page.getByText('Available in the desktop app.').first().isVisible()),
+    'opening at login should be desktop-only in the browser',
+  );
+  // A week's lead puts plenty of the mock's deadlines inside the window.
+  await page.getByRole('button', { name: '1 week before' }).click();
+  await settled();
+  const reminded = await notes();
+  const due = reminded.slice(first.length);
+  assert(
+    due.length > 0 && due.every((n) => /^Due in |deadlines coming up$/.test(n.title)),
+    `expected deadline reminders, got ${JSON.stringify(due)}`,
+  );
+  await page.getByRole('button', { name: 'Dashboard' }).click();
+  await page.reload();
+  await page.getByRole('tab', { name: /Home/ }).waitFor();
+  await settled();
+  assert((await notes()).length === reminded.length, 'reminders repeated after a reload');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('button', { name: 'Send a test' }).click();
+  await page.getByText('Sent.').waitFor();
+  const last = (await notes()).at(-1);
+  assert(last?.body === 'Notifications are working.', `test notification: ${JSON.stringify(last)}`);
+  await page.getByRole('heading', { name: 'Notifications' }).scrollIntoViewIfNeeded();
+  await shot('13-notifications-settings');
+  await page.getByRole('button', { name: 'Dashboard' }).click();
+  await settled();
 });
 
 /** Clicks items in a widget until the reader opens one of the wanted kind. */

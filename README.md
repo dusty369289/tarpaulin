@@ -20,6 +20,12 @@ announcements and a countdown to your next deadline. Each widget can be dragged,
   opens a reader with its full description, due and lock dates, points, attempts, submission
   types and your submission status, in Tarpaulin's own typography (or open it in Canvas, if you
   prefer; Settings › Appearance). Content is cached, so it reopens instantly and offline.
+- **Notifications**: deadline reminders (1 week to 15 minutes before; pick any), new
+  announcements and grades, with quiet hours. Only things that appear after you connect are
+  announced, so connecting never floods you, and each reminder fires once.
+- **Lives in the tray**: closing the window keeps Tarpaulin running so reminders keep coming
+  (switch it off in Settings); quit from the tray icon. It can also open at login, straight to
+  the tray.
 - **Export / import** your dashboard as JSON.
 - **Read-only by design**: Tarpaulin never submits, edits or marks anything in Canvas. Notes and
   checklists stay on your device.
@@ -108,6 +114,8 @@ src-tauri/            Rust shell
   src/canvas.rs       read-only GET under /api/v1/ with Link-header pagination (allowlisted)
   src/auth.rs         keychain credentials, OAuth code exchange and refresh
   src/lib.rs          the only commands JS can call (see capabilities/default.json)
+  src/desktop.rs      notifications and opening at login
+  src/tray.rs         tray icon, close-to-tray
 src/
   canvas/
     resources.ts      every Canvas endpoint, declared once (path, query, schema, mapping, cache key)
@@ -116,6 +124,9 @@ src/
     transport.ts      Tauri (Rust) / dev proxy / recorded fixtures
   widgets/            one file per widget + registry.ts; settings forms are generated from zod
   dashboard/          pages, grid (react-grid-layout), presets, export/import, persisted store
+  notifications/      reminder rules (pure, unit-tested) and the hook that runs them
+  ui/                 shared controls (Switch, Section/Row, SearchInput, FoldedList): reuse
+                      these instead of hand-rolling, so every screen stays consistent
   theme/ onboarding/ app/
 mock-canvas/          a local Canvas impersonator used for development and tests
 scripts/              smoke test, fixture recorder, widget-lab sweep, UI check
