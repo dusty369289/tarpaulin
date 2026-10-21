@@ -154,6 +154,8 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+          # Plain Node: no pnpm here, so don't look for its cache.
+          package-manager-cache: false
       - name: Anything to sweep?
         id: todo
         shell: bash

@@ -37,6 +37,8 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+          # Plain Node: no pnpm here, so don't look for its cache.
+          package-manager-cache: false
       - run: node scripts/check-version.ts "$TAG"
       # A run started by hand tags the commit it built. (A tag pushed with the workflow's token
       # doesn't start another run, so this run does the building.)
