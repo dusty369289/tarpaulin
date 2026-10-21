@@ -84,8 +84,10 @@ warning. On macOS, right-click the app and choose **Open**. On Windows, choose *
 
 Changes go to `main` through pull requests. `.github/workflows/ci.yml` runs on every pull request
 into `main` and on every push to `main`: format, lint, typecheck, unit tests, build, the widget
-sweeps, the theme sweep, the UI check and the Rust tests. Docs-only changes skip the heavy jobs,
-and Rust tests only run when `src-tauri/` changes. A final **CI passed** job sums it up, and
+sweeps, the theme sweep, the UI check and the Rust tests. On pull requests the slow parts only
+run when they can be affected: the widget and theme sweeps when widget, theme, Canvas-data or
+mock code changes, Rust tests when `src-tauri/` changes, and docs-only changes skip it all.
+Pushes to `main` always run everything. A final **CI passed** job sums it up, and
 `main` requires it, so nothing merges until it's green.
 
 ### Cutting a release

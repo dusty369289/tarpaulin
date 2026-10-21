@@ -27,6 +27,7 @@ jobs:
     outputs:
       app: ${{ steps.app.outputs.app }}
       rust: ${{ steps.rust.outputs.rust }}
+      sweeps: ${{ steps.sweeps.outputs.sweeps }}
     # Pull requests only (the filter asks the API for the PR's files); other events test everything.
     steps:
       - uses: dorny/paths-filter@v3
@@ -48,6 +49,31 @@ jobs:
           filters: |
             rust:
               - 'src-tauri/**'
+              - '.github/workflows/ci.yml'
+      # The widget and theme sweeps are slow; on pull requests they only run when something that
+      # can change a widget's layout changed. Pushes to main always run them.
+      - uses: dorny/paths-filter@v3
+        if: github.event_name == 'pull_request'
+        id: sweeps
+        with:
+          filters: |
+            sweeps:
+              - 'src/widgets/**'
+              - 'src/theme/**'
+              - 'src/canvas/**'
+              - 'src/dev/**'
+              - 'src/lib/**'
+              - 'src/index.css'
+              - 'src/dashboard/Grid.tsx'
+              - 'src/dashboard/WidgetHost.tsx'
+              - 'src/app/settle.ts'
+              - 'mock-canvas/**'
+              - 'scripts/widget-lab.ts'
+              - 'scripts/theme-sweep.ts'
+              - 'scripts/browser.ts'
+              - 'tailwind.config.ts'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
               - '.github/workflows/ci.yml'
 
   web:
@@ -87,20 +113,27 @@ jobs:
         run: |
           sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list /etc/apt/sources.list.d/microsoft*.list
           pnpm exec playwright install-deps chromium
-      # Both start their own mock Canvas and Vite server; no secrets or network needed.
-      - run: pnpm test:widgets
-      # Again with a wide monospace font forced, so layouts never depend on one font's metrics.
-      - run: pnpm test:widgets --scenario=dense --font="DejaVu Sans Mono"
+      # These start their own mock Canvas and Vite server; no secrets or network needed.
       - run: pnpm test:ui
+      - name: Widget sweep (every widget, size and mock scenario)
+        if: needs.changes.outputs.sweeps == 'true' || github.event_name != 'pull_request'
+        run: pnpm test:widgets
+      # Again with a wide monospace font forced, so layouts never depend on one font's metrics.
+      - name: Widget sweep with a wide fallback font
+        if: needs.changes.outputs.sweeps == 'true' || github.event_name != 'pull_request'
+        run: pnpm test:widgets --scenario=dense --font="DejaVu Sans Mono"
       # Every widget style gets the same sweep. Styles whose files (and the shared widget code)
       # hash the same as their last pass are skipped; the pass record lives in the Actions cache.
       - uses: actions/cache/restore@v4
+        if: needs.changes.outputs.sweeps == 'true' || github.event_name != 'pull_request'
         with:
           path: .cache/theme-sweep.json
           key: theme-sweep-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: theme-sweep-
-      - run: pnpm test:themes
-      - if: always()
+      - name: Theme sweep (every widget style; unchanged styles skipped)
+        if: needs.changes.outputs.sweeps == 'true' || github.event_name != 'pull_request'
+        run: pnpm test:themes
+      - if: always() && (needs.changes.outputs.sweeps == 'true' || github.event_name != 'pull_request') && hashFiles('.cache/theme-sweep.json') != ''
         uses: actions/cache/save@v4
         with:
           path: .cache/theme-sweep.json
