@@ -99,12 +99,14 @@ export function measure(root: HTMLElement, type: string): LabIssue[] {
     }
     // Text cut off by an overflow:hidden ancestor (other than the scrolling body).
     for (let a = el.parentElement; a && a !== body && a !== frame; a = a.parentElement) {
-      if (!isClipping(getComputedStyle(a))) continue;
+      const acs = getComputedStyle(a);
+      if (!isClipping(acs)) continue;
       const ar = a.getBoundingClientRect();
       const ellipsis = cs.textOverflow === 'ellipsis';
+      // A nested panel that scrolls vertically (the calendar's day list) can be scrolled to.
+      const scrollsY = acs.overflowY === 'auto' || acs.overflowY === 'scroll';
       if (
-        r.bottom > ar.bottom + 2 ||
-        r.top < ar.top - 2 ||
+        (!scrollsY && (r.bottom > ar.bottom + 2 || r.top < ar.top - 2)) ||
         (!ellipsis && (r.right > ar.right + 2 || r.left < ar.left - 2))
       ) {
         add({ kind: 'clipped', detail: describe(el) });
@@ -128,7 +130,13 @@ export function WidgetLab() {
   const [gallery, setGallery] = useState<string | null>(() =>
     new URLSearchParams(location.hash.split('?')[1] ?? '').get('gallery'),
   );
-  const gallerySkin = new URLSearchParams(location.hash.split('?')[1] ?? '').get('skin') ?? '';
+  const galleryParams = new URLSearchParams(location.hash.split('?')[1] ?? '');
+  const gallerySkin = galleryParams.get('skin') ?? '';
+  // Optional JSON settings and data for the gallery, so the screenshots can show each variant.
+  const galleryCase = JSON.parse(galleryParams.get('case') ?? '{}') as Pick<
+    LabCase,
+    'settings' | 'data'
+  >;
 
   useEffect(() => {
     const render = async (c: LabCase): Promise<LabReport> => {
@@ -214,7 +222,7 @@ export function WidgetLab() {
         </button>
       </div>
       {gallery ? (
-        <Gallery type={gallery} skin={gallerySkin} />
+        <Gallery type={gallery} skin={gallerySkin} {...galleryCase} />
       ) : (
         <div
           id="lab-stage"
@@ -236,26 +244,49 @@ export function WidgetLab() {
   );
 }
 
+/** Wide and short sizes, where a widget has to lay out sideways rather than stack. */
+const WIDE_SIZES: Array<[number, number]> = [
+  [12, 2],
+  [12, 3],
+  [8, 3],
+  [10, 4],
+  [12, 6],
+  [8, 6],
+];
+
 /** Every interesting size of one widget side by side, for eyeballing and screenshots. */
-export function Gallery({ type, skin = '' }: { type: string; skin?: string }) {
+export function Gallery({
+  type,
+  skin = '',
+  settings,
+  data,
+}: { type: string; skin?: string } & Pick<LabCase, 'settings' | 'data'>) {
   const def = getWidget(type)!;
   const widths = [2, 3, 4, 6, 8].filter((w) => w >= def.minSize.w);
   const heights = [2, 3, 4, 6, 9].filter((h) => h >= def.minSize.h);
+  const rows: Array<Array<[number, number]>> = [
+    ...heights.map((h) => widths.map((w): [number, number] => [w, h])),
+    ...WIDE_SIZES.filter(([w, h]) => w >= def.minSize.w && h >= def.minSize.h).map((s) => [s]),
+  ];
   return (
     <div id="lab-gallery" className="flex flex-col gap-6">
-      {heights.map((h) => (
-        <div key={h} className="flex flex-wrap items-start gap-3">
-          {widths.map((w) => {
+      {rows.map((row) => (
+        <div key={row.map((s) => s.join('x')).join()} className="flex flex-wrap items-start gap-3">
+          {row.map(([w, h]) => {
             const px = cellPx(w, h);
             return (
-              <figure key={w} className="flex flex-col gap-1">
+              <figure key={`${w}x${h}`} className="flex flex-col gap-1">
                 <figcaption className="text-[10px] text-muted">
                   {w}×{h}
                 </figcaption>
                 <div data-lab-cell={`${w}x${h}`} style={{ width: px.width, height: px.height }}>
                   <WidgetHost
                     id={`g-${w}-${h}`}
-                    instance={{ type, settings: { ...defaultSettings(type), style: skin } }}
+                    instance={{
+                      type,
+                      settings: { ...defaultSettings(type), ...settings, style: skin },
+                      data,
+                    }}
                     size={{ w, h }}
                     editMode={false}
                     onData={() => {}}

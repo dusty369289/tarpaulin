@@ -9,7 +9,8 @@
 //   pnpm test:widgets                      # all scenarios
 //   pnpm test:widgets --scenario=edge      # one scenario
 //   pnpm test:widgets --only=calendar      # one widget
-//   pnpm test:widgets --shots              # also write screenshots/lab/<scenario>/<widget>.png
+//   pnpm test:widgets --shots              # also write galleries to screenshots/lab/<scenario>/
+//                                          # (<widget>.png, then <widget>.<n>.png per variant)
 //   pnpm test:widgets --live               # use a running `pnpm dev` (real Canvas) instead
 //   pnpm test:widgets --font="DejaVu Sans" # force a font, to reproduce another OS's metrics
 //   pnpm test:widgets --skins=postit,pixel # sweep in these widget styles (default: card only)
@@ -37,7 +38,7 @@ const failuresBySkin: Record<string, number> = Object.fromEntries(
   skins.map((s) => [s || 'card', 0]),
 );
 
-const WIDTHS = [2, 3, 4, 5, 6, 8, 12];
+const WIDTHS = [2, 3, 4, 5, 6, 8, 10, 12];
 const HEIGHTS = [2, 3, 4, 5, 6, 9, 12];
 
 // Settings that change layout substantially get their own sweep.
@@ -83,6 +84,9 @@ const LONG_TODO = {
   ],
 };
 
+const sampleData = (type: string) =>
+  type === 'notes' ? { text: LONG_NOTE } : type === 'todo' ? LONG_TODO : undefined;
+
 const stack = await startStack(live);
 const browser = await launch();
 const page = await browser.newPage({
@@ -116,9 +120,7 @@ for (const scenario of scenarios) {
         const settings = skin ? { ...variant, style: skin } : variant;
         for (const w of WIDTHS.filter((w) => w >= min.w)) {
           for (const h of HEIGHTS.filter((h) => h >= min.h)) {
-            const data =
-              type === 'notes' ? { text: LONG_NOTE } : type === 'todo' ? LONG_TODO : undefined;
-            cases.push({ type, w, h, settings, data });
+            cases.push({ type, w, h, settings, data: sampleData(type) });
           }
         }
       }
@@ -154,10 +156,19 @@ for (const scenario of scenarios) {
       const dir = `screenshots/lab/${scenario}${skin ? `/${skin}` : ''}`;
       mkdirSync(dir, { recursive: true });
       for (const type of types) {
-        await page.goto(`${stack.appUrl}/?gallery=${type}#/lab?gallery=${type}&skin=${skin}`);
-        await page.waitForSelector('#lab-gallery');
-        await page.evaluate(() => window.__tarpaulin!.settled());
-        await page.locator('#lab-gallery').screenshot({ path: `${dir}/${type}.png` });
+        // <type>.png with default settings, then <type>.<n>.png for each other swept variant.
+        const variants = (VARIANTS[type] ?? [{}]).filter((v) => Object.keys(v).length);
+        for (const [i, settings] of [{}, ...variants].entries()) {
+          const data = sampleData(type);
+          const lab = new URLSearchParams({ gallery: type, skin });
+          if (i > 0 || data) lab.set('case', JSON.stringify({ settings, data }));
+          await page.goto(`${stack.appUrl}/?gallery=${type}&v=${i}#/lab?${lab}`);
+          await page.waitForSelector('#lab-gallery');
+          await page.evaluate(() => window.__tarpaulin!.settled());
+          await page
+            .locator('#lab-gallery')
+            .screenshot({ path: `${dir}/${type}${i ? `.${i}` : ''}.png` });
+        }
       }
       await page.goto(`${stack.appUrl}/#/lab`);
       await page.waitForFunction(() => Boolean(window.__tarpaulinLab), null, { timeout: 30_000 });
