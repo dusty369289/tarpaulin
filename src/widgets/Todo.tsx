@@ -61,6 +61,9 @@ export const Todo = defineWidget({
     // With both lists and room for them, Canvas's to-dos and the checklist sit side by side
     // (`.todo-both` in index.css).
     const both = showCanvas && showLocal && !canvasItems.isEmpty;
+    const nothing =
+      localItems.length === 0 &&
+      (!showCanvas || (canvasItems.isEmpty && !todos.query.isLoading && !todos.query.isError));
     return (
       <div className="todo h-full">
         <div className={`flex h-full flex-col w-gap ${both ? 'todo-both' : ''}`}>
@@ -68,8 +71,9 @@ export const Todo = defineWidget({
             <div className="todo-canvas min-w-0">
               <QueryGate queries={[todos.query]}>
                 {() =>
-                  canvasItems.isEmpty && !showLocal ? (
-                    <EmptyState>Nothing on your Canvas to-do list.</EmptyState>
+                  canvasItems.isEmpty ? (
+                    // With the checklist showing, its own hint covers an empty Canvas list.
+                    !showLocal && <EmptyState>Nothing on your Canvas to-do list.</EmptyState>
                   ) : (
                     <ul className="wide-grid" aria-label="Canvas to-do">
                       {canvasItems.map((t) => (
@@ -95,9 +99,14 @@ export const Todo = defineWidget({
               </QueryGate>
             </div>
           )}
-          {both && <hr className="border-border" />}
+          {both && localItems.length > 0 && <hr className="border-border" />}
           {showLocal && (
             <div className="todo-local flex min-w-0 flex-1 flex-col w-gap">
+              {nothing && (
+                <p className="py-2 text-center text-sm text-muted">
+                  Nothing to do. Add your own below.
+                </p>
+              )}
               <ul className="wide-grid gap-y-0.5" aria-label="My checklist">
                 {localItems.map((item) => (
                   <li key={item.id} className="group flex items-start gap-2 animate-in">

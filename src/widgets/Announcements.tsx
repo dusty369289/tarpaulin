@@ -36,7 +36,15 @@ export const Announcements = defineWidget({
     const now = useNow(60_000);
     const openItem = useOpenItem();
 
-    if (ids.length === 0 && !status.isLoading) return <EmptyState>No courses selected.</EmptyState>;
+    if (ids.length === 0 && !status.isLoading) {
+      return (
+        <EmptyState>
+          {settings.courseIds.length
+            ? 'None of the courses picked in this widget’s settings are shown any more.'
+            : 'No active courses in Canvas.'}
+        </EmptyState>
+      );
+    }
     return (
       <QueryGate queries={[announcements.query]}>
         {() => {
