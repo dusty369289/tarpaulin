@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1008" height="96" viewBox="0 0 1008 96" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+<title>v0.3.0 latest version, 10 widgets, 7 looks, light and dark, 6 platform builds, 4.3 MB Windows installer, 525 unit tests</title>
+<text x="84" y="52" text-anchor="middle" font-size="30" font-weight="700" fill="#1b1f2a">v0.3.0</text>
+<text x="84" y="76" text-anchor="middle" font-size="13" fill="#5b6275">latest version</text>
+<line x1="168" y1="18" x2="168" y2="78" stroke="#d9dce5"/><text x="252" y="52" text-anchor="middle" font-size="30" font-weight="700" fill="#1b1f2a">10</text>
+<text x="252" y="76" text-anchor="middle" font-size="13" fill="#5b6275">widgets</text>
+<line x1="336" y1="18" x2="336" y2="78" stroke="#d9dce5"/><text x="420" y="52" text-anchor="middle" font-size="30" font-weight="700" fill="#1b1f2a">7</text>
+<text x="420" y="76" text-anchor="middle" font-size="13" fill="#5b6275">looks, light and dark</text>
+<line x1="504" y1="18" x2="504" y2="78" stroke="#d9dce5"/><text x="588" y="52" text-anchor="middle" font-size="30" font-weight="700" fill="#1b1f2a">6</text>
+<text x="588" y="76" text-anchor="middle" font-size="13" fill="#5b6275">platform builds</text>
+<line x1="672" y1="18" x2="672" y2="78" stroke="#d9dce5"/><text x="756" y="52" text-anchor="middle" font-size="30" font-weight="700" fill="#1b1f2a">4.3 MB</text>
+<text x="756" y="76" text-anchor="middle" font-size="13" fill="#5b6275">Windows installer</text>
+<line x1="840" y1="18" x2="840" y2="78" stroke="#d9dce5"/><text x="924" y="52" text-anchor="middle" font-size="30" font-weight="700" fill="#1b1f2a">525</text>
+<text x="924" y="76" text-anchor="middle" font-size="13" fill="#5b6275">unit tests</text>
+</svg>
