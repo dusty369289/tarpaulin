@@ -19,8 +19,23 @@ import { z } from 'zod';
 import { useSettings } from '../app/settingsStore';
 import { fromDeadline, fromEvent, type ReaderItem } from '../reader/items';
 import { useOpenItem } from '../reader/ReaderProvider';
-import { useCourseIds, useDeadlines, useEvents } from '../canvas/hooks';
+import {
+  SHARED_PLANNER_WINDOW,
+  useCourseIds,
+  useDeadlines,
+  useEvents,
+  useUpcoming,
+} from '../canvas/hooks';
 import { nowInZone, useTimeFormat } from '../lib/dates';
+import {
+  dayLoad,
+  describeLoad,
+  loadByDay,
+  summariseWeek,
+  weekLoad,
+  type DayLoad,
+  type LoadByDay,
+} from '../lib/load';
 import { courseFilter, field } from './settings/fields';
 import { EmptyState, QueryGate } from './shared/ui';
 import { defineWidget } from './types';
@@ -39,6 +54,10 @@ const schema = z.object({
   showEvents: field(z.boolean().default(true), { label: 'Show calendar events' }),
   showAnnouncements: field(z.boolean().default(false), { label: 'Show announcements' }),
   hideCompleted: field(z.boolean().default(false), { label: 'Hide submitted work' }),
+  showLoad: field(z.boolean().default(true), {
+    label: 'Show how busy each day is',
+    help: 'Marks busy days in the week and month views and sums up the week.',
+  }),
 });
 export type CalendarSettings = z.infer<typeof schema>;
 
@@ -105,6 +124,23 @@ function EntryRow({
       </span>
     </button>
   );
+}
+
+/** A day's load as a sentence for its label and tooltip; empty when nothing is due. */
+function loadNote(load: DayLoad | null): string {
+  const text = load && describeLoad(load);
+  return text ? `, ${text}` : '';
+}
+const tooltip = (load: DayLoad | null) => {
+  const text = load && describeLoad(load);
+  return text ? text[0].toUpperCase() + text.slice(1) : undefined;
+};
+
+/** The tint band that marks a busy day (see `.cal-load` in index.css). Purely visual: the
+ *  day's label carries the same thing in words. */
+function LoadBand({ load }: { load: DayLoad | null }) {
+  if (!load || load.level === 'none') return null;
+  return <span aria-hidden className="cal-load" data-load={load.level} />;
 }
 
 /** Day moves for the month grid's arrow keys. */
@@ -201,6 +237,9 @@ export const Calendar = defineWidget({
           });
         }
       }
+      // Do-dates: when the planner exposes `plansOn(day)` (personal "do it on" dates), they can
+      // join here as their own `kind` and be listed beside the due work. They're plans, not
+      // deadlines, so they stay out of the load below.
       return out.sort((a, b) => a.start.getTime() - b.start.getTime());
     }, [
       deadlines.data,
@@ -211,6 +250,24 @@ export const Calendar = defineWidget({
       settings.showEvents,
       settings.hideCompleted,
     ]);
+
+    // How busy each day is: unfinished work only, each item weighed against its course's typical
+    // points (src/lib/load.ts). The shared planner window gives every course a fair baseline
+    // even in a quiet week; it's the request every planner widget already shares.
+    const showLoad = settings.showLoad && settings.showWork && view !== 'agenda';
+    const wide = useUpcoming(SHARED_PLANNER_WINDOW.daysAhead, SHARED_PLANNER_WINDOW.daysBack);
+    const load = useMemo<LoadByDay | null>(() => {
+      if (!showLoad) return null;
+      const visible = deadlines.data.inCourses(courseIds).dated();
+      return loadByDay(visible, [...wide.data.inCourses(courseIds), ...visible]);
+    }, [showLoad, deadlines.data, wide.data, courseIds]);
+    const loadOn = (d: Date) => (load ? dayLoad(load, d) : null);
+    // The week summed up: the visible week, or in the month view the current one (if shown).
+    const thisWeek = startOfWeek(nowInZone(), { weekStartsOn });
+    const summaryWeek =
+      view === 'week' ? start : thisWeek >= start && thisWeek <= end ? thisWeek : null;
+    const week = load && summaryWeek ? weekLoad(load, summaryWeek) : null;
+    const summary = week && summariseWeek(week, view === 'month');
 
     // Entries are already in time order.
     const onDay = (d: Date) => entries.filter((e) => onDate(e, d));
@@ -292,6 +349,15 @@ export const Calendar = defineWidget({
             Today
           </button>
         </div>
+        {summary && week && (
+          <p
+            className={`cal-summary flex min-w-0 items-center gap-1.5 text-xs ${week.level === 'light' ? 'text-muted' : ''}`}
+            data-load={week.level}
+          >
+            <span aria-hidden className="cal-load-dot" data-load={week.level} />
+            <span className="truncate">{summary}</span>
+          </p>
+        )}
         {/* A failing events request shouldn't hide the deadlines, so it gets its own hint. */}
         {settings.showEvents && events.query.isError && !events.query.data && (
           <p className="text-xs text-danger" role="alert">
@@ -310,7 +376,8 @@ export const Calendar = defineWidget({
               const picked = selected ? onDay(selected) : [];
               // How many 16px event chips fit under the day number in a cell of this widget size.
               const widgetPx = size.h * 36 + (size.h - 1) * 12;
-              const cellPx = (widgetPx - 112 - (selected ? 90 : 0)) / (days.length / 7);
+              const cellPx =
+                (widgetPx - 112 - (selected ? 90 : 0) - (summary ? 20 : 0)) / (days.length / 7);
               const chipSlots =
                 size.w >= 6 ? Math.max(0, Math.min(3, Math.floor((cellPx - 20) / 17))) : 0;
               // What's coming up from today (or the start of the month) for the side list.
@@ -337,6 +404,7 @@ export const Calendar = defineWidget({
                         {days.map((d) => {
                           const list = inCell(d);
                           const isSel = selected && isSameDay(d, selected);
+                          const dl = loadOn(d);
                           return (
                             <button
                               type="button"
@@ -346,10 +414,13 @@ export const Calendar = defineWidget({
                               onFocus={() => setFocusDay(d)}
                               onKeyDown={onGridKey}
                               onClick={() => setSelected(isSel ? null : d)}
-                              aria-label={`${format(d, 'EEEE d MMMM')}, ${list.length} item${list.length === 1 ? '' : 's'}`}
+                              aria-label={`${format(d, 'EEEE d MMMM')}, ${list.length} item${list.length === 1 ? '' : 's'}${loadNote(dl)}`}
+                              title={tooltip(dl)}
+                              data-load={dl && dl.level !== 'none' ? dl.level : undefined}
                               aria-pressed={Boolean(isSel)}
-                              className={`flex min-h-0 flex-col items-stretch gap-0.5 overflow-hidden p-0.5 text-left focus-visible:outline-offset-[-2px] ${isSameMonth(d, cursor) ? 'bg-surface' : 'cal-out text-muted'} ${isSel ? 'ring-2 ring-inset ring-accent' : ''}`}
+                              className={`relative flex min-h-0 flex-col items-stretch gap-0.5 overflow-hidden p-0.5 text-left focus-visible:outline-offset-[-2px] ${isSameMonth(d, cursor) ? 'bg-surface' : 'cal-out text-muted'} ${isSel ? 'ring-2 ring-inset ring-accent' : ''}`}
                             >
+                              <LoadBand load={dl} />
                               <span
                                 className={`self-end rounded-full px-1 text-[11px] tabular-nums ${isToday(d) ? 'bg-accent text-accent-fg' : ''}`}
                               >
@@ -444,17 +515,22 @@ export const Calendar = defineWidget({
                   className={
                     view === 'week' ? 'cal-week flex flex-col gap-2' : 'wide-groups [--col:15em]'
                   }
+                  data-shaded={(view === 'week' && load !== null) || undefined}
                 >
                   {days.map((d) => {
                     const list = onDay(d);
                     if (view === 'agenda' && list.length === 0) return null;
+                    const dl = view === 'week' ? loadOn(d) : null;
                     return (
                       <section
                         key={d.toISOString()}
-                        aria-label={format(d, 'EEEE d MMMM')}
+                        aria-label={`${format(d, 'EEEE d MMMM')}${loadNote(dl)}`}
                         data-today={isToday(d) || undefined}
+                        data-load={dl && dl.level !== 'none' ? dl.level : undefined}
                       >
+                        <LoadBand load={dl} />
                         <h3
+                          title={tooltip(dl)}
                           className={`text-[11px] font-semibold uppercase tracking-wide ${isToday(d) ? 'text-accent' : 'text-muted'}`}
                         >
                           {format(d, 'EEE d MMM')}
