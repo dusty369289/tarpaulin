@@ -1,5 +1,6 @@
 import { Globe } from 'lucide-react';
 import { useState } from 'react';
+import { useSettings } from '../app/settingsStore';
 import { useProfile } from '../canvas/hooks';
 import { Banner } from '../ui';
 
@@ -46,7 +47,15 @@ export function TimeZoneNote() {
   const deviceZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const pair = `${canvasZone}|${deviceZone}`;
   const [dismissed, setDismissed] = useState(dismissedFor);
-  if (!canvasZone || !deviceZone || dismissed === pair || !zonesDiffer(canvasZone, deviceZone))
+  // Times already follow Canvas (Settings → Appearance → Show times in).
+  const timesIn = useSettings((s) => s.timesIn);
+  if (
+    timesIn === 'canvas' ||
+    !canvasZone ||
+    !deviceZone ||
+    dismissed === pair ||
+    !zonesDiffer(canvasZone, deviceZone)
+  )
     return null;
   return (
     <Banner
@@ -64,7 +73,8 @@ export function TimeZoneNote() {
       }}
     >
       Times are shown in your computer’s time zone ({readable(deviceZone)}). Your Canvas account
-      uses {readable(canvasZone)}, so Canvas may show different times.
+      uses {readable(canvasZone)}, so Canvas may show different times. Settings can show them in
+      Canvas’s zone instead.
     </Banner>
   );
 }

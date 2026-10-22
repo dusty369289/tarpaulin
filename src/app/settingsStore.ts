@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { z } from 'zod';
 import { NotificationPrefsSchema } from '../notifications/prefs';
 import type { FontName, ThemeChoice } from '../theme/themes';
+import { parseWithDefaults } from '../widgets/settings/fields';
 
 export const SettingsSchema = z.object({
   theme: z.enum(['system', 'light', 'dark', 'high-contrast']).default('system'),
@@ -21,10 +22,14 @@ export const SettingsSchema = z.object({
   courseColors: z.record(z.string()).default({}),
   courseNicknames: z.record(z.string()).default({}),
   clock: z.enum(['auto', '12h', '24h']).default('auto'),
+  /** Due times, "Today" and the clock in the computer's time zone, or in the one set in Canvas. */
+  timesIn: z.enum(['device', 'canvas']).default('device'),
   weekStartsOn: z.enum(['monday', 'sunday']).default('monday'),
   autoCheckUpdates: z.boolean().default(true),
   /** Clicking an assignment, announcement or event: read it in Tarpaulin, or open Canvas. */
   openItemsIn: z.enum(['app', 'canvas']).default('app'),
+  /** Images in Canvas content hosted on other sites: load them, or wait for a click. */
+  loadRemoteImages: z.boolean().default(true),
   notifications: NotificationPrefsSchema,
   /** When the OS opens Tarpaulin at login, start minimised. (Opening at login itself is an OS
    *  setting, read and written through the desktop bridge.) */
@@ -42,12 +47,58 @@ export type Settings = z.infer<typeof SettingsSchema>;
 
 export const DEFAULT_SETTINGS: Settings = SettingsSchema.parse({});
 
+/** Field by field: a value that no longer fits (a removed font, a tightened range) falls back to
+ *  its default without taking the other settings with it. Unknown keys are dropped. */
+export function parseSettings(raw: unknown): Settings {
+  return parseWithDefaults(SettingsSchema, raw);
+}
+
+/** What "Reset look and courses" puts back. How items open, refresh, notifications, startup,
+ *  updates and first-run setup are left alone. */
+export const APPEARANCE_KEYS = [
+  'theme',
+  'accent',
+  'background',
+  'widgetStyle',
+  'font',
+  'radius',
+  'fontScale',
+  'barStyle',
+  'barFoldAway',
+  'clock',
+  'timesIn',
+  'weekStartsOn',
+  'courseScope',
+  'hiddenCourseIds',
+  'courseColors',
+  'courseNicknames',
+] as const satisfies readonly (keyof Settings)[];
+
 interface SettingsState extends Settings {
   update: (patch: Partial<Settings>) => void;
   setCourseColor: (courseId: string, color: string | null) => void;
   setCourseNickname: (courseId: string, nickname: string | null) => void;
   toggleCourseHidden: (courseId: string) => void;
-  reset: () => void;
+  /** Look, appearance and course preferences back to their defaults (see APPEARANCE_KEYS). */
+  resetAppearance: () => void;
+}
+
+export const SETTINGS_VERSION = 3;
+
+/** Brings an older saved shape up to date. The result still goes through parseSettings. */
+export function migrateSettings(persisted: unknown, version: number): Record<string, unknown> {
+  const state =
+    persisted && typeof persisted === 'object' ? { ...(persisted as Record<string, unknown>) } : {};
+  // v1 defaulted to the current term only, which hid whole terms when Canvas's term dates
+  // were misleading. Almost nobody changed it, so 'current' moves to the new default.
+  if (version < 2 && state.courseScope === 'current') state.courseScope = 'all';
+  // v3 added loadRemoteImages and timesIn. Both start where the app already was: images load,
+  // times follow the computer.
+  if (version < 3) {
+    state.loadRemoteImages ??= true;
+    state.timesIn ??= 'device';
+  }
+  return state;
 }
 
 function withEntry(map: Record<string, string>, key: string, value: string | null) {
@@ -74,28 +125,22 @@ export const useSettings = create<SettingsState>()(
             ? s.hiddenCourseIds.filter((x) => x !== id)
             : [...s.hiddenCourseIds, id],
         })),
-      reset: () => set(DEFAULT_SETTINGS),
+      resetAppearance: () =>
+        set(Object.fromEntries(APPEARANCE_KEYS.map((k) => [k, DEFAULT_SETTINGS[k]]))),
     }),
     {
       name: 'tarpaulin.settings',
-      version: 2,
-      // v1 defaulted to the current term only, which hid whole terms when Canvas's term dates
-      // were misleading. Almost nobody changed it, so 'current' moves to the new default.
-      migrate: (persisted, version) => {
-        const state = { ...(persisted as Record<string, unknown>) };
-        if (version < 2 && state.courseScope === 'current') state.courseScope = 'all';
-        return state as unknown as SettingsState;
-      },
-      merge: (persisted, current) => {
-        const parsed = SettingsSchema.safeParse({ ...DEFAULT_SETTINGS, ...(persisted as object) });
-        return { ...current, ...(parsed.success ? parsed.data : {}) };
-      },
+      version: SETTINGS_VERSION,
+      migrate: (persisted, version) =>
+        migrateSettings(persisted, version) as unknown as SettingsState,
+      merge: (persisted, current) => ({ ...current, ...parseSettings(persisted) }),
     },
   ),
 );
 
+/** Just the settings, without the store's actions (for export). */
 export function pickSettings(s: Settings): Settings {
-  return SettingsSchema.parse(s);
+  return parseSettings(s);
 }
 
 export type { FontName, ThemeChoice };
