@@ -210,11 +210,11 @@ setting a default and a label with `field(z…, { label })`, and the settings pa
 
 ## Development without (or with) a Canvas account
 
-| Command                            | Data source                                                                                                                                                                                                                                                                                                                                |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `pnpm dev:mock`                    | The local mock Canvas (start it with `pnpm canvas:mock`). Pick a dataset with `CANVAS_TOKEN=mock-realistic` (default), `mock-showcase` (a busy, tidy term for demos), `mock-dense`, `mock-edge`, `mock-empty` or `mock-flaky`. Token health: `mock-expiring-10d` (any number of days), `mock-expired` (rejected); the others never expire. |
-| `pnpm dev`                         | Your real Canvas through a GET-only dev proxy. Set `CANVAS_BASE_URL` and `CANVAS_TOKEN` (see `.env.example`). The token stays server-side.                                                                                                                                                                                                 |
-| `VITE_TRANSPORT=fixtures pnpm dev` | Anonymised recorded responses.                                                                                                                                                                                                                                                                                                             |
+| Command                            | Data source                                                                                                                                                                                                                                                                                                                                                                                     |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev:mock`                    | The local mock Canvas (start it with `pnpm canvas:mock`). Pick a dataset with `MOCK_SCENARIO=realistic` (default), `showcase` (a busy, tidy term for demos), `dense`, `edge`, `empty` or `flaky`. Token health: `expiring-10d` (any number of days), `expired` (rejected); the others never expire. It always sends the mock token `mock-<scenario>`, never a `CANVAS_TOKEN` you have exported. |
+| `pnpm dev`                         | Your real Canvas through a GET-only dev proxy. Set `CANVAS_BASE_URL` and `CANVAS_TOKEN` (see `.env.example`). The token stays server-side.                                                                                                                                                                                                                                                      |
+| `VITE_TRANSPORT=fixtures pnpm dev` | Anonymised recorded responses.                                                                                                                                                                                                                                                                                                                                                                  |
 
 All of the mock data (and the recorded fixtures in `src/canvas/fixtures/`, which are generated
 from the mock) is invented. No real accounts, people or courses are in this repository.
@@ -237,10 +237,15 @@ pnpm test:themes     # the widget sweep in every widget style × light and dark,
                      # unchanged styles
 pnpm test:ui         # real UI driven with the mouse: presets, edit, drag, resize, add, settings,
                      # themes, every look in light and dark, page and per-widget styles
+pnpm test:ui:passes  # the smallest window, dialogs by keyboard, a flaky or missing network
 pnpm test:all        # all of the above
 pnpm lint && pnpm typecheck && pnpm build
-cd src-tauri && cargo test
+cd src-tauri && cargo clippy --all-targets -- -D warnings && cargo test
 ```
+
+`test:ui:passes` marks the checks that wait on a fix still being made as pending, with who owns
+it: they run and are reported but don't fail until their note is removed (`--strict` fails them
+too).
 
 `test:widgets` and `test:ui` start their own mock Canvas and Vite server, so they need no
 credentials or network. Add `--live` to run them against a `pnpm dev` connected to real Canvas,
@@ -255,13 +260,17 @@ Every run also asserts that no request tried to write to Canvas.
 
 `test:themes` repeats the sweep in each widget style and each colour mode (on the realistic and
 edge-case data). Each style/mode pair has a hash of the style's own files (which hold both its
-variants), the mode, and everything all styles share (widgets, frame, global CSS, the lab, mock
-data, lockfile). A pair that passed at its current hash is skipped, so editing one style
+variants), the mode, and everything all styles share: every file the lab page imports (found by
+following imports, so new helpers are covered without a list to update), the lab scripts, mock
+data and the lockfile (`--inputs` lists them). A pair that passed at its current hash is skipped, so editing one style
 re-sweeps only that style, while changing a widget re-sweeps all of them. Passes are kept in
 `.cache/theme-sweep.json` locally and in the Actions cache on CI. Use `--all` to ignore the cache
 and `--modes=dark` to sweep one mode. The underlying `test:widgets` takes `--modes=light,dark`
 (and `--skins=…`), or exact `--pairs=postit:dark,card:dark`; with `--shots`, galleries land in
-`screenshots/lab/<scenario>/<style>/<mode>/`.
+`screenshots/lab/<scenario>/<style>/<mode>/`. Each style is also checked for text contrast
+against the background it actually renders on, and for text under 11px; those findings are
+printed (and shown as warnings on CI) but don't fail the sweep yet (`test:widgets
+--contrast=strict` makes them failures).
 
 To render the product demo (captioned, human-paced, on the invented `showcase` term):
 
