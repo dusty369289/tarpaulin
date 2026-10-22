@@ -31,6 +31,7 @@ import { TokenHelpDialog } from '../onboarding/TokenHelp';
 import { ReplaceToken } from './ReplaceToken';
 import { useFormatExpiry } from './TokenBanner';
 import { useAuthFailure, useTokenExpiry } from './tokenHealth';
+import { ReleaseNotes } from './UpdateBanner';
 import { appVersion, useUpdater } from './updater';
 
 function UpdatesSection() {
@@ -75,13 +76,7 @@ function UpdatesSection() {
                     ? 'Couldn’t check for updates'
                     : 'Updates'
             }
-            help={
-              state.status === 'error'
-                ? state.message
-                : state.status === 'available' && state.update.notes
-                  ? state.update.notes.slice(0, 200)
-                  : undefined
-            }
+            help={state.status === 'error' ? state.message : undefined}
           >
             {state.status === 'available' ||
             state.status === 'downloading' ||
@@ -110,6 +105,15 @@ function UpdatesSection() {
               </button>
             )}
           </Row>
+          {'update' in state && state.update.notes && (
+            <details className="text-sm">
+              <summary className="cursor-pointer text-muted">What’s new</summary>
+              <ReleaseNotes
+                notes={state.update.notes}
+                className="mt-2 rounded-md border border-border bg-surface-2 px-3 py-2"
+              />
+            </details>
+          )}
         </>
       )}
     </Section>

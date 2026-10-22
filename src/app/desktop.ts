@@ -1,15 +1,11 @@
 import { isTauri } from '../canvas/transport';
+import { invoke } from './ipc';
 import { useSettings } from './settingsStore';
 import { checkForUpdates } from './updater';
 
 // Desktop integration (notifications, opening at login, the tray, saving files) through the
 // app's own Rust commands. In a browser (dev), notifications fall back to the Web Notifications
 // API, saving falls back to a download, and the rest is unavailable.
-
-async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  const { invoke } = await import('@tauri-apps/api/core');
-  return invoke<T>(cmd, args);
-}
 
 export type NotificationPermission = 'granted' | 'denied' | 'prompt' | 'unsupported';
 

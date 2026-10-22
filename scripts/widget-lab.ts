@@ -38,7 +38,9 @@ const scenarios: string[] = live
   ? ['live']
   : arg('scenario')
     ? arg('scenario')!.split(',')
-    : SCENARIOS;
+    : // throttled serves the realistic world with retried requests, so its renders match
+      // realistic's; the client's recovery is covered by src/canvas/resources.test.ts.
+      SCENARIOS.filter((s) => s !== 'throttled');
 // Style/mode runs. A style of '' is the page default, i.e. the plain card style; a mode of ''
 // leaves Settings › Mode alone (Match system).
 interface Run {

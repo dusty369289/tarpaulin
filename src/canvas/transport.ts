@@ -1,3 +1,4 @@
+import { invoke } from '../app/ipc';
 import { assertApiPath, encodePairs, toQueryPairs, type Query } from './http';
 import { CanvasAuthError, isAuthError, isCredentialRejection, type TokenExpiry } from './token';
 import type { ConnectionInfo } from './types';
@@ -36,7 +37,6 @@ export class TauriTransport implements Transport {
   readonly canManageCredentials = true;
 
   private async invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-    const { invoke } = await import('@tauri-apps/api/core');
     try {
       return await invoke<T>(cmd, args);
     } catch (e) {
