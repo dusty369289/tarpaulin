@@ -38,9 +38,10 @@ Instead of pushing the tag, you can open **Actions › Release › Run workflow*
 
 The tag triggers `.github/workflows/release.yml`, which checks that the versions match the tag, runs
 the unit tests, builds every platform, publishes the release and uploads `latest.json` for the
-updater. It also uploads copies of the installers under names without the version
-(`Tarpaulin-windows-x64-setup.exe`, `Tarpaulin-macos-apple-silicon.dmg`, `Tarpaulin-linux-x64.AppImage`
-and so on), which the README's download links use through `releases/latest/download/`. It needs a repository secret named `TAURI_SIGNING_PRIVATE_KEY` (and
+updater. Before writing `latest.json` it renames every file to `Tarpaulin-<version>-<platform>.<ext>`
+(`Tarpaulin-0.2.3-windows-x64-setup.exe`, `Tarpaulin-0.2.3-macos-apple-silicon.dmg`; the table is
+`scripts/release-files.ts`), and afterwards it removes the `.sig` files, whose signatures are in
+`latest.json`. The updater checks a file's signature and signed version, never its name. It needs a repository secret named `TAURI_SIGNING_PRIVATE_KEY` (and
 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if the key has one) whose public half is `plugins.updater.pubkey`
 in `src-tauri/tauri.conf.json`. Generate a new pair with
 `pnpm tauri signer generate -w ~/.tauri/tarpaulin.key`. Keep the private key safe: losing it means
@@ -227,3 +228,9 @@ term, into `.cache/readme/`. `.github/workflows/readme-assets.yml` runs it on ev
 that touches the app, and after every release (for the new version and installer size), and
 force-pushes the result to the `readme-assets` branch. That branch only ever holds the latest
 render, and the README's images point at it, so refreshing them never needs a pull request.
+
+The same workflow publishes the download pages to GitHub Pages (`scripts/download-pages.ts`):
+`https://dusty369289.github.io/tarpaulin/download/<platform>/` sends the browser straight to that
+platform's file in the latest release. The README's download links use them, because the files'
+names change with every version. Pages has to be set to deploy from GitHub Actions (Settings →
+Pages).

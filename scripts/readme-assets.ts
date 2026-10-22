@@ -14,6 +14,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Page } from 'playwright';
 import { launch, startStack } from './browser';
+import { findAsset } from './release-files';
 
 const OUT = process.argv.find((a) => a.startsWith('--out='))?.split('=')[1] ?? '.cache/readme';
 const RAW = join(OUT, 'raw');
@@ -106,7 +107,7 @@ async function installerSize(): Promise<number | null> {
     });
     if (!res.ok) return null;
     const release = (await res.json()) as { assets: { name: string; size: number }[] };
-    const exe = release.assets.find((a) => /_x64-setup\.exe$/.test(a.name));
+    const exe = findAsset(release.assets, 'windows-x64-setup.exe');
     return exe ? exe.size / 1024 / 1024 : null;
   } catch {
     return null;
