@@ -1,14 +1,13 @@
-import { act } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS, useSettings } from '../app/settingsStore';
-import { fixtureBundle, renderWithCanvas } from '../test/render';
-import { EMPTY_STATE, type NotifyState } from './rules';
-import { notifyStorageKey, NotificationRunner } from './useNotifications';
+import { accountScope } from '../canvas/account';
+import { shown } from '../test/desktopMock';
+import { runNotifications } from '../test/notifications';
+import { fixtureBundle } from '../test/render';
+import { EMPTY_STATE, type NotifyState } from './rules/deadlines';
+import { notifyStorageKey } from './useNotifications';
 
-const shown = vi.hoisted(() => [] as { title: string; body: string }[]);
-vi.mock('../app/desktop', () => ({
-  showNotification: async (title: string, body: string) => void shown.push({ title, body }),
-}));
+vi.mock('../app/desktop', () => import('../test/desktopMock'));
 
 const BASE = fixtureBundle.meta.baseUrl;
 /** A couple of days after the newest recorded announcements, so they still count as fresh. */
@@ -16,11 +15,7 @@ const NOW = new Date('2026-10-19T12:00:00Z');
 const announcementNotes = () => shown.filter((n) => /announcement/i.test(n.body + n.title));
 const saved = (key: string) => JSON.parse(localStorage.getItem(key) ?? 'null') as NotifyState;
 
-/** Renders the runner and waits for the fixtures to load and a run to happen. */
-async function run() {
-  renderWithCanvas(<NotificationRunner />);
-  for (let i = 0; i < 20; i++) await act(() => new Promise((r) => setTimeout(r, 20)));
-}
+const run = () => runNotifications();
 
 /** The fixture account's storage key (its profile id comes from the recorded profile). */
 function ownKey(): string {
@@ -49,12 +44,14 @@ describe('NotificationRunner', () => {
   it("doesn't use another account's state", async () => {
     // Another account had seen nothing yet; were it read here, every announcement would be new.
     localStorage.setItem(
-      notifyStorageKey('https://other.example.edu', '1'),
+      notifyStorageKey(accountScope('https://other.example.edu', '1')),
       JSON.stringify({ ...EMPTY_STATE, seenAnnouncements: [] }),
     );
     await run();
     expect(announcementNotes()).toEqual([]);
-    expect(saved(notifyStorageKey('https://other.example.edu', '1')).seenAnnouncements).toEqual([]);
+    expect(
+      saved(notifyStorageKey(accountScope('https://other.example.edu', '1'))).seenAnnouncements,
+    ).toEqual([]);
   });
 
   it('reports announcements new since its own last look', async () => {

@@ -7,6 +7,7 @@ import { CourseList } from './CourseList';
 import { DueSoon } from './DueSoon';
 import { Grades } from './Grades';
 import { Notes } from './Notes';
+import { Search } from './Search';
 import { parseWithDefaults } from './settings/fields';
 import { frameSchema } from './shared/frame';
 import { Todo } from './Todo';
@@ -23,6 +24,7 @@ const definitions = [
   Countdown,
   Notes,
   Clock,
+  Search,
 ] as const;
 
 export type AnyWidgetDefinition = WidgetDefinition<z.AnyZodObject>;

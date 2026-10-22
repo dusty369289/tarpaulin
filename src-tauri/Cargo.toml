@@ -1,6 +1,6 @@
 [package]
 name = "tarpaulin"
-version = "0.2.2"
+version = "0.3.0"
 description = "A calmer dashboard for Canvas LMS"
 license = "GPL-3.0-only"
 authors = ["Ethan Wright"]

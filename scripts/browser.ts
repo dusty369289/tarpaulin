@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { chromium, type Browser } from 'playwright';
+import { chromium, type Browser, type Page } from 'playwright';
 import { createServer, type ViteDevServer } from 'vite';
 import { startMockCanvas, type MockCanvas } from '../mock-canvas/server';
 
@@ -61,4 +61,46 @@ export async function startStack(live: boolean): Promise<TestStack> {
       await mock.close();
     },
   };
+}
+
+// ── Settings ──────────────────────────────────────────────────────────────────────────────────
+// Settings shows one category at a time (Appearance, Courses, Calendar & time, Notifications,
+// Reading, Startup & tray, Account, Data & backup, About), picked in its sidebar.
+
+/** In Settings: shows `category` and waits for its heading. */
+export async function settingsCategory(page: Page, category: string): Promise<void> {
+  await page
+    .getByRole('navigation', { name: 'Settings categories' })
+    .getByRole('button', { name: category, exact: true })
+    .click();
+  await page.getByRole('heading', { level: 2, name: category, exact: true }).waitFor();
+}
+
+/** From the dashboard: opens Settings on `category`. */
+export async function openSettings(page: Page, category: string): Promise<void> {
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await settingsCategory(page, category);
+}
+
+const MODE_NAMES: Record<string, string> = {
+  light: 'Light',
+  dark: 'Dark',
+  system: 'Match system',
+  'high-contrast': 'High contrast',
+};
+
+/** Settings › Appearance › Mode, a radio group; theme is the stored value ('dark', 'system'…). */
+export const modePicker = (page: Page) =>
+  page.getByRole('radiogroup', { name: 'Mode', exact: true });
+
+/** In Settings › Appearance: picks a Mode by its stored value. */
+export async function pickMode(page: Page, theme: string): Promise<void> {
+  await modePicker(page)
+    .getByRole('radio', { name: MODE_NAMES[theme] ?? theme, exact: true })
+    .click();
+}
+
+/** In Settings › Appearance: the Mode picked now, as its stored value. */
+export async function currentMode(page: Page): Promise<string> {
+  return (await modePicker(page).getByRole('radio', { checked: true }).getAttribute('data-value'))!;
 }

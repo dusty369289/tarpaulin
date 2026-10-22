@@ -1,0 +1,65 @@
+/* Quick find: theme tokens only, so it follows every look, light, dark and high contrast. */
+
+.qf-option {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-height: 2.75rem;
+  padding: 0.375rem 0.5rem;
+  border-radius: calc(var(--radius) * 0.6);
+  color: rgb(var(--text));
+  cursor: pointer;
+}
+.qf-option[data-active] {
+  background: rgb(var(--accent) / 0.1);
+  box-shadow: inset 0 0 0 1px rgb(var(--accent) / 0.45);
+}
+/* Muted text on the accent wash, pulled nearly halfway to the text colour to stay above 4.5:1. */
+/* Doubled class: outranks styles that recolour small muted print (Blueprint's red pencil). */
+.qf-option.qf-option[data-active] .text-muted.text-muted {
+  color: color-mix(in srgb, rgb(var(--muted)) 55%, rgb(var(--text)));
+}
+[data-theme='high-contrast'] .qf-option[data-active] {
+  background: rgb(var(--surface-2));
+  box-shadow: inset 0 0 0 2px rgb(var(--accent));
+}
+
+/* Groups of results. Wide (the Search widget at 8+ columns): the label in a column on the left. */
+.qf-group {
+  margin-bottom: 0.25rem;
+}
+.qf-group-label {
+  padding: 0.5rem 0.5rem 0.25rem;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+  color: rgb(var(--muted));
+}
+.qf-wide .qf-group {
+  display: grid;
+  grid-template-columns: minmax(7rem, 11rem) minmax(0, 1fr);
+  gap: 0 0.5rem;
+  align-items: start;
+}
+.qf-wide .qf-group-label {
+  padding-top: 0.875rem;
+  overflow-wrap: anywhere;
+}
+.qf-wide .qf-group + .qf-group {
+  border-top: 1px solid rgb(var(--border) / 0.7);
+  padding-top: 0.25rem;
+}
+
+/* The Search widget's field: the shortcut hint gives way on a narrow field. */
+.sw-field {
+  container-type: inline-size;
+}
+@container (max-width: 170px) {
+  .sw-chip {
+    display: none;
+  }
+  .sw-field .input {
+    padding-right: 0.625rem;
+  }
+}

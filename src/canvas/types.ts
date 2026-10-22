@@ -68,6 +68,9 @@ export const RawAssignment = z.object({
   published: bool,
   submission: RawSubmission.nullish(),
   is_quiz_assignment: bool,
+  /** The quiz or discussion behind a quiz or graded-discussion assignment. */
+  quiz_id: id.nullish(),
+  discussion_topic: z.object({ id }).passthrough().nullish(),
   /** HTML. Kept as Canvas sent it; sanitised only when rendered (src/reader/sanitize.ts). */
   description: str,
   allowed_attempts: num,
@@ -354,7 +357,10 @@ export interface TodoData {
   pointsPossible: number | null;
   htmlUrl: string | null;
   assignmentId?: string | null;
+  /** The quiz itself (not its assignment), as the planner names it. */
   quizId?: string | null;
+  /** A graded discussion's topic (not its assignment), as the planner names it. */
+  discussionId?: string | null;
 }
 
 export interface UserProfile {

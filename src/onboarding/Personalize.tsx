@@ -159,7 +159,7 @@ export function Personalize() {
             label="Theme"
             value={theme}
             options={MODE_IDS}
-            onChange={(id) => update({ theme: id as (typeof MODE_IDS)[number] })}
+            onChange={(theme) => update({ theme })}
             className="grid grid-cols-2 gap-3 sm:grid-cols-4"
           >
             {MODES.map((m) => (

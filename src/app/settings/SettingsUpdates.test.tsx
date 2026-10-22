@@ -1,13 +1,13 @@
-import { act, screen } from '@testing-library/react';
+import { act, fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { renderWithCanvas } from '../test/render';
+import { renderWithCanvas } from '../../test/render';
 import { SettingsPage } from './SettingsPage';
-import { DEFAULT_SETTINGS, useSettings } from './settingsStore';
+import { DEFAULT_SETTINGS, useSettings } from '../settingsStore';
 
 // An update is available, with Markdown release notes.
-vi.mock('./updater', async (original) => ({
-  ...(await original<typeof import('./updater')>()),
+vi.mock('../updater', async (original) => ({
+  ...(await original<typeof import('../updater')>()),
   appVersion: () => Promise.resolve('0.2.0'),
   useUpdater: () => ({
     state: {
@@ -36,6 +36,11 @@ describe('SettingsPage updates', () => {
   it('renders the release notes as Markdown behind “What’s new”', async () => {
     renderWithCanvas(<SettingsPage onBack={() => {}} />);
     await act(() => new Promise((r) => setTimeout(r, 50)));
+    fireEvent.click(
+      within(screen.getByRole('navigation', { name: 'Settings categories' })).getByRole('button', {
+        name: 'About',
+      }),
+    );
     expect(screen.getByText('Version 0.3.0 is available')).toBeInTheDocument();
     await userEvent.setup().click(screen.getByText('What’s new'));
     const notes = screen.getByTestId('release-notes');

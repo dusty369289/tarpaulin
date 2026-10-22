@@ -1,5 +1,5 @@
-import { useQuery, type UseQueryResult } from '@tanstack/react-query';
-import { addDays, formatISO, parseISO, startOfDay } from 'date-fns';
+import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
+import { addDays, parseISO, startOfDay } from 'date-fns';
 import {
   createContext,
   createElement,
@@ -7,12 +7,13 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useReducer,
   useState,
   type ReactNode,
 } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useSettings } from '../app/settingsStore';
-import { inZone, nowInZone, setDisplayZone, useDisplayZone } from '../lib/dates';
+import { dayKey as day, inZone, nowInZone, setDisplayZone, useDisplayZone } from '../lib/dates';
 import { useCanvas } from './CanvasProvider';
 import {
   Catalog,
@@ -24,7 +25,12 @@ import {
 import type { Resource } from './resource';
 import * as R from './resources';
 
-const day = (d: Date) => formatISO(d, { representation: 'date' });
+/** The query key of a resource: `['canvas', <baseUrl>, ...resource.key]`. */
+export const canvasQueryKey = (baseUrl: string | undefined, key: readonly unknown[]) => [
+  'canvas',
+  baseUrl,
+  ...key,
+];
 
 /** Loads any Resource, keyed by account so switching accounts never shows stale data. */
 export function useResource<T>(resource: Resource<T>): UseQueryResult<T> {
@@ -35,7 +41,7 @@ export function useResource<T>(resource: Resource<T>): UseQueryResult<T> {
   // cache instead of re-requesting.
   const fresh = resource.staleTime ?? refreshMinutes * 60_000;
   return useQuery({
-    queryKey: ['canvas', client?.baseUrl, ...resource.key],
+    queryKey: canvasQueryKey(client?.baseUrl, resource.key),
     queryFn: () => client!.fetch(resource),
     enabled: Boolean(client) && resource.enabled,
     refetchInterval: fresh,
@@ -227,6 +233,32 @@ export function useTodos(): Loaded<TodoItems> {
   const query = useResource(R.Todo);
   const data = useMemo(() => catalog.todos(query.data ?? []), [catalog, query.data]);
   return { data, query };
+}
+
+/**
+ * Every query of one Canvas list already in the cache, whatever its range, by the first part of
+ * its resource key ('planner', 'calendar', 'todo', 'missing'…): the calendar's other months, the
+ * to-do list, missing work. Read only: it never makes a request, so Quick find shows what the
+ * widgets have loaded and adds nothing to what the app asks Canvas for.
+ */
+export function useCachedResource<T>(kind: string): T[] {
+  const queryClient = useQueryClient();
+  const baseUrl = useCanvas().client?.baseUrl;
+  const [version, bump] = useReducer((n: number) => n + 1, 0);
+  useEffect(
+    () =>
+      queryClient.getQueryCache().subscribe((e) => {
+        if (e.type === 'updated' && e.query.queryKey[2] === kind) bump();
+      }),
+    [queryClient, kind],
+  );
+  return useMemo(() => {
+    void version;
+    return queryClient
+      .getQueryCache()
+      .findAll({ queryKey: canvasQueryKey(baseUrl, [kind]) })
+      .flatMap((q) => (Array.isArray(q.state.data) ? (q.state.data as T[]) : []));
+  }, [queryClient, baseUrl, kind, version]);
 }
 
 /** The current time, in the zone times are shown in (see lib/dates.ts). */

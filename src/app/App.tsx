@@ -4,8 +4,10 @@ import { useCanvas } from '../canvas/CanvasProvider';
 import { Dashboard } from '../dashboard/Dashboard';
 import { UndoToast } from '../dashboard/UndoToast';
 import { NotificationRunner } from '../notifications/useNotifications';
+import { QuickFind } from '../search/QuickFind';
 import { describeError } from '../widgets/shared/ui';
 import { setCloseToTray, startDesktopShell } from './desktop';
+import { openSettings } from './settingsNav';
 import { useSettings } from './settingsStore';
 
 // Screens most launches never show load on demand: setup only runs once, Settings is a click away.
@@ -16,7 +18,7 @@ const Personalize = lazy(() =>
   import('../onboarding/Personalize').then((m) => ({ default: m.Personalize })),
 );
 const SettingsPage = lazy(() =>
-  import('./SettingsPage').then((m) => ({ default: m.SettingsPage })),
+  import('./settings/SettingsPage').then((m) => ({ default: m.SettingsPage })),
 );
 
 const WidgetLab = import.meta.env.DEV
@@ -77,6 +79,8 @@ export function App() {
       {/* Reminders run whichever page is showing. */}
       <NotificationRunner />
       {connectionFromCache && <SavedConnectionNote />}
+      {/* Ctrl/⌘+K on either screen. A settings entry opens Settings on its category. */}
+      <QuickFind onOpenSettings={openSettings} onShowDashboard={() => go('dashboard')} />
       {route === 'settings' ? (
         <>
           <Lazy screen={<SettingsPage onBack={() => go('dashboard')} />} />

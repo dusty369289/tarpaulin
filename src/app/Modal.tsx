@@ -1,19 +1,11 @@
 import { X } from 'lucide-react';
-import type { MouseEvent, ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import { Backdrop } from '../ui/Backdrop';
 import { useDialog } from '../ui/useDialog';
 
 // Both are modal: focus moves in and stays in, Escape closes only the topmost one, and focus
-// returns to the opener on close (see src/ui/useDialog.ts).
-//
-// The backdrop is a mouse convenience only (a press on it closes, like Escape), so it is
-// role="presentation": nothing for assistive tech to announce or operate. It can't be
-// aria-hidden, since the dialog sits inside it. Only a press on the backdrop itself counts, not
-// one that bubbles up from the panel.
-
-/** Calls `onClose` for a press on the element itself, not on anything inside it. */
-const onBackdrop = (onClose: () => void) => (e: MouseEvent) => {
-  if (e.target === e.currentTarget) onClose();
-};
+// returns to the opener on close (see src/ui/useDialog.ts). A press on the backdrop closes too
+// (see src/ui/Backdrop.tsx).
 
 export function Modal({
   title,
@@ -34,11 +26,7 @@ export function Modal({
 }) {
   const ref = useDialog<HTMLDivElement>(onClose);
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-fade-in"
-      role="presentation"
-      onMouseDown={onBackdrop(onClose)}
-    >
+    <Backdrop onClose={onClose}>
       <div
         ref={ref}
         role={role}
@@ -56,7 +44,7 @@ export function Modal({
         </div>
         <div className="max-h-[calc(85vh-3.5rem)] overflow-auto p-4 scroll-thin">{children}</div>
       </div>
-    </div>
+    </Backdrop>
   );
 }
 
@@ -79,11 +67,7 @@ export function Drawer({
 }) {
   const ref = useDialog<HTMLElement>(onClose);
   return (
-    <div
-      className="fixed inset-0 z-40 flex justify-end bg-black/20 animate-fade-in"
-      role="presentation"
-      onMouseDown={onBackdrop(onClose)}
-    >
+    <Backdrop onClose={onClose} align="end">
       <aside
         ref={ref}
         role="dialog"
@@ -101,6 +85,6 @@ export function Drawer({
         <div className="flex-1 overflow-auto p-4 scroll-thin">{children}</div>
         {footer && <div className="border-t border-border px-4 py-3">{footer}</div>}
       </aside>
-    </div>
+    </Backdrop>
   );
 }

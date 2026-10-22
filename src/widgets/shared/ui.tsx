@@ -1,5 +1,6 @@
 import { canvasErrorKind, canvasErrorStatus, type CanvasErrorKind } from '../../canvas/errors';
 import type { LoadStatus } from '../../canvas/hooks';
+import { DEADLINE_STATUS, type Deadline } from '../../canvas/models';
 import { AlertTriangle, Inbox, Loader2, RotateCw } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 
@@ -164,8 +165,17 @@ const BADGE_TONES = {
   muted: 'bg-surface-2 text-muted',
 } as const;
 
-export function Badge({ tone, children }: { tone: keyof typeof BADGE_TONES; children: ReactNode }) {
+export type BadgeTone = keyof typeof BADGE_TONES;
+
+export function Badge({ tone, children }: { tone: BadgeTone; children: ReactNode }) {
   return <span className={`chip ${BADGE_TONES[tone]}`}>{children}</span>;
+}
+
+/** "Submitted", "Missing", "Due today"…: a deadline's status as a badge; nothing for plain
+ *  upcoming work. */
+export function DeadlineStatusBadge({ deadline, now }: { deadline: Deadline; now: Date }) {
+  const status = DEADLINE_STATUS[deadline.status(now)];
+  return status ? <Badge tone={status.tone}>{status.label}</Badge> : null;
 }
 
 export function LinkButton({
