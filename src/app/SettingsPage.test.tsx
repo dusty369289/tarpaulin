@@ -271,3 +271,15 @@ describe('SettingsPage layout', () => {
     expect(location.hash).toBe('#/settings');
   });
 });
+
+describe('SettingsPage notifications', () => {
+  it('turns the weekly preview off and on', async () => {
+    await show('Notifications');
+    const weekly = screen.getByRole('switch', { name: 'Weekly preview' });
+    expect(weekly).toBeChecked();
+    fireEvent.click(weekly);
+    expect(useSettings.getState().weeklyPreview).toBe(false);
+    fireEvent.click(weekly);
+    expect(useSettings.getState().weeklyPreview).toBe(true);
+  });
+});

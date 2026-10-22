@@ -16,6 +16,7 @@ import { Row, Section, Switch } from '../ui';
 export function NotificationsSettings() {
   const prefs = useSettings((s) => s.notifications);
   const update = useSettings((s) => s.update);
+  const weeklyPreview = useSettings((s) => s.weeklyPreview);
   const [permission, setPermission] = useState<NotificationPermission>('prompt');
   const [tested, setTested] = useState(false);
   useEffect(() => {
@@ -141,6 +142,19 @@ export function NotificationsSettings() {
             checked={prefs.grades}
             disabled={off}
             onChange={(grades) => set({ grades })}
+          />
+        </Row>
+        <Row
+          label="Weekly preview"
+          help="The evening before each week starts, a summary of what's due in it."
+          keywords="week summary busy"
+        >
+          <Switch
+            hideLabel
+            label="Weekly preview"
+            checked={weeklyPreview}
+            disabled={off}
+            onChange={(on) => update({ weeklyPreview: on })}
           />
         </Row>
       </Section>
