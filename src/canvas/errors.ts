@@ -13,6 +13,8 @@ export type CanvasErrorKind =
   | 'rate_limited'
   /** Canvas couldn't be reached at all. */
   | 'offline'
+  /** Desktop: the OS keychain holding the login is locked or refused (not a network problem). */
+  | 'keychain'
   /** Canvas answered with a 5xx. */
   | 'server'
   /** A valid login that may not see this (permission 401, 403). */
@@ -46,6 +48,7 @@ export function canvasErrorKind(e: unknown): CanvasErrorKind {
   const status = canvasErrorStatus(e);
   if (/rate limit/i.test(text) || status === 429) return 'rate_limited';
   if (OFFLINE.test(text)) return 'offline';
+  if (/^keychain error:/i.test(text)) return 'keychain';
   if (status === null) return 'other';
   if (status >= 500) return 'server';
   if (status === 401 || status === 403) return 'forbidden';

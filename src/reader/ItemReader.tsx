@@ -15,11 +15,12 @@ import {
 } from 'lucide-react';
 import { lazy, Suspense, type ReactNode } from 'react';
 import { Drawer } from '../app/Modal';
+import { useSettings } from '../app/settingsStore';
 import { useCanvas } from '../canvas/CanvasProvider';
 import { useResource } from '../canvas/hooks';
 import * as R from '../canvas/resources';
 import type { ItemDetail } from '../canvas/types';
-import { useTimeFormat } from '../lib/dates';
+import { toDate, useTimeFormat } from '../lib/dates';
 import { Badge, CourseDot, ErrorState, LoadingState } from '../widgets/shared/ui';
 import type { ReaderItem } from './items';
 
@@ -109,8 +110,11 @@ export function ItemReader({ item, onClose }: { item: ReaderItem; onClose: () =>
   const timeFmt = useTimeFormat();
   const { detail, query } = useDetail(item);
   const kind = KIND[item.kind];
-  const when = (iso: string | null | undefined) =>
-    iso ? format(new Date(iso), `EEE d MMM yyyy, ${timeFmt}`) : null;
+  const remoteImages = useSettings((s) => (s.loadRemoteImages ? 'load' : 'ask'));
+  const when = (iso: string | null | undefined) => {
+    const d = toDate(iso);
+    return d ? format(d, `EEE d MMM yyyy, ${timeFmt}`) : null;
+  };
   const title = detail.title || item.title;
   const types = (detail.submissionTypes ?? []).map((t) => SUBMISSION_TYPES[t] ?? t);
 
@@ -173,10 +177,14 @@ export function ItemReader({ item, onClose }: { item: ReaderItem; onClose: () =>
         {query?.isLoading ? (
           <LoadingState />
         ) : query?.isError && !query.data ? (
-          <ErrorState error={query.error} />
+          <ErrorState
+            error={query.error}
+            onRetry={() => void query.refetch()}
+            retrying={query.isFetching}
+          />
         ) : detail.html?.trim() ? (
           <Suspense fallback={<LoadingState />}>
-            <CanvasContent html={detail.html} />
+            <CanvasContent html={detail.html} remoteImages={remoteImages} />
           </Suspense>
         ) : (
           <p className="text-sm text-muted">No description in Canvas.</p>

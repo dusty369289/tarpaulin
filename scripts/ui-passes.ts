@@ -141,39 +141,31 @@ if (passes.includes('small')) {
   await check('small window: the dashboard never scrolls sideways', () => noSideScroll(page));
   await check('small window: widgets fit side by side without overlapping', () => assertGrid(page));
   await page.screenshot({ path: `${dir}/small-home.png` });
-  await check(
-    'small window: every widget is at least 200px wide',
-    async () => {
-      const narrow = await page.locator('[data-widget-id]').evaluateAll((els) =>
-        els
-          .map((el) => ({
-            type: el.getAttribute('data-widget-type'),
-            w: Math.round(el.getBoundingClientRect().width),
-          }))
-          .filter((b) => b.w < 200),
-      );
-      assert(!narrow.length, `squeezed: ${narrow.map((b) => `${b.type} ${b.w}px`).join(', ')}`);
-    },
-    'Group E: responsive grid below ~900px (audit item 12)',
-  );
+  await check('small window: every widget is at least 200px wide', async () => {
+    const narrow = await page.locator('[data-widget-id]').evaluateAll((els) =>
+      els
+        .map((el) => ({
+          type: el.getAttribute('data-widget-type'),
+          w: Math.round(el.getBoundingClientRect().width),
+        }))
+        .filter((b) => b.w < 200),
+    );
+    assert(!narrow.length, `squeezed: ${narrow.map((b) => `${b.type} ${b.w}px`).join(', ')}`);
+  });
   await page.getByRole('button', { name: 'Edit', exact: true }).click();
   await settled(page);
   await page.screenshot({ path: `${dir}/small-edit.png` });
   await check('small window (edit mode): still no sideways scroll', () => noSideScroll(page));
-  await check(
-    'small window (edit mode): widget titles are not cut short',
-    async () => {
-      const cut = await page
-        .locator('h2.skin-title')
-        .evaluateAll((els) =>
-          els
-            .filter((el) => el.scrollWidth > el.clientWidth + 1)
-            .map((el) => `"${el.textContent}" (${el.clientWidth}px)`),
-        );
-      assert(!cut.length, `truncated: ${cut.join(', ')}`);
-    },
-    'Group E: responsive grid and folded header actions (audit item 12)',
-  );
+  await check('small window (edit mode): widget titles are not cut short', async () => {
+    const cut = await page
+      .locator('h2.skin-title')
+      .evaluateAll((els) =>
+        els
+          .filter((el) => el.scrollWidth > el.clientWidth + 1)
+          .map((el) => `"${el.textContent}" (${el.clientWidth}px)`),
+      );
+    assert(!cut.length, `truncated: ${cut.join(', ')}`);
+  });
   await page.getByRole('button', { name: 'Done' }).click();
   await settled(page);
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
@@ -187,51 +179,34 @@ if (passes.includes('small')) {
 if (passes.includes('keyboard')) {
   const { ctx, page } = await open('realistic');
   const { reader, opener } = await openInReader(page, 'due-soon', ['assignment']);
-  await check(
-    'reader: focus moves into it when it opens',
-    async () => assert((await focusWhere(page)) === 'in', `focus is ${await focusWhere(page)}`),
-    'Group D: shared dialog focus handling (audit item 5)',
+  await check('reader: focus moves into it when it opens', async () =>
+    assert((await focusWhere(page)) === 'in', `focus is ${await focusWhere(page)}`),
   );
-  await check(
-    'reader: Tab stays inside it',
-    async () => {
-      const where: string[] = [];
-      for (let i = 0; i < 12; i++) {
-        await page.keyboard.press('Tab');
-        where.push(await focusWhere(page));
-      }
-      const out = where.filter((w) => w !== 'in').length;
-      assert(out === 0, `${out} of ${where.length} Tab presses left the dialog`);
-    },
-    'Group D: focus trap (audit item 5)',
-  );
-  await check(
-    'reader: modal to assistive tech, named after the item',
-    async () => {
-      const dialog = page.locator('[role="dialog"]').filter({ has: reader });
-      assert((await dialog.getAttribute('aria-modal')) === 'true', 'no aria-modal on the reader');
-      const name = (await dialog.getAttribute('aria-label')) ?? '';
-      assert(
-        !/^(Assignment|Quiz|Discussion|Announcement|Page|Event)$/.test(name),
-        `named "${name}"`,
-      );
-    },
-    'Group D: aria-modal on Drawer, reader labelled with the title (audit item 5)',
-  );
-  await check(
-    'reader: one Escape closes only the link confirmation on top of it',
-    async () => {
-      await page.getByTestId('reader-content').locator('a[data-canvas="false"]').first().click();
-      await page.getByRole('dialog', { name: 'Open this link?' }).waitFor();
-      const before = await dialogs(page);
-      await page.keyboard.press('Escape');
-      await settled(page);
-      const after = await dialogs(page);
-      assert(before === 2 && after === 1, `dialogs before Escape ${before}, after ${after}`);
-      assert(await reader.isVisible(), 'the reader closed too');
-    },
-    'Group D: Escape stack (audit item 5)',
-  );
+  await check('reader: Tab stays inside it', async () => {
+    const where: string[] = [];
+    for (let i = 0; i < 12; i++) {
+      await page.keyboard.press('Tab');
+      where.push(await focusWhere(page));
+    }
+    const out = where.filter((w) => w !== 'in').length;
+    assert(out === 0, `${out} of ${where.length} Tab presses left the dialog`);
+  });
+  await check('reader: modal to assistive tech, named after the item', async () => {
+    const dialog = page.locator('[role="dialog"]').filter({ has: reader });
+    assert((await dialog.getAttribute('aria-modal')) === 'true', 'no aria-modal on the reader');
+    const name = (await dialog.getAttribute('aria-label')) ?? '';
+    assert(!/^(Assignment|Quiz|Discussion|Announcement|Page|Event)$/.test(name), `named "${name}"`);
+  });
+  await check('reader: one Escape closes only the link confirmation on top of it', async () => {
+    await page.getByTestId('reader-content').locator('a[data-canvas="false"]').first().click();
+    await page.getByRole('dialog', { name: 'Open this link?' }).waitFor();
+    const before = await dialogs(page);
+    await page.keyboard.press('Escape');
+    await settled(page);
+    const after = await dialogs(page);
+    assert(before === 2 && after === 1, `dialogs before Escape ${before}, after ${after}`);
+    assert(await reader.isVisible(), 'the reader closed too');
+  });
   await check('reader: Escape closes it', async () => {
     while ((await dialogs(page)) > 0) {
       await page.keyboard.press('Escape');
@@ -239,46 +214,38 @@ if (passes.includes('keyboard')) {
     }
     assert((await page.getByTestId('item-reader').count()) === 0, 'reader still open');
   });
-  await check(
-    'reader: focus goes back to the item that opened it',
-    async () => {
-      const back = await opener.evaluate((el) => el === document.activeElement);
-      assert(back, `focus is ${await focusWhere(page)}, not on the opener`);
-    },
-    'Group D: focus restore (audit item 5)',
-  );
-  await check(
-    'text inputs show a visible focus ring',
-    async () => {
-      await page.getByRole('button', { name: 'Settings', exact: true }).click();
-      await settled(page);
-      const input = page.locator('input.input').first();
-      // A ring is a visible outline, or a box-shadow that appears on focus. (Tailwind gives
-      // every element a transparent zero-size shadow, so "has a box-shadow" proves nothing.)
-      const look = () =>
-        input.evaluate((el) => {
-          const cs = getComputedStyle(el);
-          const outline =
-            cs.outlineStyle !== 'none' &&
-            parseFloat(cs.outlineWidth) >= 1 &&
-            !/rgba\([^)]*,\s*0\)|transparent/.test(cs.outlineColor);
-          return { outline, shadow: cs.boxShadow };
-        });
-      const blurred = await look();
-      await input.focus();
-      await settled(page);
-      const focused = await look();
-      const shadowRing =
-        focused.shadow !== blurred.shadow && /rgb\(|rgba\((?![^)]*,\s*0\))/.test(focused.shadow);
-      assert(
-        focused.outline || shadowRing,
-        `a focused input has no outline or ring (box-shadow ${focused.shadow})`,
-      );
-      await page.getByRole('button', { name: 'Dashboard' }).click();
-      await settled(page);
-    },
-    'Group D: .input focus-visible ring (audit item 18)',
-  );
+  await check('reader: focus goes back to the item that opened it', async () => {
+    const back = await opener.evaluate((el) => el === document.activeElement);
+    assert(back, `focus is ${await focusWhere(page)}, not on the opener`);
+  });
+  await check('text inputs show a visible focus ring', async () => {
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await settled(page);
+    const input = page.locator('input.input').first();
+    // A ring is a visible outline, or a box-shadow that appears on focus. (Tailwind gives
+    // every element a transparent zero-size shadow, so "has a box-shadow" proves nothing.)
+    const look = () =>
+      input.evaluate((el) => {
+        const cs = getComputedStyle(el);
+        const outline =
+          cs.outlineStyle !== 'none' &&
+          parseFloat(cs.outlineWidth) >= 1 &&
+          !/rgba\([^)]*,\s*0\)|transparent/.test(cs.outlineColor);
+        return { outline, shadow: cs.boxShadow };
+      });
+    const blurred = await look();
+    await input.focus();
+    await settled(page);
+    const focused = await look();
+    const shadowRing =
+      focused.shadow !== blurred.shadow && /rgb\(|rgba\((?![^)]*,\s*0\))/.test(focused.shadow);
+    assert(
+      focused.outline || shadowRing,
+      `a focused input has no outline or ring (box-shadow ${focused.shadow})`,
+    );
+    await page.getByRole('button', { name: 'Dashboard' }).click();
+    await settled(page);
+  });
   await ctx.close();
 }
 
@@ -291,29 +258,21 @@ if (passes.includes('offline')) {
     await check('flaky Canvas: the dashboard still renders its widgets', async () => {
       assert((await page.getByTestId('widget-frame').count()) >= 4, 'widgets missing');
     });
-    await check(
-      'flaky Canvas: errors are in plain words, not raw Canvas JSON',
-      async () => {
-        const raw = await page
-          .getByTestId('widget-frame')
-          .filter({ hasText: /\{"errors"|Canvas returned \d{3}/ })
-          .count();
-        assert(raw === 0, `${raw} widget(s) show the raw Canvas response`);
-      },
-      'Group C: friendly ErrorState (audit item 7)',
-    );
-    await check(
-      'flaky Canvas: a failed widget offers Retry',
-      async () => {
-        const failed = page
-          .getByTestId('widget-frame')
-          .filter({ hasText: /Couldn.t load|having trouble|offline|slow down/i });
-        assert((await failed.count()) > 0, 'no widget shows an error to retry');
-        const retry = failed.first().getByRole('button', { name: /retry|try again/i });
-        assert((await retry.count()) === 1, 'no Retry button in the failed widget');
-      },
-      'Group C: Retry in ErrorState (audit item 7)',
-    );
+    await check('flaky Canvas: errors are in plain words, not raw Canvas JSON', async () => {
+      const raw = await page
+        .getByTestId('widget-frame')
+        .filter({ hasText: /\{"errors"|Canvas returned \d{3}/ })
+        .count();
+      assert(raw === 0, `${raw} widget(s) show the raw Canvas response`);
+    });
+    await check('flaky Canvas: a failed widget offers Retry', async () => {
+      const failed = page
+        .getByTestId('widget-frame')
+        .filter({ hasText: /Couldn.t load|having trouble|offline|slow down/i });
+      assert((await failed.count()) > 0, 'no widget shows an error to retry');
+      const retry = failed.first().getByRole('button', { name: /retry|try again/i });
+      assert((await retry.count()) === 1, 'no Retry button in the failed widget');
+    });
     await ctx.close();
   }
   {
@@ -333,15 +292,11 @@ if (passes.includes('offline')) {
         .count();
       assert(errors === 0, `${errors} widget(s) replaced their cached data with an error`);
     });
-    await check(
-      'offline: the bar says so, and when the data is from',
-      async () => {
-        const bar = page.locator('header.app-bar');
-        const text = await bar.innerText();
-        assert(/offline|updated/i.test(text), `bar says: ${text.replace(/\s+/g, ' ').trim()}`);
-      },
-      'Group C: offline / last-updated chip (audit item 6)',
-    );
+    await check('offline: the bar says so, and when the data is from', async () => {
+      const bar = page.locator('header.app-bar');
+      const text = await bar.innerText();
+      assert(/offline|updated/i.test(text), `bar says: ${text.replace(/\s+/g, ' ').trim()}`);
+    });
     // The connection check fails too (in the desktop app: a locked keychain).
     await ctx.route('**/canvas-proxy/status', (r) => r.abort('internetdisconnected'));
     await page.reload();
@@ -355,14 +310,10 @@ if (passes.includes('offline')) {
       const text = (await page.locator('body').innerText()).trim();
       assert(text.length > 0, 'blank window');
     });
-    await check(
-      'offline: a failed connection check offers Retry',
-      async () => {
-        const retry = page.getByRole('button', { name: /retry|try again/i });
-        assert((await retry.count()) >= 1, 'no Retry button');
-      },
-      'Group C: Retry for the connection check (audit item 6)',
-    );
+    await check('offline: a failed connection check offers Retry', async () => {
+      const retry = page.getByRole('button', { name: /retry|try again/i });
+      assert((await retry.count()) >= 1, 'no Retry button');
+    });
     await ctx.close();
   }
 }

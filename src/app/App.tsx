@@ -1,13 +1,23 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
+import { AlertTriangle, Loader2, RotateCw } from 'lucide-react';
 import { useCanvas } from '../canvas/CanvasProvider';
 import { Dashboard } from '../dashboard/Dashboard';
-import { Onboarding } from '../onboarding/Onboarding';
+import { UndoToast } from '../dashboard/UndoToast';
 import { NotificationRunner } from '../notifications/useNotifications';
-import { Personalize } from '../onboarding/Personalize';
+import { describeError } from '../widgets/shared/ui';
 import { backgroundIfLaunchedAtLogin, setCloseToTray } from './desktop';
 import { useSettings } from './settingsStore';
-import { SettingsPage } from './SettingsPage';
+
+// Screens most launches never show load on demand: setup only runs once, Settings is a click away.
+const Onboarding = lazy(() =>
+  import('../onboarding/Onboarding').then((m) => ({ default: m.Onboarding })),
+);
+const Personalize = lazy(() =>
+  import('../onboarding/Personalize').then((m) => ({ default: m.Personalize })),
+);
+const SettingsPage = lazy(() =>
+  import('./SettingsPage').then((m) => ({ default: m.SettingsPage })),
+);
 
 const WidgetLab = import.meta.env.DEV
   ? lazy(() => import('../dev/WidgetLab').then((m) => ({ default: m.WidgetLab })))
@@ -49,21 +59,9 @@ export function App() {
     setRoute(r);
   };
 
-  if (connectionLoading) {
-    return (
-      <div className="flex h-full items-center justify-center text-muted">
-        <Loader2 className="h-6 w-6 animate-spin" aria-label="Loading" />
-      </div>
-    );
-  }
-  if (connectionError) {
-    return (
-      <div className="p-6 text-danger">
-        Couldn’t check the Canvas connection: {connectionError.message}
-      </div>
-    );
-  }
-  if (!connection?.connected) return <Onboarding />;
+  if (connectionLoading) return <Spinner />;
+  if (connectionError) return <ConnectionError error={connectionError} />;
+  if (!connection?.connected) return <Lazy screen={<Onboarding />} />;
   if (route === 'lab' && WidgetLab) {
     return (
       <Suspense fallback={null}>
@@ -71,16 +69,67 @@ export function App() {
       </Suspense>
     );
   }
-  if (!onboarded) return <Personalize />;
+  if (!onboarded) return <Lazy screen={<Personalize />} />;
   return (
     <>
       {/* Reminders run whichever page is showing. */}
       <NotificationRunner />
       {route === 'settings' ? (
-        <SettingsPage onBack={() => go('dashboard')} />
+        <>
+          <Lazy screen={<SettingsPage onBack={() => go('dashboard')} />} />
+          {/* The look picker here can be undone too. */}
+          <UndoToast />
+        </>
       ) : (
         <Dashboard onOpenSettings={() => go('settings')} />
       )}
     </>
+  );
+}
+
+function Spinner() {
+  return (
+    <div className="flex h-full items-center justify-center text-muted">
+      <Loader2 className="h-6 w-6 animate-spin" aria-label="Loading" />
+    </div>
+  );
+}
+
+const Lazy = ({ screen }: { screen: ReactNode }) => (
+  <Suspense fallback={<Spinner />}>{screen}</Suspense>
+);
+
+/** The connection check failed (offline, or in the desktop app a locked keychain). */
+function ConnectionError({ error }: { error: Error }) {
+  const { refreshConnection } = useCanvas();
+  const [retrying, setRetrying] = useState(false);
+  const { kind, details } = describeError(error);
+  return (
+    <div className="flex h-full items-center justify-center p-6">
+      <div className="card flex max-w-md flex-col items-center gap-3 p-6 text-center" role="alert">
+        <AlertTriangle className="h-6 w-6 text-danger" aria-hidden />
+        <h1 className="font-semibold">
+          {kind === 'offline' ? 'You’re offline' : 'Couldn’t check the Canvas connection'}
+        </h1>
+        <p className="text-sm text-muted">
+          {kind === 'offline'
+            ? 'Tarpaulin couldn’t reach Canvas. Check your connection and try again.'
+            : 'Tarpaulin couldn’t read your saved Canvas connection. If your computer asked to unlock its keychain, allow it, then try again.'}
+        </p>
+        <p className="break-words text-xs text-muted">{details}</p>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={retrying}
+          onClick={() => {
+            setRetrying(true);
+            void refreshConnection().finally(() => setRetrying(false));
+          }}
+        >
+          <RotateCw className={`h-4 w-4 ${retrying ? 'animate-spin' : ''}`} aria-hidden />
+          {retrying ? 'Retrying…' : 'Retry'}
+        </button>
+      </div>
+    </div>
   );
 }

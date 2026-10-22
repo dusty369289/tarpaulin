@@ -23,6 +23,7 @@ describe('canvasErrorKind', () => {
       'Canvas returned 404: {"errors":[{"message":"The specified resource does not exist."}]}',
       'not_found',
     ],
+    ['keychain error: Platform secure storage failure: the keyring is locked', 'keychain'],
     ['unexpected response: expected value at line 1 column 1', 'other'],
     ['not connected to Canvas', 'other'],
   ] as const)('reads the desktop error %j as %s', (message, kind) => {

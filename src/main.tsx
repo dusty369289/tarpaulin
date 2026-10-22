@@ -1,5 +1,5 @@
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, type Query } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -14,13 +14,22 @@ import { ReaderProvider } from './reader/ReaderProvider';
 import { ThemeProvider } from './theme/ThemeProvider';
 import './index.css';
 
+/** How long the saved Canvas data is kept: two weeks covers a holiday or a long weekend offline. */
+const CACHE_MAX_AGE = 14 * 24 * 60 * 60_000;
+
+/** Item bodies opened in the reader are kept for this many items (the most recently loaded). */
+const KEEP_DETAILS = 30;
+const DETAIL_KINDS = new Set(['assignment', 'quiz', 'discussion']);
+const isDetail = (q: Query) => DETAIL_KINDS.has(q.queryKey[2] as string);
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       // A rejected token won't work a second later; retrying only delays the banner.
       retry: (failures, error) => failures < 1 && !isAuthError(error),
       refetchOnWindowFocus: true,
-      gcTime: 24 * 60 * 60_000,
+      // As long as the persisted copy, so a cold start offline still has something to show.
+      gcTime: CACHE_MAX_AGE,
     },
   },
 });
@@ -31,7 +40,30 @@ const persister = createSyncStoragePersister({
   key: 'tarpaulin.cache',
 });
 
-exposeSettle(queryClient);
+/** The reader bodies worth keeping, worked out once per save rather than once per query. */
+let keptDetails: Set<Query> | null = null;
+function keptDetail(q: Query): boolean {
+  if (!keptDetails) {
+    const details = queryClient
+      .getQueryCache()
+      .findAll({ queryKey: ['canvas'], predicate: isDetail })
+      .sort((a, b) => b.state.dataUpdatedAt - a.state.dataUpdatedAt);
+    keptDetails = new Set(details.slice(0, KEEP_DETAILS));
+    queueMicrotask(() => (keptDetails = null));
+  }
+  return keptDetails.has(q);
+}
+
+/** What goes into the saved cache: Canvas data that loaded, minus signed file links (they carry
+ *  a verifier token and expire anyway) and all but the latest reader bodies. */
+function shouldPersist(q: Query): boolean {
+  if (q.queryKey[0] !== 'canvas' || q.state.status !== 'success') return false;
+  if (q.queryKey[2] === 'file-url') return false;
+  return !isDetail(q) || keptDetail(q);
+}
+
+// The settle signal for the UI scripts (scripts/browser.ts), which run against the dev server.
+if (import.meta.env.DEV) exposeSettle(queryClient);
 // After an update the new version reopens the page that was showing (see app/updater.ts).
 resumeAfterUpdate();
 
@@ -55,11 +87,11 @@ pickTransport().then((transport) => {
         client={queryClient}
         persistOptions={{
           persister,
-          maxAge: 24 * 60 * 60_000,
+          maxAge: CACHE_MAX_AGE,
           // Bumped when cached data changes shape (v2: item bodies kept for the reader).
           buster: `v2-${transport.kind}`,
           dehydrateOptions: {
-            shouldDehydrateQuery: (q) => q.queryKey[0] === 'canvas' && q.state.status === 'success',
+            shouldDehydrateQuery: shouldPersist,
           },
         }}
       >

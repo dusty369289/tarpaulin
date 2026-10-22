@@ -5,11 +5,14 @@ import {
   createElement,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
   type ReactNode,
 } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useSettings } from '../app/settingsStore';
+import { inZone, nowInZone, setDisplayZone, useDisplayZone } from '../lib/dates';
 import { useCanvas } from './CanvasProvider';
 import {
   Catalog,
@@ -27,14 +30,19 @@ const day = (d: Date) => formatISO(d, { representation: 'date' });
 export function useResource<T>(resource: Resource<T>): UseQueryResult<T> {
   const { client } = useCanvas();
   const refreshMinutes = useSettings((s) => s.refreshMinutes);
+  // Data counts as fresh for the whole refresh interval (or the resource's own, longer one for
+  // things that rarely change), so focusing the window or mounting another widget reuses the
+  // cache instead of re-requesting.
+  const fresh = resource.staleTime ?? refreshMinutes * 60_000;
   return useQuery({
     queryKey: ['canvas', client?.baseUrl, ...resource.key],
     queryFn: () => client!.fetch(resource),
     enabled: Boolean(client) && resource.enabled,
-    // Data counts as fresh for the whole refresh interval, so focusing the window or mounting
-    // another widget reuses the cache instead of re-requesting.
-    refetchInterval: refreshMinutes * 60_000,
-    staleTime: refreshMinutes * 60_000,
+    refetchInterval: fresh,
+    // Keep refreshing while the window is hidden in the tray, so new announcements and grades
+    // still reach the notification runner.
+    refetchIntervalInBackground: true,
+    staleTime: fresh,
   });
 }
 
@@ -51,6 +59,9 @@ export interface LoadStatus {
   isError: boolean;
   error: unknown;
   data?: unknown;
+  isFetching?: boolean;
+  /** Fetches again (QueryGate's Retry). Every useQuery result has one. */
+  refetch?: () => unknown;
 }
 
 const CatalogContext = createContext<{ catalog: Catalog; status: LoadStatus } | null>(null);
@@ -60,7 +71,22 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
   const courses = useResource(R.Courses);
   const colors = useResource(R.CourseColors);
   const enrollments = useResource(R.Enrollments);
-  const { courseScope, hiddenCourseIds, courseColors, courseNicknames } = useSettings();
+  const { courseScope, hiddenCourseIds, courseColors, courseNicknames } = useSettings(
+    useShallow((s) => ({
+      courseScope: s.courseScope,
+      hiddenCourseIds: s.hiddenCourseIds,
+      courseColors: s.courseColors,
+      courseNicknames: s.courseNicknames,
+    })),
+  );
+  // Which time zone times are shown in (see lib/dates.ts). The catalog is rebuilt when it
+  // changes, since every model reads its times through toDate.
+  const timesIn = useSettings((s) => s.timesIn);
+  const canvasZone = useProfile().data?.timeZone ?? null;
+  useLayoutEffect(() => {
+    setDisplayZone(timesIn === 'canvas' ? canvasZone : null);
+  }, [timesIn, canvasZone]);
+  const zone = useDisplayZone();
   const catalog = useMemo(
     () =>
       new Catalog({
@@ -68,8 +94,11 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
         enrollments: enrollments.data,
         canvasColors: colors.data,
         prefs: { courseScope, hiddenCourseIds, courseColors, courseNicknames },
+        // The models read the zone through toDate; it's in the dependencies for them.
+        now: zone ? inZone(new Date(), zone) : new Date(),
       }),
     [
+      zone,
       courses.data,
       enrollments.data,
       colors.data,
@@ -87,9 +116,19 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
         isError: courses.isError,
         error: courses.error,
         data: courses.data,
+        isFetching: courses.isFetching,
+        refetch: courses.refetch,
       },
     }),
-    [catalog, courses.isLoading, courses.isError, courses.error, courses.data],
+    [
+      catalog,
+      courses.isLoading,
+      courses.isError,
+      courses.error,
+      courses.data,
+      courses.isFetching,
+      courses.refetch,
+    ],
   );
   return createElement(CatalogContext.Provider, { value }, children);
 }
@@ -155,7 +194,7 @@ export function useUpcoming(daysAhead: number, daysBack = 0): Loaded<Deadlines> 
 
 export function useAnnouncements(courseIds: string[], days: number): Loaded<Announcements> {
   const catalog = useCatalog();
-  const today = startOfDay(new Date());
+  const today = startOfDay(nowInZone());
   const query = useResource(
     R.Announcements(courseIds, day(addDays(today, -days)), day(addDays(today, 1))),
   );
@@ -190,11 +229,13 @@ export function useTodos(): Loaded<TodoItems> {
   return { data, query };
 }
 
+/** The current time, in the zone times are shown in (see lib/dates.ts). */
 export function useNow(intervalMs = 1000): Date {
+  const zone = useDisplayZone();
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), intervalMs);
     return () => clearInterval(t);
   }, [intervalMs]);
-  return now;
+  return useMemo(() => (zone ? inZone(now, zone) : now), [now, zone]);
 }

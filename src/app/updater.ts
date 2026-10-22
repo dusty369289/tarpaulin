@@ -28,10 +28,15 @@ export type UpdateState =
   | { status: 'error'; message: string };
 
 const LAST_CHECK_KEY = 'tarpaulin.updates.lastCheck';
+/** The version the user chose to skip; the banner stays quiet about it. */
+const SKIP_KEY = 'tarpaulin.updates.skipped';
 /** Written just before installing; read once by the new version when it starts. */
 const RESUME_KEY = 'tarpaulin.updates.resume';
 const RESUME_MAX_AGE = 30 * 60_000;
-const DAY = 24 * 60 * 60_000;
+const HOUR = 60 * 60_000;
+const DAY = 24 * HOUR;
+/** Showing the window again checks if the last check is older than this. */
+const SHOW_RECHECK = 6 * HOUR;
 
 async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   const { invoke } = await import('@tauri-apps/api/core');
@@ -52,16 +57,42 @@ function set(next: UpdateState) {
   listeners.forEach((l) => l(state));
 }
 
-export async function checkForUpdates(): Promise<UpdateState> {
+function read(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null; // storage unavailable
+  }
+}
+
+function write(key: string, value: string | null) {
+  try {
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, value);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+/** The version the user skipped, if any. */
+export const skippedVersion = () => read(SKIP_KEY);
+
+/** Keeps the banner quiet about this version, across restarts; a later one shows again. */
+export const skipVersion = (version: string) => write(SKIP_KEY, version);
+
+/**
+ * Checks for an update. A check the user asked for (the default) also forgets a skipped
+ * version, so the update they went looking for shows.
+ */
+export async function checkForUpdates({
+  manual = true,
+}: { manual?: boolean } = {}): Promise<UpdateState> {
   if (!isTauri()) return state;
+  if (manual) write(SKIP_KEY, null);
   set({ status: 'checking' });
   try {
     const update = await invoke<UpdateInfo | null>('check_update');
-    try {
-      localStorage.setItem(LAST_CHECK_KEY, String(Date.now()));
-    } catch {
-      /* storage unavailable */
-    }
+    write(LAST_CHECK_KEY, String(Date.now()));
     set(update ? { status: 'available', update } : { status: 'current', checkedAt: Date.now() });
   } catch (e) {
     set({ status: 'error', message: e instanceof Error ? e.message : String(e) });
@@ -142,19 +173,34 @@ export function useUpdater() {
   };
 }
 
-/** Checks at most once a day in the background, if the user hasn't turned it off. */
+/** A background check is due: the last one is older than `maxAge` and nothing is in flight. */
+function checkDue(maxAge: number): boolean {
+  if (!['idle', 'current', 'error'].includes(state.status)) return false;
+  return Date.now() - Number(read(LAST_CHECK_KEY) ?? 0) >= maxAge;
+}
+
+/**
+ * Background checks, if the user hasn't turned them off: shortly after startup, then daily
+ * while the app stays open (it can live in the tray for weeks), and when the window is shown
+ * again after a while. A failed check doesn't count, so it's retried on the next hourly tick.
+ */
 export function useAutoUpdateCheck() {
   const enabled = useSettings((s) => s.autoCheckUpdates);
   useEffect(() => {
     if (!enabled || !isTauri()) return;
-    let last = 0;
-    try {
-      last = Number(localStorage.getItem(LAST_CHECK_KEY) ?? 0);
-    } catch {
-      /* storage unavailable */
-    }
-    if (Date.now() - last < DAY) return;
-    const t = setTimeout(() => void checkForUpdates(), 5_000);
-    return () => clearTimeout(t);
+    const checkIf = (maxAge: number) => {
+      if (checkDue(maxAge)) void checkForUpdates({ manual: false });
+    };
+    const first = setTimeout(() => checkIf(DAY), 5_000);
+    const hourly = setInterval(() => checkIf(DAY), HOUR);
+    const onShow = () => {
+      if (document.visibilityState === 'visible') checkIf(SHOW_RECHECK);
+    };
+    document.addEventListener('visibilitychange', onShow);
+    return () => {
+      clearTimeout(first);
+      clearInterval(hourly);
+      document.removeEventListener('visibilitychange', onShow);
+    };
   }, [enabled]);
 }

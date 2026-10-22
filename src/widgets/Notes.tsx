@@ -42,6 +42,24 @@ export const Notes = defineWidget({
       return () => clearTimeout(t);
     }, [text, saved, setData]);
 
+    // ...but never lose the last keystrokes: write what's pending when the widget goes away
+    // (another page, removed, settings) or the window does (quit from the tray, reload).
+    const pending = useRef({ text, saved, setData });
+    pending.current = { text, saved, setData };
+    useEffect(() => {
+      const flush = () => {
+        const p = pending.current;
+        if (p.text !== p.saved) p.setData({ text: p.text });
+      };
+      window.addEventListener('pagehide', flush);
+      window.addEventListener('beforeunload', flush);
+      return () => {
+        window.removeEventListener('pagehide', flush);
+        window.removeEventListener('beforeunload', flush);
+        flush();
+      };
+    }, []);
+
     // Focus only when the user switches to the editor, never on page load.
     const switched = useRef(false);
     useEffect(() => {
@@ -71,7 +89,7 @@ export const Notes = defineWidget({
             onBlur={() => setData({ text })}
             placeholder={settings.placeholder}
             aria-label="Note"
-            className={`h-full w-full flex-1 resize-none rounded bg-transparent pr-8 outline-none placeholder:text-muted/70 focus-visible:bg-surface-2/40 ${settings.monospace ? 'font-mono' : ''}`}
+            className={`h-full w-full flex-1 resize-none rounded bg-transparent pr-8 placeholder:text-muted focus-visible:bg-surface-2/40 focus-visible:outline-offset-0 ${settings.monospace ? 'font-mono' : ''}`}
           />
         ) : (
           <div

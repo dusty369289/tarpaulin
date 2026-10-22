@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Pretend to be the desktop app and stub the Rust commands.
 const invoke = vi.fn();
@@ -97,5 +97,70 @@ describe('updater', () => {
     u.resumeAfterUpdate();
     expect(location.hash).toBe('');
     expect(u.updatedFrom()).toBeNull();
+  });
+
+  it('remembers a skipped version until the user checks by hand', async () => {
+    localStorage.clear();
+    const u = await load();
+    u.skipVersion('0.2.0');
+    expect(u.skippedVersion()).toBe('0.2.0');
+    invoke.mockResolvedValue(null);
+    await u.checkForUpdates({ manual: false });
+    expect((await load()).skippedVersion()).toBe('0.2.0'); // survives a restart
+    await u.checkForUpdates();
+    expect(u.skippedVersion()).toBeNull();
+  });
+
+  describe('background checks', () => {
+    beforeEach(() => {
+      localStorage.clear();
+      vi.useFakeTimers();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+    const checks = () => invoke.mock.calls.filter(([cmd]) => cmd === 'check_update').length;
+    const HOUR = 60 * 60_000;
+
+    it('checks soon after startup, then daily while the app stays open', async () => {
+      const u = await load();
+      invoke.mockResolvedValue(null);
+      const { unmount } = renderHook(() => u.useAutoUpdateCheck());
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(checks()).toBe(1);
+      await vi.advanceTimersByTimeAsync(23 * HOUR);
+      expect(checks()).toBe(1);
+      await vi.advanceTimersByTimeAsync(2 * HOUR); // the first hourly tick a day after the check
+      expect(checks()).toBe(2);
+      unmount();
+      await vi.advanceTimersByTimeAsync(48 * HOUR);
+      expect(checks()).toBe(2);
+    });
+
+    it('checks when the window is shown after a while', async () => {
+      const u = await load();
+      invoke.mockResolvedValue(null);
+      renderHook(() => u.useAutoUpdateCheck());
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(checks()).toBe(1);
+      document.dispatchEvent(new Event('visibilitychange'));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(checks()).toBe(1); // just checked
+      await vi.advanceTimersByTimeAsync(5 * HOUR); // the hourly tick isn't due yet (a day)
+      vi.setSystemTime(Date.now() + 2 * HOUR);
+      document.dispatchEvent(new Event('visibilitychange'));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(checks()).toBe(2);
+    });
+
+    it('stays off when the user turned it off', async () => {
+      const u = await load();
+      const { useSettings } = await import('./settingsStore');
+      useSettings.setState({ autoCheckUpdates: false });
+      renderHook(() => u.useAutoUpdateCheck());
+      await vi.advanceTimersByTimeAsync(48 * HOUR);
+      expect(checks()).toBe(0);
+      useSettings.setState({ autoCheckUpdates: true });
+    });
   });
 });

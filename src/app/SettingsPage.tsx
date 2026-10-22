@@ -13,7 +13,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useCanvas } from '../canvas/CanvasProvider';
-import { useCatalog } from '../canvas/hooks';
+import { useCatalog, useProfile } from '../canvas/hooks';
 import {
   exportDashboard,
   importDashboard,
@@ -23,8 +23,9 @@ import {
 import { buildPage, PRESETS, presetById } from '../dashboard/presets';
 import { useDashboard } from '../dashboard/store';
 import { BackgroundPicker, LookPicker, SkinPicker } from '../theme/pickers';
-import { DEFAULT_SETTINGS, pickSettings, useSettings, type Settings } from './settingsStore';
+import { pickSettings, useSettings, type Settings } from './settingsStore';
 import { NotificationsSection, StartupSection } from './DesktopSettings';
+import { nativeSaveSupported, saveExport } from './desktop';
 import { FoldedList, Row, Section, Switch, useConfirm } from '../ui';
 import { TokenHelpDialog } from '../onboarding/TokenHelp';
 import { ReplaceToken } from './ReplaceToken';
@@ -173,29 +174,6 @@ function AppVersion() {
   return <span data-testid="app-version">{version ? `v${version}` : ''}</span>;
 }
 
-/** What "Reset look and courses" puts back. How items open, refresh, notifications, startup,
- *  updates and first-run setup are left alone. */
-const RESET_KEYS = [
-  'theme',
-  'accent',
-  'background',
-  'widgetStyle',
-  'font',
-  'radius',
-  'fontScale',
-  'barStyle',
-  'barFoldAway',
-  'clock',
-  'weekStartsOn',
-  'courseScope',
-  'hiddenCourseIds',
-  'courseColors',
-  'courseNicknames',
-] as const satisfies readonly (keyof Settings)[];
-
-const lookAndCourseDefaults = (): Partial<Settings> =>
-  Object.fromEntries(RESET_KEYS.map((k) => [k, DEFAULT_SETTINGS[k]]));
-
 function AccountSection() {
   const { connection, transport, refreshConnection } = useCanvas();
   const queryClient = useQueryClient();
@@ -267,6 +245,8 @@ function LookSection() {
   );
 }
 
+const readableZone = (zone: string) => zone.replace(/_/g, ' ');
+
 function AppearanceSection() {
   const s = useSettings(
     useShallow((s) => ({
@@ -278,11 +258,15 @@ function AppearanceSection() {
       barStyle: s.barStyle,
       barFoldAway: s.barFoldAway,
       clock: s.clock,
+      timesIn: s.timesIn,
       openItemsIn: s.openItemsIn,
+      loadRemoteImages: s.loadRemoteImages,
       weekStartsOn: s.weekStartsOn,
     })),
   );
   const update = useSettings((s) => s.update);
+  const canvasZone = useProfile().data?.timeZone ?? null;
+  const deviceZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   return (
     <Section title="Appearance">
       <Row
@@ -395,6 +379,25 @@ function AppearanceSection() {
         </select>
       </Row>
       <Row
+        label="Show times in"
+        help={
+          canvasZone
+            ? `This computer uses ${readableZone(deviceZone)}; your Canvas account uses ${readableZone(canvasZone)}. Due times, Today and Tomorrow, the clock and quiet hours follow the one chosen here.`
+            : 'Your Canvas account doesn’t say which time zone it uses, so times follow this computer.'
+        }
+      >
+        <select
+          className="input w-auto"
+          aria-label="Show times in"
+          value={canvasZone ? s.timesIn : 'device'}
+          disabled={!canvasZone}
+          onChange={(e) => update({ timesIn: e.target.value as Settings['timesIn'] })}
+        >
+          <option value="device">This computer’s time zone</option>
+          <option value="canvas">Canvas’s time zone</option>
+        </select>
+      </Row>
+      <Row
         label="Clicking an assignment or announcement"
         help="Tarpaulin keeps a read-only copy; submitting and replying happen in Canvas."
       >
@@ -407,6 +410,17 @@ function AppearanceSection() {
           <option value="app">Read it in Tarpaulin</option>
           <option value="canvas">Open it in Canvas</option>
         </select>
+      </Row>
+      <Row
+        label="Load images from other sites"
+        help="Images in Canvas content that are hosted elsewhere can tell that site you opened it. Off shows a placeholder to click instead."
+      >
+        <Switch
+          hideLabel
+          label="Load images from other sites"
+          checked={s.loadRemoteImages}
+          onChange={(on) => update({ loadRemoteImages: on })}
+        />
       </Row>
       <Row label="Week starts on">
         <select
@@ -499,6 +513,7 @@ function CoursesSection() {
 function DataSection() {
   const refreshMinutes = useSettings((s) => s.refreshMinutes);
   const update = useSettings((s) => s.update);
+  const resetAppearance = useSettings((s) => s.resetAppearance);
   const replacePages = useDashboard((s) => s.replacePages);
   const appendPages = useDashboard((s) => s.appendPages);
   const queryClient = useQueryClient();
@@ -508,13 +523,24 @@ function DataSection() {
   const [includeSettings, setIncludeSettings] = useState(true);
   const [includeData, setIncludeData] = useState(false);
 
-  const doExport = () => {
+  const doExport = async () => {
     const json = exportDashboard(
       useDashboard.getState().pages,
       pickSettings(useSettings.getState()),
       { includeSettings, includeLocalData: includeData },
     );
     const name = `tarpaulin-dashboard-${new Date().toISOString().slice(0, 10)}.json`;
+    // Desktop: the native save dialog (webviews there don't all handle downloads).
+    if (nativeSaveSupported()) {
+      setMessage(null);
+      try {
+        const path = await saveExport(name, json);
+        if (path) setMessage({ tone: 'ok', text: `Exported to ${path}.` });
+      } catch (e) {
+        setMessage({ tone: 'error', text: `Export failed: ${String(e)}` });
+      }
+      return;
+    }
     const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
     const a = document.createElement('a');
     a.href = url;
@@ -590,8 +616,8 @@ function DataSection() {
       message: (
         <>
           <p>
-            The look, mode, accent, font, text size, corners, top bar, clock and week start go back
-            to their defaults, and so do course colours, nicknames and hidden courses.
+            The look, mode, accent, font, text size, corners, top bar, clock, time zone and week
+            start go back to their defaults, and so do course colours, nicknames and hidden courses.
           </p>
           <p className="mt-2 text-muted">
             Your pages and widgets, notifications, startup and tray settings and your Canvas
@@ -601,8 +627,7 @@ function DataSection() {
       ),
       actions: [{ value: 'reset', label: 'Reset', tone: 'danger' }],
     });
-    // The settings store's own scoped reset (resetAppearance) replaces this once it lands.
-    if (answer) update(lookAndCourseDefaults());
+    if (answer) resetAppearance();
   };
 
   return (
@@ -638,7 +663,7 @@ function DataSection() {
       </Row>
       <div className="flex flex-col gap-2">
         <Row label="Export dashboard" help="Pages, widgets and their settings as a JSON file.">
-          <button type="button" className="btn" onClick={doExport}>
+          <button type="button" className="btn" onClick={() => void doExport()}>
             <Download className="h-4 w-4" /> Export
           </button>
         </Row>
