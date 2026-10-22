@@ -20,11 +20,15 @@ on:
       - 'scripts/browser.ts'
       - 'scripts/download-pages.ts'
       - 'scripts/release-files.ts'
+      - 'site/**'
+      - 'public/icon.png'
       - '.github/workflows/readme-assets.yml'
   # A change to the renderer itself is rendered on its pull request too, without being pushed.
   pull_request:
     paths:
       - 'scripts/readme-assets.ts'
+      - 'scripts/download-pages.ts'
+      - 'site/**'
       - '.github/workflows/readme-assets.yml'
   # Started by release.yml after each release, for the new version and installer size.
   workflow_dispatch:
@@ -52,6 +56,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: pnpm readme:assets
+      # On a pull request the site isn't deployed (see the pages job), but it's built, so a
+      # broken page shows up here.
+      - name: Build the site
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/download-pages.ts .cache/pages .cache/readme
       - name: Keep the render
         uses: actions/upload-artifact@v4
         with:
@@ -69,8 +80,11 @@ jobs:
           git push -qf "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" \
             readme-assets
 
+  # The website: the landing page (site/index.html, with the pictures render just made) and the
+  # download pages.
   pages:
     if: github.event_name != 'pull_request'
+    needs: render
     runs-on: ubuntu-latest
     permissions:
       pages: write
@@ -84,10 +98,14 @@ jobs:
         with:
           node-version: 22
           package-manager-cache: false
-      - name: Build the download pages
+      - uses: actions/download-artifact@v4
+        with:
+          name: readme-assets
+          path: .cache/readme
+      - name: Build the site
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node scripts/download-pages.ts .cache/pages
+        run: node scripts/download-pages.ts .cache/pages .cache/readme
       - uses: actions/upload-pages-artifact@v3
         with:
           path: .cache/pages

@@ -16,7 +16,7 @@
 [![Download for macOS](https://img.shields.io/badge/macOS-download-1f2937?style=for-the-badge&logo=apple&logoColor=white)](https://dusty369289.github.io/tarpaulin/download/macos-apple-silicon/)
 [![Download for Linux](https://img.shields.io/badge/Linux-download-E95420?style=for-the-badge&logo=linux&logoColor=white)](https://dusty369289.github.io/tarpaulin/download/linux-x64-appimage/)
 
-<sub>Windows 10 and 11 · macOS on Apple silicon and Intel · Linux x64 and arm64 · [every download](#download)</sub>
+<sub>Windows 10 and 11 · macOS on Apple silicon and Intel · Linux x64 and arm64 · [every download](#download) · [website](https://dusty369289.github.io/tarpaulin/)</sub>
 
 </div>
 

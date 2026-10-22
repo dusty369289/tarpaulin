@@ -1,17 +1,30 @@
-// Builds the download pages the README links to, from the latest release's files: one page per
-// installer at download/<slug>/ that sends the browser straight to that file (whose name carries
-// the version, so it changes every release), plus a list of all of them at download/.
+// Builds the Tarpaulin website (GitHub Pages) from the latest release's files:
+//   - the landing page (site/index.html, filled in with the version, sizes and download links,
+//     and the README's pictures, which pnpm readme:assets renders);
+//   - one page per installer at download/<slug>/ that sends the browser straight to that file
+//     (whose name carries the version, so it changes every release), which the README links to;
+//   - a plain list of every download at download/.
 //
-//   GH_TOKEN=… node scripts/download-pages.ts [out dir]     # default .cache/pages
-//   RELEASE_JSON=release.json node scripts/download-pages.ts  # from a saved API response
+//   GH_TOKEN=… node scripts/download-pages.ts [out dir] [pictures dir]
+//                                    # defaults: .cache/pages and .cache/readme
+//   RELEASE_JSON=release.json node scripts/download-pages.ts   # from a saved API response
 //
 // .github/workflows/readme-assets.yml publishes the result to GitHub Pages after every release.
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { RELEASE_FILES, findAsset } from './release-files.ts';
 
 const REPO = process.env.GITHUB_REPOSITORY ?? 'dusty369289/tarpaulin';
 const OUT = process.argv[2] ?? '.cache/pages';
+const PICTURES = process.argv[3] ?? '.cache/readme';
 const RELEASES = `https://github.com/${REPO}/releases`;
 
 interface Release {
@@ -66,6 +79,7 @@ async function main() {
 
   rmSync(OUT, { recursive: true, force: true });
   const rows: string[] = [];
+  const files: Record<string, { url: string; size: number; name: string }> = {};
   for (const file of RELEASE_FILES) {
     if (!file.slug) continue;
     const asset = findAsset(release.assets, file.suffix);
@@ -93,21 +107,34 @@ async function main() {
       ),
     );
     rows.push(`<li><a href="${file.slug}/">${esc(file.label)}</a> · ${mb} MB</li>`);
+    files[file.slug] = { url: asset.browser_download_url, size: asset.size, name: asset.name };
   }
   const list = page(
     `Download Tarpaulin ${version}`,
     `<h1>Download Tarpaulin ${esc(version)}</h1><ul>${rows.join('')}</ul><p><a href="${esc(release.html_url)}">Release notes</a> · <a href="${RELEASES}">every version</a> · <a href="https://github.com/${REPO}">source code</a></p>`,
   );
   writeFileSync(join(OUT, 'download', 'index.html'), list);
-  writeFileSync(
-    join(OUT, 'index.html'),
-    list
-      .replaceAll('href="', 'href="download/')
-      .replaceAll('href="download/https:', 'href="https:'),
-  );
+  writeLanding(version, files);
   // Pages serves this site as is (no Jekyll).
   writeFileSync(join(OUT, '.nojekyll'), '');
   console.log(`Download pages for ${version} in ${OUT}: ${rows.length} files`);
+}
+
+/** The landing page, with the release's details and the README's pictures. */
+function writeLanding(version: string, files: Record<string, unknown>) {
+  const img = join(OUT, 'img');
+  mkdirSync(img, { recursive: true });
+  copyFileSync('public/icon.png', join(img, 'icon.png'));
+  if (!existsSync(PICTURES))
+    throw new Error(`no pictures in ${PICTURES}: run pnpm readme:assets first`);
+  for (const f of readdirSync(PICTURES))
+    if (f.endsWith('.webp')) copyFileSync(join(PICTURES, f), join(img, f));
+  // </ can't appear inside the JSON script block, so a file name can't close it.
+  const data = JSON.stringify({ version, files }).replaceAll('</', '<\\/');
+  const html = readFileSync('site/index.html', 'utf8')
+    .replaceAll('{{VERSION}}', esc(version))
+    .replace('{{RELEASE}}', data);
+  writeFileSync(join(OUT, 'index.html'), html);
 }
 
 main().catch((e: unknown) => {
