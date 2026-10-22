@@ -16,8 +16,6 @@ import { Row, Section, Switch } from '../ui';
 export function NotificationsSettings() {
   const prefs = useSettings((s) => s.notifications);
   const update = useSettings((s) => s.update);
-  const weeklyPreview = useSettings((s) => s.weeklyPreview);
-  const planReminders = useSettings((s) => s.planReminders);
   const [permission, setPermission] = useState<NotificationPermission>('prompt');
   const [tested, setTested] = useState(false);
   useEffect(() => {
@@ -153,9 +151,9 @@ export function NotificationsSettings() {
           <Switch
             hideLabel
             label="Remind me on days I planned work"
-            checked={planReminders}
+            checked={prefs.planned}
             disabled={off}
-            onChange={(on) => update({ planReminders: on })}
+            onChange={(planned) => set({ planned })}
           />
         </Row>
         <Row
@@ -166,9 +164,9 @@ export function NotificationsSettings() {
           <Switch
             hideLabel
             label="Weekly preview"
-            checked={weeklyPreview}
+            checked={prefs.weekly}
             disabled={off}
-            onChange={(on) => update({ weeklyPreview: on })}
+            onChange={(weekly) => set({ weekly })}
           />
         </Row>
       </Section>

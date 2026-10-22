@@ -78,7 +78,7 @@ describe('do-date reminders in the runner', () => {
   });
 
   it('stays quiet with the setting off', async () => {
-    useSettings.setState({ planReminders: false });
+    useSettings.setState((s) => ({ notifications: { ...s.notifications, planned: false } }));
     await run();
     expect(planned()).toEqual([]);
   });

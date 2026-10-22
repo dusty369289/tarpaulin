@@ -280,7 +280,7 @@ describe('SettingsPage notifications', () => {
     const plan = screen.getByRole('switch', { name: 'Remind me on days I planned work' });
     expect(plan).toBeChecked();
     fireEvent.click(plan);
-    expect(useSettings.getState().planReminders).toBe(false);
+    expect(useSettings.getState().notifications.planned).toBe(false);
   });
 
   it('turns the weekly preview off and on', async () => {
@@ -288,8 +288,8 @@ describe('SettingsPage notifications', () => {
     const weekly = screen.getByRole('switch', { name: 'Weekly preview' });
     expect(weekly).toBeChecked();
     fireEvent.click(weekly);
-    expect(useSettings.getState().weeklyPreview).toBe(false);
+    expect(useSettings.getState().notifications.weekly).toBe(false);
     fireEvent.click(weekly);
-    expect(useSettings.getState().weeklyPreview).toBe(true);
+    expect(useSettings.getState().notifications.weekly).toBe(true);
   });
 });

@@ -38,7 +38,7 @@ function save(key: string, state: WeeklyState) {
 
 export function useWeeklyPreview() {
   const prefs = useSettings((s) => s.notifications);
-  const enabled = useSettings((s) => s.weeklyPreview);
+  const enabled = prefs.weekly;
   const weekStartsOn = useSettings((s) => (s.weekStartsOn === 'monday' ? 1 : 0));
   const catalog = useCatalog();
   const now = useNow(60_000);

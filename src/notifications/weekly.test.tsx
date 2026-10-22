@@ -147,16 +147,16 @@ describe('weekly preview: rules', () => {
   });
 });
 
-describe('weeklyPreview setting', () => {
-  it('defaults to on and loads field by field without a version bump', () => {
-    expect(DEFAULT_SETTINGS.weeklyPreview).toBe(true);
-    // Saved before the key existed.
-    expect(parseSettings({ theme: 'dark' }).weeklyPreview).toBe(true);
-    expect(parseSettings({ weeklyPreview: false }).weeklyPreview).toBe(false);
-    // A bad value falls back to the default without taking other settings with it.
-    const s = parseSettings({ weeklyPreview: 'yes', theme: 'dark' });
-    expect(s.weeklyPreview).toBe(true);
-    expect(s.theme).toBe('dark');
+describe('weekly and planned notification switches', () => {
+  it('default to on and load field by field, so settings saved before them keep the rest', () => {
+    expect(DEFAULT_SETTINGS.notifications).toMatchObject({ weekly: true, planned: true });
+    // Saved before the keys existed.
+    expect(parseSettings({ notifications: { grades: false } }).notifications).toMatchObject({
+      grades: false,
+      weekly: true,
+      planned: true,
+    });
+    expect(parseSettings({ notifications: { weekly: false } }).notifications.weekly).toBe(false);
   });
 });
 
@@ -234,7 +234,7 @@ describe('weekly preview runner', () => {
   });
 
   it('stays quiet with the setting off', async () => {
-    useSettings.setState({ weeklyPreview: false });
+    useSettings.setState((s) => ({ notifications: { ...s.notifications, weekly: false } }));
     localStorage.setItem(KEY, JSON.stringify(SEEN));
     await run();
     expect(previews()).toEqual([]);

@@ -45,7 +45,7 @@ function save(key: string, state: PlanReminderState) {
 
 export function usePlanReminders() {
   const prefs = useSettings((s) => s.notifications);
-  const enabled = useSettings((s) => s.planReminders);
+  const enabled = prefs.planned;
   const now = useNow(60_000);
   const timeFmt = useTimeFormat();
   const today = startOfDay(now);
