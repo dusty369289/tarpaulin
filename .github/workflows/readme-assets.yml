@@ -46,9 +46,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/setup-browser
-      - name: Install ffmpeg (WebP encoding)
+      # Only for the README's animated looks carousel; the stills are encoded in the browser. apt
+      # can take minutes, so pull requests skip it, and the carousel with it.
+      - name: Install ffmpeg (the looks carousel)
+        if: github.event_name != 'pull_request'
         run: command -v ffmpeg || { sudo apt-get update -q && sudo apt-get install -yq --no-install-recommends ffmpeg; }
+      # For the facts row. CI already runs the tests on pull requests, so they skip this.
       - name: Count the unit tests
+        if: github.event_name != 'pull_request'
         run: |
           pnpm vitest run --reporter=json --outputFile=.cache/vitest.json > /dev/null
           echo "TEST_COUNT=$(jq .numTotalTests .cache/vitest.json)" >> "$GITHUB_ENV"
