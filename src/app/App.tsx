@@ -4,6 +4,7 @@ import { useCanvas } from '../canvas/CanvasProvider';
 import { Dashboard } from '../dashboard/Dashboard';
 import { UndoToast } from '../dashboard/UndoToast';
 import { NotificationRunner } from '../notifications/useNotifications';
+import { QuickFind } from '../search/QuickFind';
 import { describeError } from '../widgets/shared/ui';
 import { setCloseToTray, startDesktopShell } from './desktop';
 import { useSettings } from './settingsStore';
@@ -77,6 +78,9 @@ export function App() {
       {/* Reminders run whichever page is showing. */}
       <NotificationRunner />
       {connectionFromCache && <SavedConnectionNote />}
+      {/* Ctrl/⌘+K on either screen. Settings sections will deep-link here later (see
+          src/search/settingsEntries.ts); for now every settings entry opens Settings. */}
+      <QuickFind onOpenSettings={() => go('settings')} onShowDashboard={() => go('dashboard')} />
       {route === 'settings' ? (
         <>
           <Lazy screen={<SettingsPage onBack={() => go('dashboard')} />} />

@@ -1,7 +1,9 @@
-import { LayoutDashboard } from 'lucide-react';
-import { useState } from 'react';
+import { Check, LayoutDashboard, Pencil, Plus } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { TokenBanner } from '../app/TokenBanner';
 import { UpdateBanner } from '../app/UpdateBanner';
+import { QuickFindButton } from '../search/QuickFindButton';
+import { useQuickFindCommands, type QuickFindCommand } from '../search/store';
 import { AppBar } from './AppBar';
 import { EditToolbar } from './EditToolbar';
 import { Grid } from './Grid';
@@ -23,6 +25,42 @@ export function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
   const [styling, setStyling] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
+  // Quick find's dashboard actions: the same steps as the bar's Edit button and "Add a widget".
+  const commands = useMemo<QuickFindCommand[]>(
+    () => [
+      editMode
+        ? {
+            id: 'edit-layout',
+            title: 'Finish editing layout',
+            keywords: ['done', 'edit layout'],
+            detail: 'Leave edit mode',
+            icon: Check,
+            run: () => setEditMode(false),
+          }
+        : {
+            id: 'edit-layout',
+            title: 'Edit layout',
+            keywords: ['arrange', 'move', 'resize', 'customise', 'customize'],
+            detail: 'Move, resize and remove widgets on this page',
+            icon: Pencil,
+            run: () => setEditMode(true),
+          },
+      {
+        id: 'add-widget',
+        title: 'Add widget',
+        keywords: ['new', 'widget'],
+        detail: 'Add a widget to this page',
+        icon: Plus,
+        run: () => {
+          setEditMode(true);
+          setPicking(true);
+        },
+      },
+    ],
+    [editMode, setEditMode],
+  );
+  useQuickFindCommands('dashboard', commands);
+
   return (
     <div className="flex min-h-full flex-col">
       <AppBar editing={editMode} pinned={editMode || picking || styling || menuOpen}>
@@ -33,6 +71,7 @@ export function Dashboard({ onOpenSettings }: { onOpenSettings: () => void }) {
         <div className="bar-pages-slot min-w-0 flex-1">
           <PageTabs onMenuChange={setMenuOpen} />
         </div>
+        <QuickFindButton />
         <EditToolbar
           editMode={editMode}
           onToggleEdit={() => setEditMode(!editMode)}
