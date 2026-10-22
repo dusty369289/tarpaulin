@@ -52,8 +52,13 @@
 .skin-root[data-skin='blueprint'] .skin-icon {
   color: rgb(var(--muted));
 }
-/* Secondary notes are pencilled in. */
+/* Secondary notes are pencilled in, a size up: the hand's letters are small (x-height 0.47em). */
 .skin-root[data-skin='blueprint'] .text-xs.text-muted {
   font-family: 'Architects Daughter', var(--skin-font);
+  font-size: max(0.8125rem, 13px);
   color: rgb(var(--accent) / 0.9);
+}
+/* Other small print gets at least 12px, so its letters are as tall as 11px Inter's (about 6px). */
+.skin-root[data-skin='blueprint'] :is(.text-\[11px\], .text-\[10px\], .chip) {
+  font-size: max(0.75rem, 12px);
 }

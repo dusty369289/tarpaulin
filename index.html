@@ -5,6 +5,42 @@
     <link rel="icon" type="image/png" href="/icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Tarpaulin</title>
+    <script>
+      // Paints the window in the saved theme and page background before the app loads, so dark
+      // and textured looks don't open on a white frame. It mirrors src/theme/ThemeProvider.tsx,
+      // which takes over on the first render; the build fills in the colours (src/theme/prepaint.ts).
+      (function (data) {
+        try {
+          var read = function (key) {
+            return (JSON.parse(localStorage.getItem(key) || 'null') || {}).state || {};
+          };
+          var settings = read('tarpaulin.settings');
+          var dashboard = read('tarpaulin.dashboard');
+          var pages = Array.isArray(dashboard.pages) ? dashboard.pages : [];
+          var page =
+            pages.find(function (p) {
+              return p && p.id === dashboard.activePageId;
+            }) ||
+            pages[0] ||
+            {};
+          var theme = settings.theme;
+          if (!data.themes[theme])
+            theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          var mode = theme === 'light' ? 'light' : 'dark';
+          var background = page.background || settings.background || 'plain';
+          var textured = data.backgrounds[background] && theme !== 'high-contrast';
+          var tokens = textured ? data.backgrounds[background][mode] : data.themes[theme];
+          var root = document.documentElement;
+          for (var k in tokens) root.style.setProperty('--' + k, tokens[k]);
+          root.dataset.theme = theme;
+          root.dataset.mode = mode;
+          root.dataset.background = textured ? background : 'plain';
+          root.style.colorScheme = mode;
+        } catch (e) {
+          // Unreadable storage: the app applies the theme itself a moment later.
+        }
+      })(__TARPAULIN_PREPAINT__);
+    </script>
   </head>
   <body>
     <div id="root"></div>
