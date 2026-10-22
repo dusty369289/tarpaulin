@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import { useEffect } from 'react';
 import { create } from 'zustand';
+import type { EntryActions } from './entries';
 
 /**
  * An app action Quick find offers ("Edit layout", "Add widget"). Screens that own an action
@@ -16,6 +17,8 @@ export interface QuickFindCommand {
   detail?: string;
   icon: LucideIcon;
   run: () => void;
+  /** Which group it's listed in. Default: Actions. */
+  group?: 'actions' | 'pages';
 }
 
 interface QuickFindState {
@@ -26,13 +29,19 @@ interface QuickFindState {
   commands: Record<string, QuickFindCommand[]>;
   register: (source: string, commands: QuickFindCommand[]) => void;
   unregister: (source: string) => void;
+  /** The app's navigation (open Settings, show the dashboard), given by the mounted
+   *  <QuickFind>, so Search widgets act exactly like the palette. */
+  appActions: EntryActions;
 }
+
+const noActions: EntryActions = { onOpenSettings: () => {}, onShowDashboard: () => {} };
 
 export const useQuickFind = create<QuickFindState>()((set) => ({
   open: false,
   setOpen: (open) => set({ open }),
   toggle: () => set((s) => ({ open: !s.open })),
   commands: {},
+  appActions: noActions,
   register: (source, commands) => set((s) => ({ commands: { ...s.commands, [source]: commands } })),
   unregister: (source) =>
     set((s) => {
