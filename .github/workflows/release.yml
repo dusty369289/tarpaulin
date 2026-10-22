@@ -162,7 +162,10 @@ jobs:
           tagName: ${{ env.TAG }}
           # The updater shows this as the release notes.
           releaseBody: ${{ env.RELEASE_BODY }}
-          includeUpdaterJson: true
+          # The publish job writes latest.json once, from every platform's files: builds that
+          # each read, extended and re-uploaded it raced (one dropped another's entry, or failed
+          # replacing an asset another had just replaced).
+          includeUpdaterJson: false
           args: ${{ matrix.args }}
 
   publish:
@@ -173,24 +176,24 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       RELEASE_ID: ${{ needs.check.outputs.release-id }}
     steps:
-      # Each build adds its platform to latest.json by reading it and uploading it again, so two
-      # builds finishing together can drop one. Check before anyone's updater sees it.
-      - name: Check latest.json lists every platform
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          package-manager-cache: false
+      # Fails, naming the platform, if any platform's updater bundle or signature is missing.
+      - name: Write latest.json
+        run: node scripts/updater-manifest.ts "$GITHUB_REPOSITORY" "$RELEASE_ID" "$TAG" > latest.json
+      - name: Upload latest.json
         run: |
-          asset=$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?per_page=100" \
-            --jq '.[] | select(.name == "latest.json") | .id')
-          [ -n "$asset" ] || { echo "::error::the draft release has no latest.json"; exit 1; }
-          gh api -H 'Accept: application/octet-stream' \
-            "repos/$GITHUB_REPOSITORY/releases/assets/$asset" > latest.json
           jq '{version, platforms: (.platforms | keys)}' latest.json
-          missing=$(jq -r '["darwin-aarch64", "darwin-x86_64", "windows-x86_64", "windows-aarch64",
-            "linux-x86_64", "linux-aarch64"] - (.platforms | keys) | join(", ")' latest.json)
-          if [ -n "$missing" ]; then
-            echo "::error::latest.json is missing $missing. Re-run that platform's build job: it uploads its files and latest.json entry again, and this job runs after it."
-            exit 1
-          fi
-          jq -e --arg v "${TAG#v}" '.version == $v' latest.json > /dev/null ||
-            { echo "::error::latest.json is not for ${TAG#v}"; exit 1; }
+          # A re-run replaces the one it uploaded before.
+          old=$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?per_page=100" \
+            --jq '.[] | select(.name == "latest.json") | .id')
+          [ -z "$old" ] || gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$old"
+          gh api -X POST -H 'Content-Type: application/json' --input latest.json \
+            "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?name=latest.json" \
+            --jq .browser_download_url
       - name: Publish
         run: |
           gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
