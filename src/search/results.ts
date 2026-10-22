@@ -53,7 +53,7 @@ export function buildSections(
       .slice(0, PER_GROUP);
     const out: Section[] = [];
     if (recent.length) out.push({ id: 'recent', label: GROUP_LABELS.recent, entries: recent });
-    if (due.length) out.push({ id: 'due', label: GROUP_LABELS.due, entries: due });
+    if (due.length) out.push({ id: 'due', label: GROUP_LABELS.dueSoon, entries: due });
     if (!out.length && actionsWhenEmpty) {
       const actions = entries.filter((e) => e.group === 'actions');
       if (actions.length)

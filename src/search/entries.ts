@@ -52,9 +52,11 @@ import { useQuickFind } from './store';
 
 export type GroupId = 'due' | 'announcements' | 'events' | 'courses' | 'pages' | 'actions';
 
-export const GROUP_LABELS: Record<GroupId | 'recent', string> = {
+export const GROUP_LABELS: Record<GroupId | 'recent' | 'dueSoon', string> = {
   recent: 'Recent',
-  due: 'Due soon',
+  /** With nothing typed, the work group lists only what's due in the next few days. */
+  dueSoon: 'Due soon',
+  due: 'Work',
   announcements: 'Announcements',
   events: 'Events',
   courses: 'Courses',
