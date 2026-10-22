@@ -25,6 +25,7 @@ import { useDashboard } from '../dashboard/store';
 import { BackgroundPicker, LookPicker, SkinPicker } from '../theme/pickers';
 import { DEFAULT_SETTINGS, pickSettings, useSettings, type Settings } from './settingsStore';
 import { NotificationsSection, StartupSection } from './DesktopSettings';
+import { nativeSaveSupported, saveExport } from './desktop';
 import { FoldedList, Row, Section, Switch, useConfirm } from '../ui';
 import { TokenHelpDialog } from '../onboarding/TokenHelp';
 import { ReplaceToken } from './ReplaceToken';
@@ -508,13 +509,24 @@ function DataSection() {
   const [includeSettings, setIncludeSettings] = useState(true);
   const [includeData, setIncludeData] = useState(false);
 
-  const doExport = () => {
+  const doExport = async () => {
     const json = exportDashboard(
       useDashboard.getState().pages,
       pickSettings(useSettings.getState()),
       { includeSettings, includeLocalData: includeData },
     );
     const name = `tarpaulin-dashboard-${new Date().toISOString().slice(0, 10)}.json`;
+    // Desktop: the native save dialog (webviews there don't all handle downloads).
+    if (nativeSaveSupported()) {
+      setMessage(null);
+      try {
+        const path = await saveExport(name, json);
+        if (path) setMessage({ tone: 'ok', text: `Exported to ${path}.` });
+      } catch (e) {
+        setMessage({ tone: 'error', text: `Export failed: ${String(e)}` });
+      }
+      return;
+    }
     const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
     const a = document.createElement('a');
     a.href = url;
@@ -638,7 +650,7 @@ function DataSection() {
       </Row>
       <div className="flex flex-col gap-2">
         <Row label="Export dashboard" help="Pages, widgets and their settings as a JSON file.">
-          <button type="button" className="btn" onClick={doExport}>
+          <button type="button" className="btn" onClick={() => void doExport()}>
             <Download className="h-4 w-4" /> Export
           </button>
         </Row>
