@@ -60,11 +60,3 @@ export function useQuickFindCommands(source: string, commands: QuickFindCommand[
 
 /** Opens Quick find (the top bar's search button). */
 export const openQuickFind = () => useQuickFind.getState().setOpen(true);
-
-/** Whether shortcuts read ⌘ rather than Ctrl. */
-export const isMac = () =>
-  typeof navigator !== 'undefined' &&
-  /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
-
-/** "⌘K" or "Ctrl+K", for tooltips and hints. */
-export const shortcutLabel = (key = 'K') => (isMac() ? `⌘${key}` : `Ctrl+${key}`);

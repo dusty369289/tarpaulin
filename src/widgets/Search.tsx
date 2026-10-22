@@ -17,8 +17,10 @@ import {
   useResultList,
   type ResultListState,
 } from '../search/ResultList';
-import { isMac, useQuickFind } from '../search/store';
+import { useQuickFind } from '../search/store';
 import '../search/quickFind.css';
+import { Kbd } from '../ui/Kbd';
+import { shortcutLabel } from '../ui/keys';
 import { field } from './settings/fields';
 import { EmptyState } from './shared/ui';
 import { defineWidget } from './types';
@@ -51,8 +53,6 @@ const GROUP_SETTINGS: Array<[keyof SearchSettings, GroupId]> = [
   ['pages', 'pages'],
   ['actions', 'actions'],
 ];
-
-const shortcutHint = () => (isMac() ? '⌘K' : 'Ctrl K');
 
 export const Search = defineWidget({
   type: 'search',
@@ -143,9 +143,9 @@ export const Search = defineWidget({
           }}
           onKeyDown={onKeyDown}
         />
-        <kbd className="qf-kbd sw-chip pointer-events-none absolute right-2 top-1/2 -translate-y-1/2">
-          {shortcutHint()}
-        </kbd>
+        <Kbd className="sw-chip pointer-events-none absolute right-2 top-1/2 -translate-y-1/2">
+          {shortcutLabel('K', ' ')}
+        </Kbd>
       </div>
     );
     const status = (

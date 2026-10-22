@@ -1,6 +1,7 @@
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { SearchInput, SettingsFilter, useNoRows, useSettingsFilter } from '../ui';
+import { isModShortcut, isTyping } from '../ui/keys';
 import { CATEGORIES, type CategoryInfo } from './SettingsSections';
 import {
   categoryFromHash,
@@ -14,17 +15,6 @@ import {
 // narrow window), the chosen one on the right. Typing in the search box swaps the category for
 // every matching row from all of them. The last category is remembered for the session, and
 // `openSettings('account')` (settingsNav) links straight to one.
-
-/** Whether keys pressed in `el` are text being typed, which "/" and Ctrl+F must leave alone. */
-function isTyping(el: EventTarget | null) {
-  if (!(el instanceof HTMLElement)) return false;
-  if (el.isContentEditable || el instanceof HTMLTextAreaElement) return true;
-  if (el instanceof HTMLSelectElement) return true;
-  return (
-    el instanceof HTMLInputElement &&
-    !['checkbox', 'radio', 'range', 'color', 'button', 'submit', 'reset', 'file'].includes(el.type)
-  );
-}
 
 export function SettingsPage({ onBack }: { onBack: () => void }) {
   const [category, setCategory] = useState<SettingsCategory>(
@@ -54,7 +44,7 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
   // Ctrl/⌘+F or "/" jumps to the search box, unless typing somewhere or a dialog is up.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const find = (e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'f';
+      const find = isModShortcut(e, 'f');
       const slash = e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey;
       if (!find && !slash) return;
       if (isTyping(e.target)) return;

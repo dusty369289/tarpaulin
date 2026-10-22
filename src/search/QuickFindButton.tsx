@@ -1,5 +1,6 @@
 import { Search } from 'lucide-react';
-import { isMac, openQuickFind, shortcutLabel } from './store';
+import { ariaShortcut, shortcutLabel } from '../ui/keys';
+import { openQuickFind } from './store';
 
 /** The top bar's search button: opens Quick find, and its tooltip teaches the shortcut. */
 export function QuickFindButton() {
@@ -8,7 +9,7 @@ export function QuickFindButton() {
       type="button"
       className="bar-icon"
       aria-label="Quick find"
-      aria-keyshortcuts={isMac() ? 'Meta+K' : 'Control+K'}
+      aria-keyshortcuts={ariaShortcut()}
       title={`Quick find (${shortcutLabel()})`}
       data-testid="quick-find-button"
       onClick={openQuickFind}

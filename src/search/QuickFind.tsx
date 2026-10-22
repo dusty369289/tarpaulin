@@ -1,19 +1,18 @@
 import { Search } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Backdrop } from '../ui/Backdrop';
+import { Kbd } from '../ui/Kbd';
+import { isModShortcut, modKeyLabel } from '../ui/keys';
 import { useDialog } from '../ui/useDialog';
 import { useSearchEntries, type EntryActions } from './entries';
 import { comboboxProps, ResultList, resultCount, useResultList } from './ResultList';
 import { usePageCommands } from './pages';
-import { isMac, useQuickFind } from './store';
+import { useQuickFind } from './store';
 import './quickFind.css';
 
 // Quick find: Ctrl/⌘+K anywhere, or the top bar's search button. A combobox over a grouped
 // listbox (the WAI-ARIA pattern): focus stays in the input, the arrows move the active option
 // (aria-activedescendant), Enter opens it, Ctrl/⌘+Enter opens it in Canvas instead.
-
-/** Ctrl/⌘+K, without other modifiers. */
-const isShortcut = (e: globalThis.KeyboardEvent) =>
-  e.key.toLowerCase() === 'k' && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey;
 
 /**
  * The palette and its shortcut. Mount once, wherever both the dashboard and Settings can reach
@@ -44,7 +43,7 @@ export function QuickFind(props: EntryActions) {
 
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
-      if (!isShortcut(e) || e.repeat) return;
+      if (!isModShortcut(e, 'k') || e.repeat) return;
       e.preventDefault();
       useQuickFind.getState().toggle();
     };
@@ -73,15 +72,10 @@ function Palette({ actions, onClose }: { actions: EntryActions; onClose: () => v
       setTimeout(open, 0);
     },
   });
-  const mod = isMac() ? '⌘' : 'Ctrl';
   const n = list.options.length;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-[12vh] animate-fade-in"
-      role="presentation"
-      onMouseDown={(e: MouseEvent) => e.target === e.currentTarget && onClose()}
-    >
+    <Backdrop onClose={onClose} align="top">
       <div
         ref={ref}
         role="dialog"
@@ -103,7 +97,7 @@ function Palette({ actions, onClose }: { actions: EntryActions; onClose: () => v
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={list.onKeyDown}
           />
-          <kbd className="qf-kbd">Esc</kbd>
+          <Kbd>Esc</Kbd>
         </div>
 
         <ResultList list={list} className="min-h-0 flex-1 overflow-y-auto p-1.5 scroll-thin" />
@@ -118,16 +112,16 @@ function Palette({ actions, onClose }: { actions: EntryActions; onClose: () => v
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border px-3 py-2 text-[11px] text-muted">
           <span>
-            <kbd className="qf-kbd">↑</kbd> <kbd className="qf-kbd">↓</kbd> move
+            <Kbd>↑</Kbd> <Kbd>↓</Kbd> move
           </span>
           <span>
-            <kbd className="qf-kbd">Enter</kbd> open
+            <Kbd>Enter</Kbd> open
           </span>
           <span>
-            <kbd className="qf-kbd">{mod}</kbd>+<kbd className="qf-kbd">Enter</kbd> open in Canvas
+            <Kbd>{modKeyLabel()}</Kbd>+<Kbd>Enter</Kbd> open in Canvas
           </span>
         </div>
       </div>
-    </div>
+    </Backdrop>
   );
 }
