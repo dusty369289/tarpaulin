@@ -14,7 +14,7 @@ export {
 } from './ConfirmDialog';
 export { FoldedList } from './FoldedList';
 export { Kbd } from './Kbd';
-export { matchesQuery, Row, Section, SettingsFilter, useNoRows, useSettingsFilter } from './layout';
+export { Row, Section, SettingsFilter, useNoRows, useSettingsFilter } from './layout';
 export { Radio, RadioGroup } from './RadioGroup';
 export { SearchInput } from './SearchInput';
 export { Switch } from './Switch';

@@ -7,13 +7,14 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
+import { foldedIncludesAll } from '../lib/text';
 
 // The settings layout: rows grouped in cards. A row is its label and help on the left and its
 // control on the right, on one line; in a narrow column the control wraps below the label.
 //
 // Settings search: inside a <SettingsFilter query>, each row shows only if every word of the
-// query is in its label, help or keywords, and a section whose rows are all filtered out hides
-// itself, so one view can hold every category's matches.
+// query is in its label, help or keywords (ignoring case and accents), and a section whose rows
+// are all filtered out hides itself, so one view can hold every category's matches.
 
 const FilterContext = createContext('');
 
@@ -25,16 +26,8 @@ export function SettingsFilter({ query, children }: { query: string; children: R
 /** The settings search query in effect here, trimmed ('' when not searching). */
 export const useSettingsFilter = () => useContext(FilterContext);
 
-/** Whether every word of `query` appears in one of `texts`, ignoring case. */
-export function matchesQuery(query: string, ...texts: Array<string | undefined>): boolean {
-  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-  if (!words.length) return true;
-  const haystack = texts.filter(Boolean).join(' ').toLowerCase();
-  return words.every((w) => haystack.includes(w));
-}
-
 /** Marks a settings row in the DOM, for sections and search results to count. */
-export const ROW_ATTR = 'data-settings-row';
+const ROW_ATTR = 'data-settings-row';
 
 /**
  * While searching, whether the element `ref` points at has no matching rows left in it. Read
@@ -115,7 +108,7 @@ export function Row({
   testId?: string;
 }) {
   const query = useSettingsFilter();
-  if (!matchesQuery(query, label, help, keywords)) return null;
+  if (!foldedIncludesAll(query, label, help, keywords)) return null;
   const text = (
     <div className={stacked ? 'min-w-0' : 'min-w-0 flex-1 basis-56'}>
       <div className="text-sm font-medium">{label}</div>

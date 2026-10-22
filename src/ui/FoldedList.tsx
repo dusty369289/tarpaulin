@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
+import { foldedIncludesAll } from '../lib/text';
 import { SearchInput } from './SearchInput';
 
 interface FoldedListProps<T> {
@@ -18,7 +19,8 @@ interface FoldedListProps<T> {
 
 /**
  * A long list shown folded: the first few rows, a button to show the rest, and an optional
- * search that filters across everything (searching always shows every match).
+ * search that filters across everything, ignoring case and accents (searching always shows every
+ * match).
  */
 export function FoldedList<T>({
   items,
@@ -31,9 +33,9 @@ export function FoldedList<T>({
 }: FoldedListProps<T>) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const q = query.trim().toLowerCase();
+  const q = query.trim();
   const matches =
-    q && searchText ? items.filter((i) => searchText(i).toLowerCase().includes(q)) : items;
+    q && searchText ? items.filter((i) => foldedIncludesAll(q, searchText(i))) : items;
   const shown = q || open ? matches : matches.slice(0, folded);
   const hidden = matches.length - shown.length;
 
