@@ -68,6 +68,13 @@ body {
   .chip {
     @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium;
   }
+  /* A status chip in one tone (--tone, an "r g b" token): a 15% wash of it, and its ink pulled a
+     quarter of the way towards the text colour, so it stays above 4.5:1 on its own wash. The
+     plain tone on the wash fell to about 3.8:1 in light mode. */
+  .chip-tone {
+    background-color: rgb(var(--tone) / 0.15);
+    color: color-mix(in srgb, rgb(var(--tone)) 75%, rgb(var(--text)));
+  }
 }
 
 /* react-grid-layout: tint the placeholder and resize handle with the theme. */
@@ -405,6 +412,10 @@ body {
   line-height: 1.05;
   transition: font-size 200ms ease;
 }
+.cd-unit {
+  /* Units are 0.45em of the digits, but never under 11px when the digits shrink. */
+  font-size: max(0.45em, 11px);
+}
 .cd-sub {
   grid-area: sub;
   font-size: var(--small-print);
@@ -580,6 +591,13 @@ body {
     order: 2;
     font-size: 0.9375em;
   }
+}
+
+/* Days outside the month: surface-2 at 60% over the cell's surface, mixed to one opaque colour.
+   A translucent background let the grid's border colour (the 1px gaps between cells) show through
+   instead, which in styles with dark ink borders dimmed the day numbers to about 2:1. */
+.cal-out {
+  background-color: color-mix(in srgb, rgb(var(--surface-2)) 60%, rgb(var(--surface)));
 }
 
 /* Calendar month: when the widget is much wider than tall, the day list sits beside the grid

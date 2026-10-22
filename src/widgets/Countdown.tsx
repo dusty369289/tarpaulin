@@ -105,7 +105,7 @@ export const Countdown = defineWidget({
                 visible.map(([v, u]) => (
                   <span key={u} className="whitespace-nowrap">
                     {v}
-                    <span className="ml-0.5 text-[0.45em] font-medium text-muted">{u}</span>
+                    <span className="cd-unit ml-0.5 font-medium text-muted">{u}</span>
                   </span>
                 ))
               )}
