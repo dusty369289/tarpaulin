@@ -1,16 +1,13 @@
 import type { PlannerItemType } from '../canvas/types';
 
 // Plans are kept per Canvas account and, within one, per Canvas item. The account scope is the
-// same `<baseUrl>|<userId>` that notifications use (src/notifications/useNotifications.ts), so a
-// plan made under one account never shows under another. The item key names the kind, course
+// same `<baseUrl>|<userId>` that notifications use (src/canvas/account.ts), so a plan made under
+// one account never shows under another. The item key names the kind, course
 // and id, because Canvas ids are only unique per kind ("assignment 12" and "quiz 12" differ).
 
 /** The kinds of Canvas work you can plan. */
 export const PLAN_ITEM_TYPES = ['assignment', 'quiz', 'discussion'] as const;
 export type PlanItemType = (typeof PLAN_ITEM_TYPES)[number];
-
-/** `<baseUrl>|<userId>`, like notifications. */
-export const planAccount = (baseUrl: string, userId: string) => `${baseUrl}|${userId}`;
 
 /** `assignment:<courseId>:<id>`. */
 export const planItemKey = (type: PlanItemType, courseId: string, id: string) =>

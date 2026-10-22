@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { planAccount, planItemKey } from '../planner/keys';
+import { accountScope } from '../canvas/account';
+import { planItemKey } from '../planner/keys';
 import { EMPTY_PLAN, usePlans, type Plan } from '../planner/store';
 import { applyImportedPlans, exportDashboard, importDashboard } from './exportImport';
 import { buildPage, PRESETS } from './presets';
 
-const A = planAccount('https://a.example.edu', '1');
-const B = planAccount('https://b.example.edu', '7');
+const A = accountScope('https://a.example.edu', '1');
+const B = accountScope('https://b.example.edu', '7');
 const PS4 = planItemKey('assignment', '10', '400');
 const QUIZ = planItemKey('quiz', '10', '1');
 const pages = [buildPage(PRESETS[0])];

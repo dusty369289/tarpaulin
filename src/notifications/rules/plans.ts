@@ -1,12 +1,12 @@
 import { format } from 'date-fns';
-import { DEFAULT_DO_TIME, dayKey, doDateAt } from '../planner/selectors';
-import type { DoDate } from '../planner/store';
-import type { NotificationPrefs } from './prefs';
-import { inQuietHours, type Note } from './rules';
+import { DEFAULT_DO_TIME, dayKey, doDateAt } from '../../planner/selectors';
+import type { DoDate } from '../../planner/store';
+import { isMuted, pruneShown, summarise, type Note } from '../core';
+import type { NotificationPrefs } from '../prefs';
 
 // "Planned for today: Problem set 4", on the day you planned to do a piece of work (My plan,
-// src/planner): at the time you set, or at 09:00 without one. Kept apart from rules.ts, with its
-// own saved state, so the other reminders can change without touching it.
+// src/planner): at the time you set, or at 09:00 without one. Kept apart from deadlines.ts, with
+// its own saved state, so the other reminders can change without touching it.
 //
 // - Once per item and do-date: moving the do-date to another day or time reminds again.
 // - Only on the do-date itself: a day the app wasn't open is skipped, not caught up on later.
@@ -31,23 +31,19 @@ export interface PlanReminderState {
 export const EMPTY_PLAN_REMINDER_STATE: PlanReminderState = { shown: {} };
 
 const KEEP_MS = 14 * 24 * 60 * 60_000;
-const MAX_SEPARATE = 3;
 
-export function planPlanReminders(
+export function decidePlanReminders(
   plans: PlanReminderInput[],
-  opts: { enabled: boolean; prefs: NotificationPrefs },
+  prefs: NotificationPrefs,
   prev: PlanReminderState,
   now: Date,
   timeFmt = 'h:mm a',
 ): { notes: Note[]; state: PlanReminderState } {
   const nowMs = now.getTime();
   const state: PlanReminderState = {
-    shown: Object.fromEntries(
-      Object.entries(prev.shown ?? {}).filter(([, at]) => nowMs - at < KEEP_MS),
-    ),
+    shown: pruneShown(prev.shown ?? {}, (at) => at, nowMs, KEEP_MS),
   };
-  if (!opts.enabled || !opts.prefs.enabled || inQuietHours(opts.prefs, now))
-    return { notes: [], state };
+  if (!prefs.planned || isMuted(prefs, now)) return { notes: [], state };
 
   const today = dayKey(now);
   const due: Note[] = [];
@@ -64,14 +60,9 @@ export function planPlanReminders(
       body: [p.courseName, at].filter(Boolean).join(' · ') || 'My plan',
     });
   }
-  const notes =
-    due.length > MAX_SEPARATE
-      ? [
-          {
-            title: `${due.length} things planned for today`,
-            body: 'Open Tarpaulin to see your plan.',
-          },
-        ]
-      : due;
+  const notes = summarise(due, (n) => ({
+    title: `${n} things planned for today`,
+    body: 'Open Tarpaulin to see your plan.',
+  }));
   return { notes, state };
 }

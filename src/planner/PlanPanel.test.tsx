@@ -4,10 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ItemReader } from '../reader/ItemReader';
 import type { ReaderItem } from '../reader/items';
 import { fixtureBundle, recordedAt, renderWithCanvas } from '../test/render';
-import { planAccount, planItemKey } from './keys';
+import { accountScope } from '../canvas/account';
+import { planItemKey } from './keys';
 import { usePlans } from './store';
 
-const ACCOUNT = planAccount(fixtureBundle.meta.baseUrl, '1001');
+const ACCOUNT = accountScope(fixtureBundle.meta.baseUrl, '1001');
 const KEY = planItemKey('assignment', '1032', '1099');
 const ITEM: ReaderItem = {
   kind: 'assignment',
@@ -89,7 +90,7 @@ describe('My plan in the reader', () => {
 
   it('shows the plan already saved, and nothing from another account', async () => {
     const { edit } = usePlans.getState();
-    edit(planAccount('https://other.example.edu', '1001'), KEY, () => ({ status: 'done' }));
+    edit(accountScope('https://other.example.edu', '1001'), KEY, () => ({ status: 'done' }));
     edit(ACCOUNT, KEY, () => ({ status: 'doing' }));
     const panel = await openPanel();
     await waitFor(() =>

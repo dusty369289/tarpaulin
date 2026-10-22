@@ -1,11 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import {
-  parsePlanItemKey,
-  planAccount,
-  planItemKey,
-  planKeyForPlannerItem,
-  planKeyForReaderItem,
-} from './keys';
+import { accountScope } from '../canvas/account';
+import { parsePlanItemKey, planItemKey, planKeyForPlannerItem, planKeyForReaderItem } from './keys';
 import { plansOn, planSummary } from './selectors';
 import {
   EMPTY_PLAN,
@@ -19,8 +14,8 @@ import {
   type Plan,
 } from './store';
 
-const A = planAccount('https://a.example.edu', '1');
-const B = planAccount('https://b.example.edu', '1');
+const A = accountScope('https://a.example.edu', '1');
+const B = accountScope('https://b.example.edu', '1');
 const PS4 = planItemKey('assignment', '10', '400');
 const QUIZ = planItemKey('quiz', '10', '400');
 const plan = (p: Partial<Plan>): Plan => ({ ...EMPTY_PLAN, updatedAt: Date.now(), ...p });

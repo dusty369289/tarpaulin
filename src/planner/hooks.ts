@@ -1,8 +1,6 @@
 import { useCallback, useMemo } from 'react';
-import { useCanvas } from '../canvas/CanvasProvider';
-import { useProfile } from '../canvas/hooks';
+import { useAccountScope } from '../canvas/account';
 import { newId } from '../lib/id';
-import { planAccount } from './keys';
 import { plansOn, planSummary, type PlannedItem, type PlanSummary } from './selectors';
 import {
   EMPTY_PLAN,
@@ -16,26 +14,15 @@ import {
 
 const NO_PLANS: AccountPlans = {};
 
-/**
- * The signed-in account's scope, `<baseUrl>|<userId>`, worked out like notifications do: null
- * until the profile is known (or, if it can't load, the Canvas address alone).
- */
-export function usePlanAccount(): string | null {
-  const baseUrl = useCanvas().client?.baseUrl;
-  const profile = useProfile();
-  const userId = profile.data?.id ?? (profile.isError ? '' : null);
-  return baseUrl && userId !== null ? planAccount(baseUrl, userId) : null;
-}
-
 /** Every plan of the signed-in account (item key → plan). */
 export function useAccountPlans(): AccountPlans {
-  const account = usePlanAccount();
+  const account = useAccountScope();
   return usePlans((s) => (account && s.plans[account]) || NO_PLANS);
 }
 
 /** One item's plan in the signed-in account, or null when nothing is planned. */
 export function usePlan(key: string | null): Plan | null {
-  const account = usePlanAccount();
+  const account = useAccountScope();
   return usePlans((s) => (account && key && s.plans[account]?.[key]) || null);
 }
 
@@ -53,7 +40,7 @@ export function usePlansOn(day: Date): PlannedItem[] {
 
 /** Changes to one item's plan; each is a no-op until the account is known. */
 export function usePlanEditor(key: string | null, meta?: PlanMeta) {
-  const account = usePlanAccount();
+  const account = useAccountScope();
   const plan = usePlan(key);
   const edit = usePlans((s) => s.edit);
   const { title, courseName, dueAt } = meta ?? {};

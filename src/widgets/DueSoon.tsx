@@ -6,7 +6,8 @@ import { useOpenItem } from '../reader/ReaderProvider';
 import { useCourseIds, useNow, useUpcoming } from '../canvas/hooks';
 import type { Deadline, Deadlines, DeadlineStatus } from '../canvas/models';
 import { formatDue, useTimeFormat } from '../lib/dates';
-import { useAccountPlans, usePlanAccount } from '../planner/hooks';
+import { useAccountScope } from '../canvas/account';
+import { useAccountPlans } from '../planner/hooks';
 import { planKeyForPlannerItem } from '../planner/keys';
 import { PlanStatusIcon } from '../planner/PlanStatusIcon';
 import { formatDoDate, nextStatus, STATUS_LABEL } from '../planner/selectors';
@@ -188,7 +189,7 @@ export const DueSoon = defineWidget({
     const deadlines = useUpcoming(settings.daysAhead, settings.overdueDays);
     const openItem = useOpenItem();
     const timeFmt = useTimeFormat();
-    const account = usePlanAccount();
+    const account = useAccountScope();
     const plans = useAccountPlans();
     const editPlan = usePlans((s) => s.edit);
     const planOf = (d: Deadline) => {

@@ -1,59 +1,52 @@
-import { addDays, startOfDay } from 'date-fns';
-import { useEffect, useMemo, useRef } from 'react';
-import { showNotification } from '../app/desktop';
+import { useEffect, useMemo } from 'react';
 import { useSettings } from '../app/settingsStore';
-import { useDeadlines, useNow } from '../canvas/hooks';
+import { useAccountScope } from '../canvas/account';
 import { useTimeFormat } from '../lib/dates';
-import { useAccountPlans, usePlanAccount } from '../planner/hooks';
+import { isRecord } from '../lib/storage';
+import { useAccountPlans } from '../planner/hooks';
 import { planKeyForPlannerItem } from '../planner/keys';
 import { usePlans } from '../planner/store';
+import type { NotificationPrefs } from './prefs';
 import {
   EMPTY_PLAN_REMINDER_STATE,
-  planPlanReminders,
+  decidePlanReminders,
   type PlanReminderInput,
   type PlanReminderState,
-} from './planRules';
+} from './rules/plans';
+import { ruleStorageKey, useNotifyDeadlines, useRuleRunner, type Rule } from './useRuleRunner';
 
-// Runs beside the other notifications (NotificationRunner): every minute it asks planRules which
-// "Planned for today" reminders are due. Shown reminders are saved per account, like the rest.
-// It also tells the plan store which planned items Canvas still lists, so their plans aren't
-// pruned. It reads the same cached planner data the notifications hook does: no extra requests.
+// Runs beside the other notifications (NotificationRunner): every minute it asks rules/plans.ts
+// which "Planned for today" reminders are due. Shown reminders are saved per account, like the
+// rest. It also tells the plan store which planned items Canvas still lists, so their plans
+// aren't pruned. It reads the same cached planner data the notifications hook does: no extra
+// requests.
 
 const STORAGE_PREFIX = 'tarpaulin.planReminders';
-export const planReminderStorageKey = (account: string) => `${STORAGE_PREFIX}:${account}`;
-const BACK_DAYS = 30;
-const AHEAD_DAYS = 8;
+export const planReminderStorageKey = (scope: string) => ruleStorageKey(STORAGE_PREFIX, scope);
 
-function load(key: string): PlanReminderState {
-  try {
-    const raw = localStorage.getItem(key);
-    const parsed = raw ? (JSON.parse(raw) as Partial<PlanReminderState>) : null;
-    return parsed?.shown && typeof parsed.shown === 'object'
-      ? { shown: parsed.shown }
-      : EMPTY_PLAN_REMINDER_STATE;
-  } catch {
-    return EMPTY_PLAN_REMINDER_STATE;
-  }
+interface Input {
+  plans: PlanReminderInput[];
+  prefs: NotificationPrefs;
+  now: Date;
+  timeFmt: string;
 }
-function save(key: string, state: PlanReminderState) {
-  try {
-    localStorage.setItem(key, JSON.stringify(state));
-  } catch {
-    /* storage unavailable: a reminder may repeat after a restart, nothing worse */
-  }
-}
+
+const RULE: Rule<Input, PlanReminderState> = {
+  prefix: STORAGE_PREFIX,
+  parse: (raw) =>
+    isRecord(raw) && isRecord(raw.shown) ? { shown: raw.shown as Record<string, number> } : null,
+  empty: EMPTY_PLAN_REMINDER_STATE,
+  decide: ({ plans, prefs, now, timeFmt }, state) =>
+    decidePlanReminders(plans, prefs, state, now, timeFmt),
+};
 
 export function usePlanReminders() {
   const prefs = useSettings((s) => s.notifications);
-  const enabled = prefs.planned;
-  const now = useNow(60_000);
   const timeFmt = useTimeFormat();
-  const today = startOfDay(now);
-  const account = usePlanAccount();
+  const { now, deadlines } = useNotifyDeadlines();
+  const account = useAccountScope();
   const plans = useAccountPlans();
   const markSeen = usePlans((s) => s.markSeen);
-  const deadlines = useDeadlines(addDays(today, -BACK_DAYS), addDays(today, AHEAD_DAYS));
-  const state = useRef<{ key: string; value: PlanReminderState } | null>(null);
 
   // Canvas's view of each planned item: its current title, and whether it's handed in.
   const canvas = useMemo(() => {
@@ -74,7 +67,7 @@ export function usePlanReminders() {
     if (account && seen.length) markSeen(account, seen);
   }, [account, seen, markSeen]);
 
-  const input = useMemo<PlanReminderInput[]>(
+  const items = useMemo<PlanReminderInput[]>(
     () =>
       Object.entries(plans).flatMap(([key, p]) => {
         if (!p.doDate) return [];
@@ -94,14 +87,9 @@ export function usePlanReminders() {
 
   // Wait for Canvas, so work already handed in isn't announced (unless Canvas can't be reached).
   const ready = canvas !== null || deadlines.query.isError;
-
-  useEffect(() => {
-    if (!account || !ready) return;
-    const key = planReminderStorageKey(account);
-    if (state.current?.key !== key) state.current = { key, value: load(key) };
-    const planned = planPlanReminders(input, { enabled, prefs }, state.current.value, now, timeFmt);
-    state.current.value = planned.state;
-    save(key, planned.state);
-    for (const n of planned.notes) void showNotification(n.title, n.body).catch(() => {});
-  }, [account, ready, input, enabled, prefs, now, timeFmt]);
+  const input = useMemo(
+    () => (ready ? { plans: items, prefs, now, timeFmt } : null),
+    [ready, items, prefs, now, timeFmt],
+  );
+  useRuleRunner(RULE, input);
 }

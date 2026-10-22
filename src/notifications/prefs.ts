@@ -29,7 +29,7 @@ const prefs = z.object({
   grades: z.boolean().default(true),
   /** "Planned for today": on the do-date of work in My plan (src/planner). */
   planned: z.boolean().default(true),
-  /** A preview of the week ahead, the evening before it starts (weekly.ts). */
+  /** A preview of the week ahead, the evening before it starts (rules/weekly.ts). */
   weekly: z.boolean().default(true),
   quietHours: z
     .object({

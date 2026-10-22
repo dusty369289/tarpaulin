@@ -1,8 +1,9 @@
 import { act } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS, useSettings } from '../app/settingsStore';
+import { accountScope } from '../canvas/account';
 import { fixtureBundle, renderWithCanvas } from '../test/render';
-import { EMPTY_STATE, type NotifyState } from './rules';
+import { EMPTY_STATE, type NotifyState } from './rules/deadlines';
 import { notifyStorageKey, NotificationRunner } from './useNotifications';
 
 const shown = vi.hoisted(() => [] as { title: string; body: string }[]);
@@ -49,12 +50,14 @@ describe('NotificationRunner', () => {
   it("doesn't use another account's state", async () => {
     // Another account had seen nothing yet; were it read here, every announcement would be new.
     localStorage.setItem(
-      notifyStorageKey('https://other.example.edu', '1'),
+      notifyStorageKey(accountScope('https://other.example.edu', '1')),
       JSON.stringify({ ...EMPTY_STATE, seenAnnouncements: [] }),
     );
     await run();
     expect(announcementNotes()).toEqual([]);
-    expect(saved(notifyStorageKey('https://other.example.edu', '1')).seenAnnouncements).toEqual([]);
+    expect(
+      saved(notifyStorageKey(accountScope('https://other.example.edu', '1'))).seenAnnouncements,
+    ).toEqual([]);
   });
 
   it('reports announcements new since its own last look', async () => {

@@ -2,6 +2,8 @@ import { isValid, parseISO } from 'date-fns';
 import { z } from 'zod';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { isAccountScope } from '../canvas/account';
+import { isRecord } from '../lib/storage';
 import { parsePlanItemKey } from './keys';
 
 // "My plan": when you'll do a piece of Canvas work, where you are with it, and its steps. It
@@ -73,16 +75,13 @@ export type PlansByAccount = Record<string, AccountPlans>;
 export const isEmptyPlan = (p: Plan) =>
   p.status === 'todo' && p.doDate === null && p.checklist.length === 0;
 
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  Boolean(v) && typeof v === 'object' && !Array.isArray(v);
-
 /** Validates stored or imported plans. Unknown accounts, keys and broken plans are dropped. A
  *  plan without a valid change time counts as changed `now`, so it isn't pruned on sight. */
 export function parsePlans(raw: unknown, now = Date.now()): PlansByAccount {
   const out: PlansByAccount = {};
   if (!isRecord(raw)) return out;
   for (const [account, plans] of Object.entries(raw)) {
-    if (!account.includes('|') || !isRecord(plans)) continue;
+    if (!isAccountScope(account) || !isRecord(plans)) continue;
     const kept: AccountPlans = {};
     for (const [key, value] of Object.entries(plans)) {
       if (!parsePlanItemKey(key) || !isRecord(value)) continue;

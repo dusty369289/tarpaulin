@@ -1,8 +1,9 @@
 import { addDays, format, isSameDay } from 'date-fns';
-import type { NotificationPrefs } from './prefs';
+import { isMuted, pruneShown, summarise, type Note } from '../core';
+import type { NotificationPrefs } from '../prefs';
 
 // Decides which notifications to show, as a pure function of what Canvas says now, the user's
-// preferences and what was already shown (persisted). The hook in useNotifications.ts feeds it
+// preferences and what was already shown (persisted). The hook in ../useNotifications.ts feeds it
 // every minute and whenever data refreshes.
 //
 // - Deadlines: one reminder per lead time ("1 day", "1 hour"…) for unfinished work. If the app
@@ -61,30 +62,9 @@ export const EMPTY_STATE: NotifyState = {
   scores: null,
 };
 
-export interface Note {
-  title: string;
-  body: string;
-}
-
-/** At most this many separate notifications per category per run; more become one summary. */
-const MAX_PER_KIND = 3;
 /** Announcements older than this aren't "new", even if Tarpaulin hasn't seen them before. */
 const FRESH_MS = 3 * 24 * 60 * 60_000;
 const KEEP_REMINDERS_MS = 30 * 24 * 60 * 60_000;
-
-function minutesOf(hhmm: string) {
-  const [h, m] = hhmm.split(':').map(Number);
-  return h * 60 + m;
-}
-
-export function inQuietHours(prefs: NotificationPrefs, now: Date): boolean {
-  const q = prefs.quietHours;
-  if (!q.enabled) return false;
-  const t = now.getHours() * 60 + now.getMinutes();
-  const [start, end] = [minutesOf(q.start), minutesOf(q.end)];
-  if (start === end) return false;
-  return start < end ? t >= start && t < end : t >= start || t < end;
-}
 
 export function formatRemaining(ms: number): string {
   const min = Math.max(1, Math.round(ms / 60_000));
@@ -102,11 +82,7 @@ function whenLabel(due: Date, now: Date, timeFmt: string) {
   return format(due, `EEE d MMM ${timeFmt}`);
 }
 
-function summarise(notes: Note[], summary: (n: number) => Note): Note[] {
-  return notes.length > MAX_PER_KIND ? [summary(notes.length)] : notes;
-}
-
-export function planNotifications(
+export function decideNotifications(
   input: NotifyInput,
   prefs: NotificationPrefs,
   prev: NotifyState,
@@ -115,9 +91,7 @@ export function planNotifications(
 ): { notes: Note[]; state: NotifyState } {
   const nowMs = now.getTime();
   const state: NotifyState = {
-    reminded: Object.fromEntries(
-      Object.entries(prev.reminded).filter(([, r]) => nowMs - r.at < KEEP_REMINDERS_MS),
-    ),
+    reminded: pruneShown(prev.reminded, (r) => r.at, nowMs, KEEP_REMINDERS_MS),
     seenAnnouncements: prev.seenAnnouncements,
     seenGraded: prev.seenGraded,
     scores: prev.scores,
@@ -130,7 +104,7 @@ export function planNotifications(
     state.scores = null;
   }
   // Quiet hours: nothing is shown or marked seen, so it all comes through afterwards.
-  if (!prefs.enabled || inQuietHours(prefs, now)) return { notes: [], state };
+  if (isMuted(prefs, now)) return { notes: [], state };
 
   const notes: Note[] = [];
 

@@ -2,7 +2,8 @@ import { act } from '@testing-library/react';
 import { format } from 'date-fns';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS, useSettings } from '../app/settingsStore';
-import { planAccount, planItemKey } from '../planner/keys';
+import { accountScope } from '../canvas/account';
+import { planItemKey } from '../planner/keys';
 import { EMPTY_PLAN, usePlans } from '../planner/store';
 import { fixtureBundle, recordedAt, renderWithCanvas } from '../test/render';
 import { planReminderStorageKey } from './usePlanReminders';
@@ -13,8 +14,8 @@ vi.mock('../app/desktop', () => ({
   showNotification: async (title: string, body: string) => void shown.push({ title, body }),
 }));
 
-const ACCOUNT = planAccount(fixtureBundle.meta.baseUrl, '1001');
-const OTHER = planAccount('https://other.example.edu', '1001');
+const ACCOUNT = accountScope(fixtureBundle.meta.baseUrl, '1001');
+const OTHER = accountScope('https://other.example.edu', '1001');
 /** Midday on the recorded day, on this machine's clock. */
 const NOON = new Date(recordedAt.getFullYear(), recordedAt.getMonth(), recordedAt.getDate(), 12);
 const TODAY = format(NOON, 'yyyy-MM-dd');

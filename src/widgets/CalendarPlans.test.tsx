@@ -2,7 +2,8 @@ import { act, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WidgetHost } from '../dashboard/WidgetHost';
 import { FixtureTransport } from '../canvas/transport';
-import { planAccount, planItemKey } from '../planner/keys';
+import { accountScope } from '../canvas/account';
+import { planItemKey } from '../planner/keys';
 import { usePlans } from '../planner/store';
 import { fixtureBundle, renderWithCanvas } from '../test/render';
 import { defaultSettings } from './registry';
@@ -10,7 +11,7 @@ import { defaultSettings } from './registry';
 // Do-dates from My plan on the Calendar: Wednesday 21 October 2026, weeks starting Monday 19.
 
 const NOW = new Date(2026, 9, 21, 12);
-const ACCOUNT = planAccount(fixtureBundle.meta.baseUrl, '1001');
+const ACCOUNT = accountScope(fixtureBundle.meta.baseUrl, '1001');
 const COURSE = '1031';
 
 /** An essay due next Wednesday (outside this week), as the planner sends it. */
