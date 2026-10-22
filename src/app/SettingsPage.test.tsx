@@ -74,7 +74,7 @@ describe('SettingsPage', () => {
     const user = userEvent.setup();
     const before = useDashboard.getState().pages.length;
     const file = new File(
-      [exportDashboard(useDashboard.getState().pages.slice(0, 1), null)],
+      [exportDashboard(useDashboard.getState().pages.slice(0, 1), null, {})],
       'mine.json',
       { type: 'application/json' },
     );

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { planAccount, planItemKey } from '../planner/keys';
 import { EMPTY_PLAN, usePlans, type Plan } from '../planner/store';
-import { applyImportedPlans, exportDashboard, importDashboard } from './exportImport';
+import { exportDashboard, importDashboard } from './exportImport';
 import { buildPage, PRESETS } from './presets';
 
 const A = planAccount('https://a.example.edu', '1');
@@ -16,8 +16,9 @@ beforeEach(() => usePlans.setState({ plans: {} }));
 describe('export / import of My plan', () => {
   it('goes with notes and checklists, and only then', () => {
     usePlans.setState({ plans: { [A]: { [PS4]: plan({ status: 'doing' }) } } });
-    expect(importDashboard(exportDashboard(pages, null)).plans).toBeNull();
-    const json = exportDashboard(pages, null, { includeLocalData: true });
+    const plans = usePlans.getState().plans;
+    expect(importDashboard(exportDashboard(pages, null, plans)).plans).toBeNull();
+    const json = exportDashboard(pages, null, plans, { includeLocalData: true });
     expect(JSON.parse(json)).toHaveProperty(['plans', A, PS4, 'status'], 'doing');
   });
 
@@ -34,14 +35,14 @@ describe('export / import of My plan', () => {
       [B]: { [PS4]: plan({ status: 'done' }) },
     };
     const result = importDashboard(
-      exportDashboard(pages, null, { includeLocalData: true, plans: original }),
+      exportDashboard(pages, null, original, { includeLocalData: true }),
     );
     expect(result.plans).toEqual(original);
 
     // On a device that already has a plan for A: A's arrive under A, and B's stay under B,
     // never mixed into A's.
     usePlans.setState({ plans: { [A]: { [QUIZ]: plan({ status: 'done' }) } } });
-    applyImportedPlans(result.plans);
+    usePlans.getState().importPlans(result.plans!);
     const plans = usePlans.getState().plans;
     expect(Object.keys(plans[A]).sort()).toEqual([PS4, QUIZ].sort());
     expect(plans[A][PS4].status).toBe('doing');
@@ -50,12 +51,14 @@ describe('export / import of My plan', () => {
 
   it('keeps the newer plan when both have one', () => {
     usePlans.setState({ plans: { [A]: { [PS4]: plan({ status: 'done', updatedAt: 2_000 }) } } });
-    applyImportedPlans({ [A]: { [PS4]: plan({ status: 'doing', updatedAt: 1_000 }) } });
+    usePlans
+      .getState()
+      .importPlans({ [A]: { [PS4]: plan({ status: 'doing', updatedAt: 1_000 }) } });
     expect(usePlans.getState().plans[A][PS4].status).toBe('done');
   });
 
   it('drops broken plans in a file and still imports the pages', () => {
-    const file = JSON.parse(exportDashboard(pages, null)) as Record<string, unknown>;
+    const file = JSON.parse(exportDashboard(pages, null, {})) as Record<string, unknown>;
     file.plans = { [A]: { [PS4]: { status: 'doing' }, nonsense: { status: 'doing' } }, x: 5 };
     const result = importDashboard(JSON.stringify(file));
     expect(result.pages).toHaveLength(1);

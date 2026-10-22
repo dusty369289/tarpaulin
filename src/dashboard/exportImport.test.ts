@@ -11,6 +11,7 @@ describe('export / import', () => {
     const json = exportDashboard(
       pages,
       { ...DEFAULT_SETTINGS, theme: 'dark', accent: '#ff0066' },
+      {},
       { includeSettings: true },
     );
     const result = importDashboard(json);
@@ -34,9 +35,9 @@ describe('export / import', () => {
   });
 
   it('leaves notes and checklists out unless asked', () => {
-    const without = importDashboard(exportDashboard(pages, null));
+    const without = importDashboard(exportDashboard(pages, null, {}));
     expect(JSON.stringify(without.pages)).not.toContain('secret note');
-    const withData = importDashboard(exportDashboard(pages, null, { includeLocalData: true }));
+    const withData = importDashboard(exportDashboard(pages, null, {}, { includeLocalData: true }));
     expect(JSON.stringify(withData.pages)).toContain('secret note');
     expect(without.settings).toBeNull();
   });

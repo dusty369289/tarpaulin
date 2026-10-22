@@ -25,14 +25,15 @@ import { useShallow } from 'zustand/react/shallow';
 import { useCanvas } from '../canvas/CanvasProvider';
 import { useCatalog, useProfile } from '../canvas/hooks';
 import {
-  applyImportedPlans,
+  exportDashboard,
   importDashboard,
   ImportError,
+  saveOrDownload,
   type ImportResult,
-  exportDashboard,
 } from '../dashboard/exportImport';
 import { buildPage, PRESETS, presetById } from '../dashboard/presets';
 import { useDashboard } from '../dashboard/store';
+import { usePlans } from '../planner/store';
 import { BackgroundPicker, LookPicker, SkinPicker } from '../theme/pickers';
 import { TokenHelpDialog } from '../onboarding/TokenHelp';
 import {
@@ -46,7 +47,6 @@ import {
   useSettingsFilter,
 } from '../ui';
 import { NotificationsSettings, StartupSettings } from './DesktopSettings';
-import { nativeSaveSupported, saveExport } from './desktop';
 import { ReplaceToken } from './ReplaceToken';
 import { pickSettings, useSettings, type Settings } from './settingsStore';
 import type { SettingsCategory } from './settingsNav';
@@ -567,30 +567,24 @@ function DataSettings() {
     const json = exportDashboard(
       useDashboard.getState().pages,
       pickSettings(useSettings.getState()),
+      usePlans.getState().plans,
       { includeSettings, includeLocalData: includeData },
     );
     const name = `tarpaulin-dashboard-${new Date().toISOString().slice(0, 10)}.json`;
-    // Desktop: the native save dialog (webviews there don't all handle downloads).
-    if (nativeSaveSupported()) {
-      setMessage(null);
-      try {
-        const path = await saveExport(name, json);
-        if (path) setMessage({ tone: 'ok', text: `Exported to ${path}.` });
-      } catch (e) {
-        setMessage({ tone: 'error', text: `Export failed: ${String(e)}` });
-      }
-      return;
+    setMessage(null);
+    try {
+      const saved = await saveOrDownload(name, json);
+      if (saved)
+        setMessage({
+          tone: 'ok',
+          text:
+            'path' in saved
+              ? `Exported to ${saved.path}.`
+              : `Exported as ${name}, in your downloads.`,
+        });
+    } catch (e) {
+      setMessage({ tone: 'error', text: `Export failed: ${String(e)}` });
     }
-    const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = name;
-    // Attached, and revoked later: WebKit drops a download whose URL is revoked straight away.
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    setMessage({ tone: 'ok', text: `Exported as ${name}, in your downloads.` });
   };
 
   const doImport = async (file: File) => {
@@ -631,7 +625,7 @@ function DataSettings() {
     if (mode === 'replace') replacePages(result.pages);
     else appendPages(result.pages);
     if (result.settings) update(result.settings);
-    applyImportedPlans(result.plans);
+    if (result.plans) usePlans.getState().importPlans(result.plans);
     setMessage({ tone: 'ok', text: `Imported ${pages}. ${result.warnings.join(' ')}`.trim() });
   };
 

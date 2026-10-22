@@ -1,7 +1,8 @@
 import { z } from 'zod';
+import { nativeSaveSupported, saveExport } from '../app/desktop';
 import { SettingsSchema, type Settings } from '../app/settingsStore';
 import { newId } from '../lib/id';
-import { parsePlans, usePlans, type PlansByAccount } from '../planner/store';
+import { parsePlans, type PlansByAccount } from '../planner/store';
 import { getWidget } from '../widgets/registry';
 import { DASHBOARD_VERSION, migrateDashboard } from './store';
 import type { Page } from './types';
@@ -46,13 +47,13 @@ export interface ExportOptions {
   includeSettings?: boolean;
   /** Notes and checklist contents, and My plan. */
   includeLocalData?: boolean;
-  /** The plans to include with local data; the saved ones when left out. */
-  plans?: PlansByAccount;
 }
 
+/** The export file for `pages`, with `settings` and every account's `plans` if `opts` ask. */
 export function exportDashboard(
   pages: Page[],
   settings: Settings | null,
+  plans: PlansByAccount,
   opts: ExportOptions = {},
 ): string {
   const out = {
@@ -71,9 +72,7 @@ export function exportDashboard(
     ...(opts.includeSettings && settings ? { settings: SettingsSchema.parse(settings) } : {}),
     // Every account's plans, each under its own scope, so importing never shows one account's
     // plans under another.
-    ...(opts.includeLocalData
-      ? { plans: parsePlans(opts.plans ?? usePlans.getState().plans) }
-      : {}),
+    ...(opts.includeLocalData ? { plans: parsePlans(plans) } : {}),
   };
   return JSON.stringify(out, null, 2);
 }
@@ -81,16 +80,11 @@ export function exportDashboard(
 export interface ImportResult {
   pages: Page[];
   settings: Partial<Settings> | null;
-  /** My plan from the file (by account scope), or null when it has none. Apply with
-   *  applyImportedPlans once the import is confirmed. */
+  /** My plan from the file (by account scope), or null when it has none. Merge it in with
+   *  usePlans' importPlans once the import is confirmed: each plan stays under the account it
+   *  was made in, and where both have a plan for one item the more recently changed is kept. */
   plans: PlansByAccount | null;
   warnings: string[];
-}
-
-/** Adds the file's plans to this device's: each stays under the account it was made in, and
- *  where both have a plan for one item the more recently changed is kept. */
-export function applyImportedPlans(plans: PlansByAccount | null) {
-  if (plans) usePlans.getState().importPlans(plans);
 }
 
 export class ImportError extends Error {}
@@ -156,4 +150,29 @@ export function importDashboard(json: string): ImportResult {
     if (!Object.keys(plans).length) plans = null;
   }
   return { pages, settings, plans, warnings };
+}
+
+/**
+ * Saves an export: through the native save dialog on desktop (webviews there don't all handle
+ * downloads), as a download otherwise. Resolves to where it went, or null if the save dialog
+ * was cancelled; rejects if saving failed.
+ */
+export async function saveOrDownload(
+  fileName: string,
+  json: string,
+): Promise<{ path: string } | { downloaded: true } | null> {
+  if (nativeSaveSupported()) {
+    const path = await saveExport(fileName, json);
+    return path ? { path } : null;
+  }
+  const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  // Attached, and revoked later: WebKit drops a download whose URL is revoked straight away.
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  return { downloaded: true };
 }
