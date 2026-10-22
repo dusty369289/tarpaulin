@@ -10,6 +10,7 @@
 [![Downloads](https://img.shields.io/github/downloads/dusty369289/tarpaulin/total?style=flat-square&color=0f7a6c)](https://github.com/dusty369289/tarpaulin/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/dusty369289/tarpaulin/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/dusty369289/tarpaulin/actions/workflows/ci.yml)
 [![Built with Tauri 2](https://img.shields.io/badge/built%20with-Tauri%202-24C8DB?style=flat-square&logo=tauri&logoColor=white)](https://tauri.app)
+[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-a42e2b?style=flat-square)](LICENSE)
 
 [![Download for Windows](https://img.shields.io/badge/Windows-download-0078D4?style=for-the-badge&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0id2hpdGUiPjxyZWN0IHg9IjEiIHk9IjEiIHdpZHRoPSI2LjUiIGhlaWdodD0iNi41Ii8+PHJlY3QgeD0iOC41IiB5PSIxIiB3aWR0aD0iNi41IiBoZWlnaHQ9IjYuNSIvPjxyZWN0IHg9IjEiIHk9IjguNSIgd2lkdGg9IjYuNSIgaGVpZ2h0PSI2LjUiLz48cmVjdCB4PSI4LjUiIHk9IjguNSIgd2lkdGg9IjYuNSIgaGVpZ2h0PSI2LjUiLz48L3N2Zz4=)](https://github.com/dusty369289/tarpaulin/releases/latest/download/Tarpaulin-windows-x64-setup.exe)
 [![Download for macOS](https://img.shields.io/badge/macOS-download-1f2937?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/dusty369289/tarpaulin/releases/latest/download/Tarpaulin-macos-apple-silicon.dmg)
@@ -226,6 +227,13 @@ Tarpaulin is a [Tauri 2](https://tauri.app) app: a React and TypeScript interfac
 shell that holds the token and talks to Canvas. It comes with a mock Canvas, so you can run and
 test everything without an account. [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) covers running it,
 how it's built, adding a widget, the test suites, CI and cutting a release.
+
+## License
+
+Tarpaulin is free software under the [GNU General Public License v3](LICENSE), copyright © 2026
+Ethan Wright. You're free to use it, study it and change it for yourself. If you share a modified
+version, it has to stay open source under the same license, keep the credit to Tarpaulin, say
+that it's modified, and use its own name and icon. [NOTICE.md](NOTICE.md) has the details.
 
 <sub>Tarpaulin is an independent project. It isn't made by, or affiliated with, Instructure or
 Canvas LMS.</sub>

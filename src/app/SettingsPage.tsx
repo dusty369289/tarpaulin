@@ -178,6 +178,28 @@ function AppVersion() {
   return <span data-testid="app-version">{version ? `v${version}` : ''}</span>;
 }
 
+const SOURCE_URL = 'https://github.com/dusty369289/tarpaulin';
+
+/** The credit and source link that NOTICE.md asks every copy, and every modified version, to keep. */
+function About() {
+  const { transport } = useCanvas();
+  return (
+    <p className="pb-6 text-center text-xs text-muted">
+      Tarpaulin <AppVersion /> by Ethan Wright · reads Canvas only. Notes and checklists stay on
+      this device.
+      <br />
+      Free software under the GNU GPL v3 ·{' '}
+      <button
+        type="button"
+        className="underline underline-offset-2 hover:text-text"
+        onClick={() => void transport.openWebLink(SOURCE_URL).catch(() => {})}
+      >
+        Source code and license
+      </button>
+    </p>
+  );
+}
+
 function AccountSection() {
   const { connection, transport, refreshConnection } = useCanvas();
   const queryClient = useQueryClient();
@@ -760,9 +782,7 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
       <NotificationsSection />
       <StartupSection />
       <UpdatesSection />
-      <p className="pb-6 text-center text-xs text-muted">
-        Tarpaulin <AppVersion /> · reads Canvas only. Notes and checklists stay on this device.
-      </p>
+      <About />
     </div>
   );
 }
