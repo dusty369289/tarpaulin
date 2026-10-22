@@ -214,8 +214,8 @@ try {
       `--scenario=${SCENARIOS}`,
       `--pairs=${todo.join(',')}`,
       `--report=${report}`,
-      // Reported, not failing (yet): measured text contrast and size in each style's galleries.
-      '--contrast',
+      // Measured text contrast and size in each style's galleries count as failures.
+      '--contrast=strict',
     ],
     { stdio: 'inherit' },
   );

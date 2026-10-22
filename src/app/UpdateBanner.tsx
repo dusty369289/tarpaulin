@@ -41,11 +41,20 @@ function useTrayRefresh() {
 }
 
 /** A release's notes (Markdown from the GitHub release), folded under the banner. */
-export function ReleaseNotes({ id, notes }: { id?: string; notes: string }) {
+export function ReleaseNotes({
+  id,
+  notes,
+  className = 'border-b border-border bg-surface px-4 py-3',
+}: {
+  id?: string;
+  notes: string;
+  /** Replaces the banner's own frame (its border, background and padding). */
+  className?: string;
+}) {
   return (
     <div
       id={id}
-      className="max-h-64 overflow-y-auto border-b border-border bg-surface px-4 py-3 text-sm"
+      className={`max-h-64 overflow-y-auto text-sm ${className}`}
       data-testid="release-notes"
     >
       <Markdown source={notes} />

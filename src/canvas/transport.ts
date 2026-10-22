@@ -1,3 +1,4 @@
+import { invoke } from '../app/ipc';
 import { assertApiPath, encodePairs, toQueryPairs, type Query } from './http';
 import { CanvasAuthError, isAuthError, isCredentialRejection, type TokenExpiry } from './token';
 import type { ConnectionInfo } from './types';
@@ -36,7 +37,6 @@ export class TauriTransport implements Transport {
   readonly canManageCredentials = true;
 
   private async invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-    const { invoke } = await import('@tauri-apps/api/core');
     try {
       return await invoke<T>(cmd, args);
     } catch (e) {
@@ -86,8 +86,8 @@ export class DevProxyTransport implements Transport {
     return this.read(res);
   }
   async status(): Promise<ConnectionInfo> {
-    const res = await fetch(`${this.prefix}/status`);
-    return (await res.json()) as ConnectionInfo;
+    // A failed status request (the proxy down, a 5xx) is an error, not an answer of "not connected".
+    return (await this.read(await fetch(`${this.prefix}/status`))) as ConnectionInfo;
   }
   async tokenExpiry() {
     return (await this.read(await fetch(`${this.prefix}/token-expiry`))) as TokenExpiry;

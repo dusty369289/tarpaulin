@@ -157,10 +157,10 @@ export function CourseDot({ color, className = '' }: { color: string; className?
 }
 
 const BADGE_TONES = {
-  danger: 'bg-danger/15 text-danger',
-  warning: 'bg-warning/15 text-warning',
-  success: 'bg-success/15 text-success',
-  accent: 'bg-accent/15 text-accent',
+  danger: 'chip-tone [--tone:var(--danger)]',
+  warning: 'chip-tone [--tone:var(--warning)]',
+  success: 'chip-tone [--tone:var(--success)]',
+  accent: 'chip-tone [--tone:var(--accent)]',
   muted: 'bg-surface-2 text-muted',
 } as const;
 

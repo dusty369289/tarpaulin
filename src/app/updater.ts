@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { isTauri } from '../canvas/transport';
+import { invoke } from './ipc';
 import { useSettings } from './settingsStore';
 
 // Self-update from GitHub Releases (desktop only). The Rust side verifies signatures; this module
@@ -37,11 +38,6 @@ const HOUR = 60 * 60_000;
 const DAY = 24 * HOUR;
 /** Showing the window again checks if the last check is older than this. */
 const SHOW_RECHECK = 6 * HOUR;
-
-async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  const { invoke } = await import('@tauri-apps/api/core');
-  return invoke<T>(cmd, args);
-}
 
 export function appVersion(): Promise<string> {
   return isTauri()

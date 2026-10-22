@@ -320,7 +320,7 @@ export const Calendar = defineWidget({
                 <div className="cal-month min-h-0 flex-1">
                   <div className="cal-month-body">
                     <div className="flex min-h-0 flex-1 flex-col gap-2">
-                      <div className="grid grid-cols-7 text-center text-[10px] font-semibold uppercase text-muted">
+                      <div className="grid grid-cols-7 text-center text-[11px] font-semibold uppercase text-muted">
                         {weekdays.map((d) => (
                           <div key={d.toISOString()}>
                             {format(d, size.w >= 6 ? 'EEE' : 'EEEEE')}
@@ -331,7 +331,6 @@ export const Calendar = defineWidget({
                         ref={gridRef}
                         role="group"
                         aria-label={`${format(cursor, 'MMMM yyyy')}: arrow keys move between days`}
-                        onKeyDown={onGridKey}
                         className="grid flex-1 grid-cols-7 gap-px overflow-hidden rounded-md border border-border bg-border"
                         style={{ gridAutoRows: '1fr' }}
                       >
@@ -345,10 +344,11 @@ export const Calendar = defineWidget({
                               data-day={format(d, 'yyyy-MM-dd')}
                               tabIndex={isSameDay(d, tabDay) ? 0 : -1}
                               onFocus={() => setFocusDay(d)}
+                              onKeyDown={onGridKey}
                               onClick={() => setSelected(isSel ? null : d)}
                               aria-label={`${format(d, 'EEEE d MMMM')}, ${list.length} item${list.length === 1 ? '' : 's'}`}
                               aria-pressed={Boolean(isSel)}
-                              className={`flex min-h-0 flex-col items-stretch gap-0.5 overflow-hidden p-0.5 text-left focus-visible:outline-offset-[-2px] ${isSameMonth(d, cursor) ? 'bg-surface' : 'bg-surface-2/60 text-muted'} ${isSel ? 'ring-2 ring-inset ring-accent' : ''}`}
+                              className={`flex min-h-0 flex-col items-stretch gap-0.5 overflow-hidden p-0.5 text-left focus-visible:outline-offset-[-2px] ${isSameMonth(d, cursor) ? 'bg-surface' : 'cal-out text-muted'} ${isSel ? 'ring-2 ring-inset ring-accent' : ''}`}
                             >
                               <span
                                 className={`self-end rounded-full px-1 text-[11px] tabular-nums ${isToday(d) ? 'bg-accent text-accent-fg' : ''}`}
@@ -361,9 +361,9 @@ export const Calendar = defineWidget({
                                     .map((e) => (
                                       <span
                                         key={e.key}
-                                        className={`truncate rounded px-1 text-[10px] leading-4 ${e.done ? 'opacity-50' : ''}`}
+                                        className={`truncate rounded px-1 text-[11px] leading-4 ${e.done ? 'text-muted line-through' : ''}`}
                                         style={{
-                                          backgroundColor: `${e.color}22`,
+                                          backgroundColor: `${e.color}${e.done ? '12' : '22'}`,
                                           borderLeft: `2px solid ${e.color}`,
                                         }}
                                       >
@@ -372,7 +372,7 @@ export const Calendar = defineWidget({
                                     ))
                                 : null}
                               {chipSlots > 0 && list.length > chipSlots && (
-                                <span className="px-1 text-[10px] leading-4 text-muted">
+                                <span className="px-1 text-[11px] leading-4 text-muted">
                                   +{list.length - chipSlots + 1} more
                                 </span>
                               )}
