@@ -48,11 +48,11 @@ export interface WeekLoad extends DayLoad {
 }
 
 /** Day score thresholds: light from 1, busy from 3, heavy from 5. */
-export const DAY_LEVELS = { busy: 3, heavy: 5 } as const;
+const DAY_LEVELS = { busy: 3, heavy: 5 } as const;
 /** Week score thresholds: light from 1, busy from 6, heavy from 12. */
-export const WEEK_LEVELS = { busy: 6, heavy: 12 } as const;
+const WEEK_LEVELS = { busy: 6, heavy: 12 } as const;
 
-export const EMPTY_LOAD: DayLoad = { score: 0, due: 0, points: 0, level: 'none' };
+const EMPTY_LOAD: DayLoad = { score: 0, due: 0, points: 0, level: 'none' };
 
 /** Work that's due (done or not): what the course baseline is built from. */
 function isWorkItem(d: LoadSource): boolean {

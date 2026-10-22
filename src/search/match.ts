@@ -28,7 +28,7 @@ export interface Ranked<T> {
   band: Band;
 }
 
-export type Band = 0 | 1 | 2;
+type Band = 0 | 1 | 2;
 
 /** An own-title match at least this good (word start, initials without skips) ranks in band 0. */
 const STRONG = 70;
@@ -195,10 +195,12 @@ export function match(query: string, item: Searchable): Match {
   return { score, band };
 }
 
-/** Just the score of `match`. */
+/** Just the score of `match`.
+ *  @internal For tests. */
 export const matchScore = (query: string, item: Searchable): number => match(query, item).score;
 
-/** Sort key for "how soon": upcoming soonest first, then past most recent first, then undated. */
+/** Sort key for "how soon": upcoming soonest first, then past most recent first, then undated.
+ *  @internal For tests; `rank` uses it. */
 export function dueOrder(due: Date | null | undefined, now: Date): number {
   if (!due) return Number.MAX_SAFE_INTEGER;
   const t = due.getTime() - now.getTime();

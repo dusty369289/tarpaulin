@@ -12,7 +12,7 @@ import { parsePlanItemKey } from './keys';
 // keys.ts.
 
 export const PLAN_STORAGE_KEY = 'tarpaulin.plans';
-export const PLANS_VERSION = 1;
+const PLANS_VERSION = 1;
 
 export const PLAN_STATUSES = ['todo', 'doing', 'done'] as const;
 export type PlanStatus = (typeof PLAN_STATUSES)[number];
@@ -23,14 +23,12 @@ export const PRUNE_AFTER_MS = 60 * 24 * 60 * 60_000;
 /** How often "still in Canvas" is written back for one plan. */
 const SEEN_EVERY_MS = 24 * 60 * 60_000;
 
-export const StepSchema = z.object({
+const StepSchema = z.object({
   id: z.string().min(1).max(64),
   text: z.string().max(500),
   done: z.boolean(),
 });
-export type PlanStep = z.infer<typeof StepSchema>;
-
-export const DoDateSchema = z.object({
+const DoDateSchema = z.object({
   /** yyyy-MM-dd, on the wall clock times are shown in. */
   day: DayKeySchema,
   /** HH:mm, or null for "some time that day". */
@@ -65,7 +63,7 @@ export type AccountPlans = Record<string, Plan>;
 export type PlansByAccount = Record<string, AccountPlans>;
 
 /** Nothing planned: not worth keeping. */
-export const isEmptyPlan = (p: Plan) =>
+const isEmptyPlan = (p: Plan) =>
   p.status === 'todo' && p.doDate === null && p.checklist.length === 0;
 
 /** Validates stored or imported plans. Unknown accounts, keys and broken plans are dropped. A
@@ -174,6 +172,9 @@ export const usePlans = create<PlanState>()(
       name: PLAN_STORAGE_KEY,
       version: PLANS_VERSION,
       partialize: (s) => ({ plans: s.plans }),
+      // Stored plans are checked field by field in `merge` (parsePlans), like the settings, so
+      // there's nothing to move yet. A later version that changes the shape moves it here.
+      migrate: (persisted) => persisted,
       merge: (persisted, current) => ({
         ...current,
         plans: prunePlans(parsePlans((persisted as { plans?: unknown } | null)?.plans), Date.now()),

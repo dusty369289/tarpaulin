@@ -15,9 +15,9 @@ export interface Section {
 }
 
 /** Results shown per group while searching. */
-export const PER_GROUP = 8;
+const PER_GROUP = 8;
 /** How far ahead the empty palette looks for work due. */
-export const DUE_AHEAD_DAYS = 3;
+const DUE_AHEAD_DAYS = 3;
 
 export interface SectionOptions {
   /** Only these groups (recent picks from other groups are left out too). Default: all. */

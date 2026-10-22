@@ -19,7 +19,7 @@ import type { NotificationPrefs } from '../prefs';
 //   a preview).
 
 /** Hour of the evening before the week starts. */
-export const PREVIEW_HOUR = 18;
+const PREVIEW_HOUR = 18;
 
 export interface WeeklyState {
   /** The week (its first day, yyyy-MM-dd) last previewed or baselined; null if none yet. */
@@ -31,7 +31,8 @@ export interface WeeklyInput {
   deadlines: LoadSource[] | null;
 }
 
-/** The week whose preview window `now` falls in, or null outside every window. */
+/** The week whose preview window `now` falls in, or null outside every window.
+ *  @internal For tests; decideWeeklyPreview uses it. */
 export function previewWeek(now: Date, weekStartsOn: 0 | 1): Date | null {
   const current = startOfWeek(now, { weekStartsOn });
   for (const start of [current, addDays(current, 7)]) {

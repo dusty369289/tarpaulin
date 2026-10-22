@@ -3,14 +3,7 @@ import { useAccountScope } from '../canvas/account';
 import type { Deadline } from '../canvas/models';
 import { newId } from '../lib/id';
 import { planKeyForPlannerItem } from './keys';
-import {
-  nextStatus,
-  planMetaOf,
-  plansOn,
-  planSummary,
-  type PlannedItem,
-  type PlanSummary,
-} from './selectors';
+import { nextStatus, planMetaOf } from './selectors';
 import {
   EMPTY_PLAN,
   usePlans,
@@ -33,18 +26,6 @@ export function useAccountPlans(): AccountPlans {
 export function usePlan(key: string | null): Plan | null {
   const account = useAccountScope();
   return usePlans((s) => (account && key && s.plans[account]?.[key]) || null);
-}
-
-/** One item's plan at a glance (see planSummary). */
-export function usePlanSummary(key: string | null, now: Date, timeFmt?: string): PlanSummary {
-  const plan = usePlan(key);
-  return useMemo(() => planSummary(plan, now, timeFmt), [plan, now, timeFmt]);
-}
-
-/** Items the signed-in account planned for `day`, for the calendar. */
-export function usePlansOn(day: Date): PlannedItem[] {
-  const plans = useAccountPlans();
-  return useMemo(() => plansOn(plans, day), [plans, day]);
 }
 
 /** Changes to plans of the signed-in account; each is a no-op until the account is known. */
