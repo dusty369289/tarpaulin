@@ -229,7 +229,10 @@ that touches the app, and after every release (for the new version and installer
 force-pushes the result to the `readme-assets` branch. That branch only ever holds the latest
 render, and the README's images point at it, so refreshing them never needs a pull request.
 
-The same workflow publishes the download pages to GitHub Pages (`scripts/download-pages.ts`):
+The same workflow publishes the website, https://dusty369289.github.io/tarpaulin/, to GitHub
+Pages with `scripts/download-pages.ts`. Its landing page is `site/index.html`, in the app's Plain
+look, filled in with the latest release's version, sizes and download links, and with the same
+pictures as the README. It also has the download pages:
 `https://dusty369289.github.io/tarpaulin/download/<platform>/` sends the browser straight to that
 platform's file in the latest release. The README's download links use them, because the files'
 names change with every version. Pages has to be set to deploy from GitHub Actions (Settings →
