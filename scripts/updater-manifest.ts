@@ -107,7 +107,8 @@ async function main() {
   const manifest = buildManifest({
     repo,
     tag,
-    notes: release.body ?? '',
+    // tauri-action trims the release body it writes as notes.
+    notes: (release.body ?? '').trim(),
     pubDate: new Date().toISOString(),
     assets,
   });
