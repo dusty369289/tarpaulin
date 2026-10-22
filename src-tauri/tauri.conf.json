@@ -17,7 +17,10 @@
         "width": 1280,
         "height": 820,
         "minWidth": 720,
-        "minHeight": 520
+        "minHeight": 520,
+        "visible": false,
+        "backgroundColor": "#0f1117",
+        "backgroundThrottling": "disabled"
       }
     ],
     "security": {
