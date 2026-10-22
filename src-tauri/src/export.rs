@@ -47,7 +47,11 @@ fn write(path: &Path, contents: &str) -> Result<(), String> {
 /// Asks where to save and writes `contents` there. Resolves to the saved path, or `None` when
 /// the user cancels.
 #[tauri::command]
-pub async fn save_export(window: WebviewWindow, file_name: String, contents: String) -> Result<Option<String>, String> {
+pub async fn save_export(
+    window: WebviewWindow,
+    file_name: String,
+    contents: String,
+) -> Result<Option<String>, String> {
     if contents.len() > MAX_BYTES {
         return Err("export is too large".into());
     }
@@ -76,7 +80,10 @@ mod tests {
 
     #[test]
     fn suggests_a_plain_file_name() {
-        assert_eq!(suggested_name("tarpaulin-dashboard-2026-10-22.json"), "tarpaulin-dashboard-2026-10-22.json");
+        assert_eq!(
+            suggested_name("tarpaulin-dashboard-2026-10-22.json"),
+            "tarpaulin-dashboard-2026-10-22.json"
+        );
         assert_eq!(suggested_name("../../etc/passwd"), "passwd");
         assert_eq!(suggested_name("C:\\Users\\x\\a.json"), "a.json");
         assert_eq!(suggested_name("what?:*.json"), "what.json");
@@ -87,10 +94,22 @@ mod tests {
 
     #[test]
     fn adds_the_json_extension_when_missing() {
-        assert_eq!(with_json_extension("/tmp/a.json".into()), PathBuf::from("/tmp/a.json"));
-        assert_eq!(with_json_extension("/tmp/a.JSON".into()), PathBuf::from("/tmp/a.JSON"));
-        assert_eq!(with_json_extension("/tmp/a".into()), PathBuf::from("/tmp/a.json"));
-        assert_eq!(with_json_extension("/tmp/a.txt".into()), PathBuf::from("/tmp/a.txt"));
+        assert_eq!(
+            with_json_extension("/tmp/a.json".into()),
+            PathBuf::from("/tmp/a.json")
+        );
+        assert_eq!(
+            with_json_extension("/tmp/a.JSON".into()),
+            PathBuf::from("/tmp/a.JSON")
+        );
+        assert_eq!(
+            with_json_extension("/tmp/a".into()),
+            PathBuf::from("/tmp/a.json")
+        );
+        assert_eq!(
+            with_json_extension("/tmp/a.txt".into()),
+            PathBuf::from("/tmp/a.txt")
+        );
     }
 
     #[test]
@@ -100,7 +119,9 @@ mod tests {
         let path = dir.join("x.json");
         write(&path, "{\"pages\":[]}").unwrap();
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "{\"pages\":[]}");
-        assert!(write(&dir.join("missing/x.json"), "{}").unwrap_err().starts_with("couldn't save"));
+        assert!(write(&dir.join("missing/x.json"), "{}")
+            .unwrap_err()
+            .starts_with("couldn't save"));
         let _ = std::fs::remove_dir_all(dir);
     }
 }

@@ -38,7 +38,11 @@ pub struct ShellPrefs {
 /// Same defaults as src/app/settingsStore.ts.
 impl Default for ShellPrefs {
     fn default() -> Self {
-        Self { close_to_tray: true, start_minimized: true, tray_hint_shown: false }
+        Self {
+            close_to_tray: true,
+            start_minimized: true,
+            tray_hint_shown: false,
+        }
     }
 }
 
@@ -56,7 +60,10 @@ impl Prefs {
             .and_then(|p| std::fs::read_to_string(p).ok())
             .and_then(|text| serde_json::from_str(&text).ok())
             .unwrap_or_default();
-        Self { path, current: Mutex::new(current) }
+        Self {
+            path,
+            current: Mutex::new(current),
+        }
     }
 
     pub fn get(&self) -> ShellPrefs {
@@ -113,7 +120,11 @@ pub struct Startup {
 
 impl Startup {
     pub fn new(at_login: bool) -> Self {
-        Self { at_login, revealed: Mutex::new(None), settled: AtomicBool::new(false) }
+        Self {
+            at_login,
+            revealed: Mutex::new(None),
+            settled: AtomicBool::new(false),
+        }
     }
 
     /// The user brought the window up (tray, Dock, a second launch).
@@ -124,7 +135,9 @@ impl Startup {
 }
 
 fn apply_reveal(app: &AppHandle, reveal: Reveal) {
-    let Some(w) = app.get_webview_window("main") else { return };
+    let Some(w) = app.get_webview_window("main") else {
+        return;
+    };
     match reveal {
         Reveal::Show => {
             let _ = w.show();
@@ -183,12 +196,18 @@ fn permission_name(state: PermissionState) -> &'static str {
 /// "granted", "denied" or "prompt" (not decided yet).
 #[tauri::command]
 pub fn notification_permission(app: AppHandle) -> Result<&'static str, String> {
-    app.notification().permission_state().map(permission_name).map_err(|e| e.to_string())
+    app.notification()
+        .permission_state()
+        .map(permission_name)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn request_notification_permission(app: AppHandle) -> Result<&'static str, String> {
-    app.notification().request_permission().map(permission_name).map_err(|e| e.to_string())
+    app.notification()
+        .request_permission()
+        .map(permission_name)
+        .map_err(|e| e.to_string())
 }
 
 /// Shows a system notification. Titles and bodies are capped so a long Canvas title can't
@@ -211,7 +230,11 @@ pub fn autostart_enabled(app: AppHandle) -> Result<bool, String> {
 #[tauri::command]
 pub fn set_autostart(app: AppHandle, enabled: bool) -> Result<bool, String> {
     let launcher = app.autolaunch();
-    let result = if enabled { launcher.enable() } else { launcher.disable() };
+    let result = if enabled {
+        launcher.enable()
+    } else {
+        launcher.disable()
+    };
     result.map_err(|e| e.to_string())?;
     launcher.is_enabled().map_err(|e| e.to_string())
 }
@@ -225,7 +248,12 @@ pub fn launched_at_login() -> bool {
 /// Mirrors "start minimised at login". On a launch at login, the first call also corrects the
 /// window if the mirror was out of date (the setting changed after it was last written).
 #[tauri::command]
-pub fn set_start_minimized(app: AppHandle, prefs: State<'_, Prefs>, startup: State<'_, Startup>, enabled: bool) {
+pub fn set_start_minimized(
+    app: AppHandle,
+    prefs: State<'_, Prefs>,
+    startup: State<'_, Startup>,
+    enabled: bool,
+) {
     let prefs = prefs.update(|p| p.start_minimized = enabled);
     if !startup.at_login || startup.settled.swap(true, Ordering::Relaxed) {
         return;
@@ -254,7 +282,9 @@ mod tests {
     use super::*;
 
     fn temp_prefs_path() -> PathBuf {
-        std::env::temp_dir().join(format!("tarpaulin-test-{}", uuid::Uuid::new_v4())).join("desktop.json")
+        std::env::temp_dir()
+            .join(format!("tarpaulin-test-{}", uuid::Uuid::new_v4()))
+            .join("desktop.json")
     }
 
     #[test]
@@ -277,7 +307,13 @@ mod tests {
         // Missing fields take their defaults; unknown ones are ignored.
         std::fs::write(&path, r#"{"startMinimized":false,"somethingNew":1}"#).unwrap();
         let loaded = Prefs::load(Some(path.clone())).get();
-        assert_eq!(loaded, ShellPrefs { start_minimized: false, ..ShellPrefs::default() });
+        assert_eq!(
+            loaded,
+            ShellPrefs {
+                start_minimized: false,
+                ..ShellPrefs::default()
+            }
+        );
         let _ = std::fs::remove_dir_all(path.parent().unwrap());
     }
 
@@ -296,7 +332,11 @@ mod tests {
 
     #[test]
     fn window_appears_unless_launched_at_login_to_the_background() {
-        let prefs = |start_minimized, close_to_tray| ShellPrefs { start_minimized, close_to_tray, tray_hint_shown: false };
+        let prefs = |start_minimized, close_to_tray| ShellPrefs {
+            start_minimized,
+            close_to_tray,
+            tray_hint_shown: false,
+        };
         assert_eq!(initial_reveal(false, &prefs(true, true)), Reveal::Show);
         assert_eq!(initial_reveal(true, &prefs(false, true)), Reveal::Show);
         assert_eq!(initial_reveal(true, &prefs(true, true)), Reveal::StayHidden);
