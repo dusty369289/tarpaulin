@@ -15,7 +15,7 @@ export const SETTINGS_CATEGORIES = [
 
 export type SettingsCategory = (typeof SETTINGS_CATEGORIES)[number];
 
-const isCategory = (v: unknown): v is SettingsCategory =>
+export const isSettingsCategory = (v: unknown): v is SettingsCategory =>
   SETTINGS_CATEGORIES.includes(v as SettingsCategory);
 
 const KEY = 'tarpaulin.settingsCategory';
@@ -33,14 +33,14 @@ export function openSettings(category?: SettingsCategory) {
 export function categoryFromHash(): SettingsCategory | null {
   const query = location.hash.split('?')[1];
   const asked = query ? new URLSearchParams(query).get('category') : null;
-  return isCategory(asked) ? asked : null;
+  return isSettingsCategory(asked) ? asked : null;
 }
 
 /** The category last shown this session (sessionStorage), or the first. */
 export function lastCategory(): SettingsCategory {
   try {
     const saved = sessionStorage.getItem(KEY);
-    if (isCategory(saved)) return saved;
+    if (isSettingsCategory(saved)) return saved;
   } catch {
     // Storage blocked: start at the top.
   }

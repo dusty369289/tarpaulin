@@ -7,6 +7,7 @@ import { NotificationRunner } from '../notifications/useNotifications';
 import { QuickFind } from '../search/QuickFind';
 import { describeError } from '../widgets/shared/ui';
 import { setCloseToTray, startDesktopShell } from './desktop';
+import { isSettingsCategory, openSettings } from './settingsNav';
 import { useSettings } from './settingsStore';
 
 // Screens most launches never show load on demand: setup only runs once, Settings is a click away.
@@ -80,7 +81,12 @@ export function App() {
       {connectionFromCache && <SavedConnectionNote />}
       {/* Ctrl/⌘+K on either screen. Settings sections will deep-link here later (see
           src/search/settingsEntries.ts); for now every settings entry opens Settings. */}
-      <QuickFind onOpenSettings={() => go('settings')} onShowDashboard={() => go('dashboard')} />
+      <QuickFind
+        onOpenSettings={(section) =>
+          isSettingsCategory(section) ? openSettings(section) : go('settings')
+        }
+        onShowDashboard={() => go('dashboard')}
+      />
       {route === 'settings' ? (
         <>
           <Lazy screen={<SettingsPage onBack={() => go('dashboard')} />} />
