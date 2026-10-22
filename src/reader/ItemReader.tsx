@@ -13,7 +13,7 @@ import {
   User,
   type LucideIcon,
 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { lazy, Suspense, type ReactNode } from 'react';
 import { Drawer } from '../app/Modal';
 import { useCanvas } from '../canvas/CanvasProvider';
 import { useResource } from '../canvas/hooks';
@@ -21,8 +21,19 @@ import * as R from '../canvas/resources';
 import type { ItemDetail } from '../canvas/types';
 import { useTimeFormat } from '../lib/dates';
 import { Badge, CourseDot, ErrorState, LoadingState } from '../widgets/shared/ui';
-import { CanvasContent } from './CanvasContent';
 import type { ReaderItem } from './items';
+
+// Canvas HTML rendering (CanvasContent, DOMPurify and the reader styles) is a separate chunk, so
+// the dashboard starts without it. The drawer itself opens at once; its body shows the loading
+// state until the chunk is in, which ReaderProvider fetches a couple of seconds after start.
+let loading: Promise<typeof import('./CanvasContent')> | null = null;
+const loadContent = () =>
+  (loading ??= import('./CanvasContent').catch((e: unknown) => {
+    loading = null;
+    throw e;
+  }));
+export const preloadReaderContent = () => void loadContent().catch(() => {});
+const CanvasContent = lazy(() => loadContent().then((m) => ({ default: m.CanvasContent })));
 
 const KIND: Record<ItemDetail['kind'], { label: string; icon: LucideIcon }> = {
   assignment: { label: 'Assignment', icon: FileText },
@@ -107,6 +118,7 @@ export function ItemReader({ item, onClose }: { item: ReaderItem; onClose: () =>
     <Drawer
       wide
       title={kind.label}
+      label={title ? `${kind.label}: ${title}` : kind.label}
       onClose={onClose}
       footer={
         <div className="flex items-center justify-between gap-2">
@@ -163,7 +175,9 @@ export function ItemReader({ item, onClose }: { item: ReaderItem; onClose: () =>
         ) : query?.isError && !query.data ? (
           <ErrorState error={query.error} />
         ) : detail.html?.trim() ? (
-          <CanvasContent html={detail.html} />
+          <Suspense fallback={<LoadingState />}>
+            <CanvasContent html={detail.html} />
+          </Suspense>
         ) : (
           <p className="text-sm text-muted">No description in Canvas.</p>
         )}

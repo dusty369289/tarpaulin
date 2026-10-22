@@ -1,13 +1,17 @@
 /* The dashboard's top bar (AppBar). Two styles, chosen in Settings › Appearance:
    - frosted: a floating pane of glass, inset from the window edges, that the page shows through;
    - basic:   a quiet, solid, full-width strip with a hairline under it.
-   Colours come from the theme tokens, so every look and mode gets a matching bar. */
+   Colours come from the theme tokens, so every look and mode gets a matching bar. Looks can
+   also set the bar's own tokens (see "Looks" below): --bar-tint (an "r g b" fill), --bar-font
+   and --bar-font-scale for its text, and the two radii. */
 
 .app-bar {
   --bar-glass: 0.72;
   --bar-highlight: 0.45;
   --bar-shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 12px 32px -16px rgb(0 0 0 / 0.32);
   --bar-ink: var(--text);
+  --bar-tint: var(--surface);
+  --bar-font-scale: 1;
   --bar-radius: min(calc(var(--radius) + 4px), 1.25rem);
   --bar-control-radius: min(calc(var(--radius) * 0.75), 0.75rem);
   position: sticky;
@@ -52,8 +56,8 @@ html[data-theme='high-contrast'] .app-bar {
   border-radius: var(--bar-radius);
   border: 1px solid rgb(var(--border) / 0.75);
   background: linear-gradient(
-    rgb(var(--surface) / calc(var(--bar-glass) + 0.06)),
-    rgb(var(--surface) / var(--bar-glass))
+    rgb(var(--bar-tint) / calc(var(--bar-glass) + 0.06)),
+    rgb(var(--bar-tint) / var(--bar-glass))
   );
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   backdrop-filter: blur(20px) saturate(180%);
@@ -80,7 +84,7 @@ html[data-theme='high-contrast'] .app-bar {
 html[data-background]:not([data-background='plain'])
   .app-bar[data-bar-style='basic']
   .app-bar-surface {
-  background: rgb(var(--surface));
+  background: rgb(var(--bar-tint));
 }
 .app-bar[data-bar-style='basic'][data-fold='on'] .app-bar-surface {
   box-shadow: 0 10px 28px -18px rgb(0 0 0 / 0.45);
@@ -100,6 +104,79 @@ html[data-background='poster'] .app-bar[data-bar-style='frosted'] .app-bar-surfa
   border: 2px solid var(--poster-frame, #111);
   border-radius: 0;
   box-shadow: 5px 5px 0 var(--poster-frame, #111);
+}
+
+/* ---------- looks ---------- */
+/* Text in the bar takes the look's font when it sets one; menus keep the app font. */
+.bar-brand-name,
+.bar-tab,
+.bar-btn {
+  font-family: var(--bar-font, inherit);
+}
+
+/* Arcade: square 8-bit panel in the widgets' grape, with a chunky outline and a hard drop. */
+html[data-background='night-sky'] .app-bar {
+  --bar-tint: 241 233 255;
+  --bar-font: VT323, ui-monospace, monospace;
+  --bar-font-scale: 1.3;
+  --bar-radius: 0px;
+  --bar-control-radius: 0px;
+  --bar-drop: rgb(20 40 110 / 0.25);
+}
+html[data-background='night-sky'][data-mode='dark'] .app-bar {
+  --bar-tint: 59 35 128;
+  --bar-drop: rgb(0 0 0 / 0.4);
+}
+html[data-background='night-sky'] .bar-brand-name {
+  font-family: 'Press Start 2P', VT323, monospace;
+  font-size: 0.6875rem;
+}
+html[data-background='night-sky'] .app-bar[data-bar-style='frosted'] .app-bar-surface {
+  border: 3px solid rgb(var(--text));
+  box-shadow: 6px 6px 0 var(--bar-drop);
+}
+html[data-background='night-sky'] .app-bar[data-bar-style='basic'] .app-bar-surface {
+  border-bottom: 3px solid rgb(var(--text));
+}
+html[data-background='night-sky']
+  .app-bar[data-bar-style='frosted']
+  .bar-tab[aria-selected='true'] {
+  box-shadow: 0 0 0 2px rgb(var(--text));
+}
+
+/* Terminal and blueprint: monospaced type, square corners, no soft shadow. */
+html[data-background='crt'] .app-bar,
+html[data-background='blueprint'] .app-bar {
+  --bar-font: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  --bar-font-scale: 0.95;
+  --bar-radius: 0px;
+  --bar-control-radius: 0px;
+}
+html[data-background='crt'] .app-bar[data-bar-style='frosted'] .app-bar-surface,
+html[data-background='blueprint'] .app-bar[data-bar-style='frosted'] .app-bar-surface {
+  border-color: rgb(var(--border));
+  box-shadow: none;
+}
+html[data-background='crt'] .bar-brand-name {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+/* After dark the bar glows like the screen; by day it is a dashed printout edge. */
+html[data-background='crt'][data-mode='dark'] .app-bar-surface {
+  text-shadow: 0 0 6px rgb(var(--text) / 0.45);
+}
+html[data-background='crt'][data-mode='light'] .app-bar[data-bar-style='frosted'] .app-bar-surface {
+  border-style: dashed;
+}
+/* Blueprint: a lettered title block, like the panels' headings. */
+html[data-background='blueprint'] .app-bar[data-bar-style='frosted'] .app-bar-surface {
+  border: 1.5px solid rgb(var(--text) / 0.85);
+}
+html[data-background='blueprint'] .bar-brand-name {
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
 }
 
 /* ---------- fold away ---------- */
@@ -156,7 +233,7 @@ html[data-background='poster'] .app-bar[data-bar-style='frosted'] .app-bar-surfa
   letter-spacing: -0.01em;
 }
 .bar-brand-name {
-  font-size: 0.9375rem;
+  font-size: calc(0.9375rem * var(--bar-font-scale));
 }
 @media (max-width: 899px) {
   .bar-brand-name {
@@ -210,7 +287,7 @@ html[data-background='poster'] .app-bar[data-bar-style='frosted'] .app-bar-surfa
   height: 2.125rem;
   padding: 0 0.8rem;
   border-radius: var(--bar-control-radius);
-  font-size: 0.875rem;
+  font-size: calc(0.875rem * var(--bar-font-scale));
   font-weight: 500;
   color: rgb(var(--muted));
   white-space: nowrap;
@@ -307,7 +384,7 @@ html[data-background='poster'] .app-bar[data-bar-style='frosted'] .app-bar-surfa
 .bar-btn {
   gap: 0.4rem;
   padding: 0 0.75rem;
-  font-size: 0.875rem;
+  font-size: calc(0.875rem * var(--bar-font-scale));
   font-weight: 500;
   color: rgb(var(--text));
 }

@@ -16,6 +16,9 @@
   --success: 22 140 80;
   --radius: 12px;
   --font: ui-sans-serif, system-ui, sans-serif;
+  /* The smallest that secondary lines of fit-to-box widgets (clock, countdown) shrink to. Widget
+     styles whose fonts have small letters raise it. */
+  --small-print: 0.75rem;
 }
 
 html,
@@ -52,8 +55,9 @@ body {
   .btn-icon {
     @apply inline-flex h-7 w-7 items-center justify-center rounded-md text-muted transition hover:bg-surface-2 hover:text-text;
   }
+  /* Focused fields get the app-wide focus outline (above) as well as an accent border. */
   .input {
-    @apply w-full rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm text-text placeholder:text-muted/70 focus:border-accent focus:outline-none;
+    @apply w-full rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm text-text placeholder:text-muted focus:border-accent focus-visible:outline-offset-0;
   }
   .label {
     @apply mb-1 block text-xs font-medium text-muted;
@@ -187,7 +191,7 @@ body {
   transition: font-size 200ms ease;
 }
 .fit-line {
-  font-size: clamp(0.75rem, min(4.2cqw, 11cqh), 1.125rem);
+  font-size: clamp(var(--small-print), min(4.2cqw, 11cqh), 1.125rem);
 }
 
 /* Fade the edge of a scrolling widget body that has more content beyond it. */
@@ -251,12 +255,12 @@ body {
 }
 .clock-sum {
   grid-area: sum;
-  font-size: 0.75rem;
+  font-size: var(--small-print);
   line-height: 1.35;
 }
 .clock-greet,
 .clock-date {
-  font-size: clamp(0.75rem, min(4.2cqw, 11cqh), 1.125rem);
+  font-size: clamp(var(--small-print), min(4.2cqw, 11cqh), 1.125rem);
   transition: font-size 200ms ease;
 }
 @container (max-height: 104px) {
@@ -293,7 +297,7 @@ body {
   .clock-greet,
   .clock-date {
     display: block;
-    font-size: clamp(0.8125rem, min(2.4cqw, 17cqh), 2rem);
+    font-size: clamp(max(var(--small-print), 0.8125rem), min(2.4cqw, 17cqh), 2rem);
   }
   .clock-greet {
     font-weight: 600;
@@ -305,7 +309,7 @@ body {
     -webkit-line-clamp: 2;
     line-clamp: 2;
     overflow: hidden;
-    font-size: clamp(0.75rem, min(1.7cqw, 10cqh), 1.25rem);
+    font-size: clamp(var(--small-print), min(1.7cqw, 10cqh), 1.25rem);
   }
 }
 @container (min-height: 72px) and (min-width: 340px) and (min-aspect-ratio: 9 / 4) and (max-height: 112px) {
@@ -337,7 +341,7 @@ body {
   .clock-date,
   .clock-sum {
     display: none;
-    font-size: clamp(0.75rem, min(1.6cqw, 40cqh), 1.25rem);
+    font-size: clamp(var(--small-print), min(1.6cqw, 40cqh), 1.25rem);
   }
 }
 @container (max-height: 71.98px) and (min-width: 300px) {
@@ -389,7 +393,7 @@ body {
 }
 .cd-label {
   grid-area: label;
-  font-size: clamp(0.75rem, min(4.2cqw, 11cqh), 1.125rem);
+  font-size: clamp(var(--small-print), min(4.2cqw, 11cqh), 1.125rem);
 }
 .cd-digits {
   grid-area: digits;
@@ -403,7 +407,7 @@ body {
 }
 .cd-sub {
   grid-area: sub;
-  font-size: 0.75rem;
+  font-size: var(--small-print);
   line-height: 1.35;
 }
 @container (max-height: 64px) {
@@ -435,12 +439,12 @@ body {
     -webkit-line-clamp: 2;
     overflow: hidden;
     white-space: normal;
-    font-size: clamp(0.8125rem, min(2.3cqw, 17cqh), 1.75rem);
+    font-size: clamp(max(var(--small-print), 0.8125rem), min(2.3cqw, 17cqh), 1.75rem);
     line-height: 1.2;
   }
   .cd-sub {
     display: block;
-    font-size: clamp(0.75rem, min(1.6cqw, 11cqh), 1.125rem);
+    font-size: clamp(var(--small-print), min(1.6cqw, 11cqh), 1.125rem);
   }
   .cd-digits {
     justify-self: end;
@@ -470,7 +474,7 @@ body {
   .cd-label,
   .cd-sub {
     display: none;
-    font-size: clamp(0.75rem, min(1.6cqw, 36cqh), 1.25rem);
+    font-size: clamp(var(--small-print), min(1.6cqw, 36cqh), 1.25rem);
   }
 }
 @container (max-height: 71.98px) and (min-width: 420px) {

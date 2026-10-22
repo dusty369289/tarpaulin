@@ -1,5 +1,7 @@
-import { differenceInCalendarDays, isValid, parseISO } from 'date-fns';
+import { addDays, differenceInCalendarDays, startOfDay } from 'date-fns';
 import { COURSE_PALETTE } from '../lib/color';
+import { toDate } from '../lib/dates';
+import { htmlToText } from './client';
 import { currentTermCourses, currentTermName } from './terms';
 import type {
   AnnouncementData,
@@ -15,11 +17,10 @@ import type {
 // only ever holds JSON; these classes wrap it at read time so widgets can say
 // `deadlines.inCourses(ids).undone().sortByDue()` and `deadline.course?.color`.
 
-const date = (iso: string | null | undefined): Date | null => {
-  if (!iso) return null;
-  const d = parseISO(iso);
-  return isValid(d) ? d : null;
-};
+const DAY_MS = 86_400_000;
+
+/** Plain-text previews, derived once per cached announcement (the cache only keeps the HTML). */
+const previews = new WeakMap<AnnouncementData, string>();
 
 // ---------------------------------------------------------------------------------------------
 // Collections
@@ -115,8 +116,8 @@ export class Term {
 
   constructor(data: TermData) {
     this.name = data.name;
-    this.startAt = date(data.startAt);
-    this.endAt = date(data.endAt);
+    this.startAt = toDate(data.startAt);
+    this.endAt = toDate(data.endAt);
   }
 
   hasStarted(now: Date) {
@@ -237,7 +238,7 @@ export class Deadline implements BelongsToCourse {
     catalog: Catalog,
   ) {
     this.course = catalog.course(data.courseId);
-    this.date = date(data.dueAt ?? data.date);
+    this.date = toDate(data.dueAt ?? data.date);
   }
 
   get key() {
@@ -335,7 +336,7 @@ export class Announcement implements BelongsToCourse {
     catalog: Catalog,
   ) {
     this.course = catalog.course(data.courseId);
-    this.postedAt = date(data.postedAt);
+    this.postedAt = toDate(data.postedAt);
   }
   get id() {
     return this.data.id;
@@ -343,8 +344,11 @@ export class Announcement implements BelongsToCourse {
   get title() {
     return this.data.title;
   }
-  get message() {
-    return this.data.message;
+  /** Plain text of the body, for previews. */
+  get message(): string {
+    let text = previews.get(this.data);
+    if (text === undefined) previews.set(this.data, (text = htmlToText(this.data.html)));
+    return text;
   }
   get author() {
     return this.data.author;
@@ -377,7 +381,12 @@ export class Announcements extends CourseScoped<Announcement> {
 
 export class CalendarEvent implements BelongsToCourse {
   readonly course: Course | null;
+  /**
+   * When it starts. For an all-day event this is local midnight of its Canvas date, so it lands
+   * on the day Canvas shows even when this computer is in another time zone.
+   */
   readonly start: Date | null;
+  /** When it ends (exclusive). An all-day event ends at local midnight after its last day. */
   readonly end: Date | null;
 
   constructor(
@@ -385,8 +394,20 @@ export class CalendarEvent implements BelongsToCourse {
     catalog: Catalog,
   ) {
     this.course = catalog.course(data.courseId);
-    this.start = date(data.startAt);
-    this.end = date(data.endAt);
+    const start = toDate(data.startAt);
+    const end = toDate(data.endAt);
+    if (data.allDay) {
+      // Canvas stores all-day events as midnight in the account's zone, with end_at equal to
+      // start_at for a single day. Older cached data has no allDayDate; fall back to start_at.
+      const day = toDate(data.allDayDate) ?? (start && startOfDay(start));
+      const days =
+        start && end ? Math.max(1, Math.round((end.getTime() - start.getTime()) / DAY_MS)) : 1;
+      this.start = day;
+      this.end = day && addDays(day, days);
+    } else {
+      this.start = start;
+      this.end = end && start && end < start ? start : end;
+    }
   }
   get id() {
     return this.data.id;
@@ -396,6 +417,28 @@ export class CalendarEvent implements BelongsToCourse {
   }
   get allDay() {
     return this.data.allDay;
+  }
+  /** The first local calendar day the event touches. */
+  get firstDay(): Date | null {
+    return this.start && startOfDay(this.start);
+  }
+  /** The last local calendar day it touches; ending exactly at midnight doesn't count that day. */
+  get lastDay(): Date | null {
+    if (!this.start) return null;
+    if (!this.end || this.end <= this.start) return startOfDay(this.start);
+    return startOfDay(new Date(this.end.getTime() - 1));
+  }
+  get isMultiDay(): boolean {
+    const first = this.firstDay;
+    const last = this.lastDay;
+    return Boolean(first && last && last > first);
+  }
+  /** True when any part of the event falls on `day` (local). */
+  occursOn(day: Date): boolean {
+    const first = this.firstDay;
+    const last = this.lastDay;
+    const d = startOfDay(day);
+    return Boolean(first && last && d >= first && d <= last);
   }
   get location() {
     return this.data.location;
@@ -411,7 +454,12 @@ export class CalendarEvent implements BelongsToCourse {
   }
 }
 
-export class CalendarEvents extends CourseScoped<CalendarEvent> {}
+export class CalendarEvents extends CourseScoped<CalendarEvent> {
+  /** Events covering any part of `day`, multi-day ones on each of their days. */
+  on(day: Date): this {
+    return this.filter((e) => e.occursOn(day));
+  }
+}
 
 export class TodoItem implements BelongsToCourse {
   readonly course: Course | null;
@@ -422,7 +470,7 @@ export class TodoItem implements BelongsToCourse {
     catalog: Catalog,
   ) {
     this.course = catalog.course(data.courseId);
-    this.dueAt = date(data.dueAt);
+    this.dueAt = toDate(data.dueAt);
   }
   get key() {
     return this.data.key;

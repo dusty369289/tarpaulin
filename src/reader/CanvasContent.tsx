@@ -4,20 +4,36 @@ import { useCanvas } from '../canvas/CanvasProvider';
 import * as R from '../canvas/resources';
 import { Modal } from '../app/Modal';
 import { sanitizeCanvasHtml } from './sanitize';
+import './reader.css';
 
 /** Signed file URLs expire after a while; refetch rather than reuse old ones. */
 const FILE_URL_TTL = 10 * 60_000;
 
+function loadRemote(img: HTMLImageElement) {
+  img.src = img.dataset.remoteSrc!;
+  img.dataset.state = 'loaded';
+  img.removeAttribute('title');
+}
+
 /**
  * Renders Canvas HTML with our own styles (`.reader-prose`). Links open deliberately: Canvas
  * pages through the app's Canvas link handler, other sites only after asking. Canvas file
- * images are fetched with the token as signed URLs.
+ * images are fetched with the token as signed URLs. Images from other sites load straight away,
+ * or with `remoteImages="ask"` only when clicked (or all at once from the note above them), so
+ * those sites don't learn what was read.
  */
-export function CanvasContent({ html }: { html: string }) {
+export function CanvasContent({
+  html,
+  remoteImages = 'load',
+}: {
+  html: string;
+  remoteImages?: 'load' | 'ask';
+}) {
   const { client, openLink, transport } = useCanvas();
   const queryClient = useQueryClient();
   const ref = useRef<HTMLDivElement>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
+  const [blocked, setBlocked] = useState(0);
   const clean = useMemo(
     () => sanitizeCanvasHtml(html, { baseUrl: client?.baseUrl ?? null }),
     [html, client?.baseUrl],
@@ -27,6 +43,13 @@ export function CanvasContent({ html }: { html: string }) {
     const root = ref.current;
     if (!root) return;
     const onClick = (e: MouseEvent) => {
+      const img = (e.target as Element).closest<HTMLImageElement>('img[data-state="blocked"]');
+      if (img && root.contains(img)) {
+        e.preventDefault();
+        loadRemote(img);
+        setBlocked(root.querySelectorAll('img[data-state="blocked"]').length);
+        return;
+      }
       const a = (e.target as Element).closest('a');
       if (!a || !root.contains(a)) return;
       e.preventDefault();
@@ -38,6 +61,19 @@ export function CanvasContent({ html }: { html: string }) {
     root.addEventListener('click', onClick);
     return () => root.removeEventListener('click', onClick);
   }, [openLink]);
+
+  useEffect(() => {
+    const root = ref.current;
+    if (!root) return;
+    const imgs = [...root.querySelectorAll<HTMLImageElement>('img[data-remote-src]')];
+    if (remoteImages === 'load') imgs.forEach(loadRemote);
+    else
+      for (const img of imgs) {
+        img.dataset.state = 'blocked';
+        img.title = `Image from ${img.dataset.host}. Click to load it.`;
+      }
+    setBlocked(remoteImages === 'load' ? 0 : imgs.length);
+  }, [clean, remoteImages]);
 
   useEffect(() => {
     const root = ref.current;
@@ -71,6 +107,29 @@ export function CanvasContent({ html }: { html: string }) {
 
   return (
     <>
+      {blocked > 0 && (
+        <div
+          role="note"
+          data-testid="remote-images-note"
+          className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md bg-surface-2 px-3 py-2 text-xs text-muted"
+        >
+          <span>
+            {blocked === 1 ? '1 image' : `${blocked} images`} from other sites not loaded.
+          </span>
+          <button
+            type="button"
+            className="btn py-1 text-xs"
+            onClick={() => {
+              ref.current
+                ?.querySelectorAll<HTMLImageElement>('img[data-state="blocked"]')
+                .forEach(loadRemote);
+              setBlocked(0);
+            }}
+          >
+            Load images
+          </button>
+        </div>
+      )}
       <div
         ref={ref}
         className="reader-prose"
@@ -89,6 +148,7 @@ export function CanvasContent({ html }: { html: string }) {
             <button
               type="button"
               className="btn btn-primary"
+              data-autofocus
               onClick={() => {
                 void transport.openWebLink(confirm).catch(() => {});
                 setConfirm(null);

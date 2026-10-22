@@ -105,7 +105,8 @@ interface Render {
 const owner = (i: number) => Math.floor(i / CHUNK) % WORKERS;
 
 async function render(browser: Browser, appUrl: string, worker: number): Promise<Render> {
-  const context = await browser.newContext({ viewport: SIZE });
+  // The mock student's time zone, so the "your clock differs from Canvas" note stays out of it.
+  const context = await browser.newContext({ viewport: SIZE, timezoneId: 'Europe/London' });
   // tsx (esbuild keepNames) wraps inner functions in __name(); give the page a no-op for it.
   await context.addInitScript({ content: 'window.__name = (f) => f;' });
   await context.addInitScript({ content: `window.__vtEpoch = ${EPOCH};` });

@@ -19,6 +19,11 @@ export interface Resource<T> {
   key: readonly unknown[];
   /** False when the parameters make the request pointless (e.g. no courses selected). */
   enabled: boolean;
+  /**
+   * How long a fetched copy stays fresh (ms). Unset means "refresh on the user's interval";
+   * things that rarely change in Canvas (profile, colours, the course list) say so here.
+   */
+  staleTime?: number;
   load: (get: Fetcher, urls: Urls) => Promise<T>;
 }
 
@@ -65,12 +70,14 @@ interface ListOptions<S extends z.ZodTypeAny, T> {
   batch?: { param: string; values: string[]; size: number };
   sort?: (a: T, b: T) => number;
   enabled?: boolean;
+  staleTime?: number;
 }
 
 export function listResource<S extends z.ZodTypeAny, T>(o: ListOptions<S, T>): Resource<T[]> {
   return {
     key: o.key,
     enabled: o.enabled ?? true,
+    staleTime: o.staleTime,
     async load(get, urls) {
       const queries = o.batch
         ? chunk(o.batch.values, o.batch.size).map((values) => ({
@@ -94,12 +101,14 @@ interface ObjectOptions<S extends z.ZodTypeAny, T> {
   query?: Query;
   schema: S;
   map: (raw: z.output<S>, urls: Urls) => T;
+  staleTime?: number;
 }
 
 export function objectResource<S extends z.ZodTypeAny, T>(o: ObjectOptions<S, T>): Resource<T> {
   return {
     key: o.key,
     enabled: true,
+    staleTime: o.staleTime,
     async load(get, urls) {
       return o.map(o.schema.parse(await get(o.path, o.query)), urls);
     },

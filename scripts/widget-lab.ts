@@ -17,13 +17,19 @@
 //   pnpm test:widgets --modes=light,dark   # sweep in each colour mode (default: as the OS says)
 //   pnpm test:widgets --pairs=postit:dark,card:dark  # exactly these style/mode runs
 //   pnpm test:widgets --report=out.json    # write {style[:mode]: failures} for theme-sweep.ts
+//   pnpm test:widgets --contrast           # also measure text contrast and size in each gallery
+//                                          # (first scenario only) and print what falls short
+//   pnpm test:widgets --contrast=strict    # ...and count those as failures
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { SCENARIOS } from '../mock-canvas/world';
 import type { LabCase, LabReport } from '../src/dev/labTypes';
 import { launch, startStack } from './browser';
+import { contrastProbe, type ContrastFinding } from './contrast';
 
 const arg = (name: string) => process.argv.find((a) => a.startsWith(`--${name}=`))?.split('=')[1];
 const shots = process.argv.includes('--shots');
+const contrast = process.argv.find((a) => a === '--contrast' || a.startsWith('--contrast='));
+const contrastStrict = contrast === '--contrast=strict';
 const live = process.argv.includes('--live');
 const only = arg('only');
 // Force a font (e.g. --font="DejaVu Sans") to reproduce another platform's fallback metrics.
@@ -176,6 +182,59 @@ for (const scenario of scenarios) {
       `${failures.length ? '✘' : '✔'} ${label}: ${reports.length} renders, ${failures.length} with issues, ${elapsed}ms ` +
         `(settle median ${settle[Math.floor(settle.length / 2)]}ms, p95 ${settle[Math.floor(settle.length * 0.95)]}ms)`,
     );
+
+    // Contrast is a property of the style and mode, not the data: one scenario is enough.
+    if (contrast && scenario === scenarios[0]) {
+      const found: Array<ContrastFinding & { type: string }> = [];
+      for (const type of types) {
+        const lab = new URLSearchParams({ gallery: type, skin, theme: mode });
+        const data = sampleData(type);
+        if (data) lab.set('case', JSON.stringify({ settings: {}, data }));
+        await page.goto(`${stack.appUrl}/?gallery=${type}#/lab?${lab}`);
+        await page.waitForSelector('#lab-gallery');
+        await page.evaluate(() => window.__tarpaulin!.settled());
+        const hits: ContrastFinding[] = await page.evaluate(
+          contrastProbe('#lab-gallery [data-lab-cell]'),
+        );
+        found.push(...hits.map((h) => ({ ...h, type })));
+      }
+      // Grouped: the same widget, problem and colours is one line however many items show it.
+      const groups = new Map<string, { f: ContrastFinding & { type: string }; n: number }>();
+      for (const f of found) {
+        const key = `${f.type}|${f.kind}|${f.kind === 'contrast' ? f.ratio : ''}|${f.fontPx}`;
+        const g = groups.get(key);
+        if (g) g.n++;
+        else groups.set(key, { f, n: 1 });
+      }
+      const unique = [...groups.values()].sort(
+        (a, b) => a.f.ratio / a.f.need - b.f.ratio / b.f.need || a.f.fontPx - b.f.fontPx,
+      );
+      const describe = ({ f, n }: { f: ContrastFinding & { type: string }; n: number }) =>
+        `${f.type}: ${
+          f.kind === 'contrast'
+            ? `contrast ${f.ratio}:1, needs ${f.need}:1`
+            : `${Math.round(f.fontPx * 10) / 10}px text, under 11px`
+        } ("${f.text}"${n > 1 ? ` and ${n - 1} more` : ''})`;
+      const mark = unique.length ? (contrastStrict ? '✘' : '!') : '✔';
+      console.log(`${mark} [${label}] contrast and text size: ${unique.length} problem(s)`);
+      for (const g of unique.slice(0, 15)) console.log(`    ${describe(g)}`);
+      if (unique.length > 15) console.log(`    … and ${unique.length - 15} more`);
+      // One annotation per style and mode, so the run's summary shows them without flooding it.
+      if (process.env.GITHUB_ACTIONS && unique.length && !contrastStrict)
+        console.log(
+          `::warning title=Text contrast and size (${label})::${unique.length} problem(s); worst: ${describe(unique[0])}`,
+        );
+      if (contrastStrict) {
+        failed += unique.length;
+        failuresBySkin[runKey(run)] += unique.length;
+      }
+      await page.goto(`${stack.appUrl}/#/lab`);
+      await page.waitForFunction(() => Boolean(window.__tarpaulinLab), null, { timeout: 30_000 });
+      if (font)
+        await page.addStyleTag({
+          content: `:root, body, * { font-family: "${font}" !important; }`,
+        });
+    }
 
     if (shots) {
       const dir = `screenshots/lab/${scenario}${skin ? `/${skin}` : ''}${mode ? `/${mode}` : ''}`;

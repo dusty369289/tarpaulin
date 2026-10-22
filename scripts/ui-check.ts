@@ -19,7 +19,11 @@ const stack = await startStack(live);
 stack.useScenario(scenario);
 const browser = await launch();
 // Real motion preferences here: one of the checks is that animations actually run.
-const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
+// The mock's student is in London; the same zone here keeps the time-zone note out of the way.
+const page = await browser.newPage({
+  viewport: { width: 1440, height: 960 },
+  ...(stack.mock && { timezoneId: 'Europe/London' }),
+});
 const errors: string[] = [];
 page.on('pageerror', (e) => errors.push(e.message));
 // Stand-in for the browser's notification API: every notification the app shows is recorded
@@ -845,6 +849,389 @@ await step('reader: hostile Canvas HTML stays inert (edge data)', async () => {
   await page.getByRole('tab', { name: /Home/ }).waitFor();
   await settled();
 });
+
+// Dialogs and keyboard: focus moves into a dialog and stays there, Escape closes only the top
+// one, focus goes back to whatever opened it, confirmations are the app's own (never the
+// browser's confirm()), and the look pickers are radio groups with arrow keys.
+{
+  /** Whether focus is inside the element `selector` matches, and a short name for where it is. */
+  const focusIn = (selector: string) =>
+    page.evaluate((sel) => {
+      const at = document.activeElement as HTMLElement | null;
+      const box = document.querySelector(sel);
+      return {
+        inside: Boolean(at && box?.contains(at)),
+        where: at
+          ? `${at.tagName.toLowerCase()} "${(at.textContent ?? '').trim().slice(0, 30)}"`
+          : 'nothing',
+      };
+    }, selector);
+  const nativeDialogs: string[] = [];
+  page.on('dialog', (d) => {
+    nativeDialogs.push(d.message());
+    void d.dismiss();
+  });
+
+  await step(
+    'dialogs: the reader takes focus, keeps Tab inside, one Escape per dialog',
+    async () => {
+      const reader = await openInReader('due-soon', ['assignment']);
+      const title = (await reader.locator('header h3').first().innerText()).trim();
+      const drawer = page.getByRole('dialog', { name: `Assignment: ${title}` });
+      assert(await drawer.isVisible(), `reader is not labelled "Assignment: ${title}"`);
+      assert((await focusIn('[role="dialog"]')).inside, 'focus did not move into the reader');
+      for (let i = 0; i < 12; i++) {
+        await page.keyboard.press(i % 3 === 2 ? 'Shift+Tab' : 'Tab');
+        const f = await focusIn('[role="dialog"]');
+        assert(f.inside, `Tab ${i + 1} left the reader for ${f.where}`);
+      }
+      const link = page.getByTestId('reader-content').locator('a[data-canvas="false"]').first();
+      await link.focus();
+      await page.keyboard.press('Enter');
+      const prompt = page.getByRole('dialog', { name: 'Open this link?' });
+      await prompt.waitFor();
+      assert(
+        await prompt
+          .getByRole('button', { name: 'Open in browser' })
+          .evaluate((b) => b === document.activeElement),
+        'focus did not move into the link prompt',
+      );
+      for (let i = 0; i < 4; i++) {
+        await page.keyboard.press('Tab');
+        const f = await focusIn('[aria-label="Open this link?"]');
+        assert(f.inside, `Tab ${i + 1} left the link prompt for ${f.where}`);
+      }
+      await settled();
+      await shot('30-dialog-stacked');
+      await page.keyboard.press('Escape');
+      await settled();
+      assert((await prompt.count()) === 0, 'Escape did not close the link prompt');
+      assert(await drawer.isVisible(), 'one Escape closed the reader too');
+      assert(
+        await link.evaluate((a) => a === document.activeElement),
+        'focus did not return to the link',
+      );
+      await page.keyboard.press('Escape');
+      await settled();
+      assert(
+        (await page.getByTestId('item-reader').count()) === 0,
+        'second Escape left the reader open',
+      );
+      const back = await focusIn('[data-widget-type="due-soon"] [data-testid="widget-body"]');
+      assert(back.inside, `focus went to ${back.where}, not the item that opened the reader`);
+    },
+  );
+
+  await step('dialogs: settings asks with its own dialog, and focus comes back', async () => {
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await settled();
+    const pagesBefore = JSON.stringify((await stored()).pages);
+    const reset = page.getByRole('button', { name: /^Reset…/ });
+    await reset.click();
+    const ask = page.getByRole('alertdialog', { name: 'Reset look and courses?' });
+    await ask.waitFor();
+    assert(
+      await ask
+        .getByRole('button', { name: 'Cancel' })
+        .evaluate((b) => b === document.activeElement),
+      'focus is not on Cancel',
+    );
+    for (let i = 0; i < 5; i++) {
+      await page.keyboard.press('Tab');
+      assert((await focusIn('[role="alertdialog"]')).inside, `Tab ${i + 1} left the dialog`);
+    }
+    await page.keyboard.press('Escape');
+    await settled();
+    // The same dialog in each mode, for the screenshots.
+    const mode = page.getByRole('combobox').first();
+    const modeBefore = await mode.inputValue();
+    for (const theme of ['light', 'dark', 'high-contrast'] as const) {
+      await mode.selectOption(theme);
+      await reset.click();
+      await ask.waitFor();
+      await settled();
+      await shot(`31-confirm-reset-${theme}`);
+      await page.keyboard.press('Escape');
+    }
+    await mode.selectOption(modeBefore);
+    await reset.click();
+    await ask.waitFor();
+    await page.keyboard.press('Escape');
+    await settled();
+    assert((await ask.count()) === 0, 'Escape did not close the dialog');
+    assert(
+      await reset.evaluate((b) => b === document.activeElement),
+      'focus did not return to Reset…',
+    );
+
+    // Import asks Replace / Add alongside / Cancel; Cancel changes nothing.
+    await page.getByTestId('import-file').setInputFiles({
+      name: 'mine.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(
+        JSON.stringify({
+          format: 'tarpaulin-dashboard',
+          version: 2,
+          exportedAt: new Date().toISOString(),
+          pages: (await stored()).pages.slice(0, 1),
+        }),
+      ),
+    });
+    const imp = page.getByRole('alertdialog', { name: 'Import dashboard' });
+    await imp.waitFor();
+    for (const name of ['Cancel', 'Replace my pages', 'Add alongside'])
+      assert(await imp.getByRole('button', { name }).isVisible(), `import has no "${name}"`);
+    await imp.getByRole('button', { name: 'Cancel' }).click();
+    assert((await imp.count()) === 0, 'Cancel did not close the import dialog');
+    assert(
+      JSON.stringify((await stored()).pages) === pagesBefore,
+      'cancelled import changed pages',
+    );
+    assert(nativeDialogs.length === 0, `native dialogs: ${nativeDialogs.join(' | ')}`);
+    await page.getByRole('button', { name: 'Dashboard' }).click();
+    await settled();
+  });
+
+  await step('radio groups: one Tab stop, arrow keys move and pick', async () => {
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await settled();
+    const looks = page.getByRole('radiogroup', { name: 'Look' });
+    const radios = looks.getByRole('radio');
+    const stops = await radios.evaluateAll(
+      (els) => els.filter((el) => (el as HTMLElement).tabIndex === 0).length,
+    );
+    assert(stops === 1, `${stops} Tab stops in the look picker`);
+    const plain = page.getByTestId('look-plain');
+    assert((await plain.getAttribute('aria-checked')) === 'true', 'plain is not the checked look');
+    await plain.focus();
+    await page.keyboard.press('ArrowLeft');
+    const prev = await page.evaluate(() => (document.activeElement as HTMLElement).dataset.testid);
+    assert(prev && prev !== 'look-plain', 'ArrowLeft did not move');
+    assert(
+      (await page.getByTestId(prev).getAttribute('aria-checked')) === 'true',
+      'ArrowLeft did not pick the look',
+    );
+    await page.keyboard.press('ArrowRight');
+    assert(
+      (await plain.getAttribute('aria-checked')) === 'true',
+      'ArrowRight did not go back to plain',
+    );
+    await page.keyboard.press('Tab');
+    assert(
+      !(await focusIn('[role="radiogroup"][aria-label="Look"]')).inside,
+      'Tab stayed in the look picker',
+    );
+    await page.getByRole('button', { name: 'Dashboard' }).click();
+    await settled();
+  });
+}
+
+// ---- Edit mode: undo, keyboard moves, narrow windows; calendar keys; time-zone note ---------
+const undoToast = page.getByTestId('undo-toast');
+const enterEdit = async () => {
+  await page.getByRole('tab', { name: /Home/ }).click();
+  await page.getByRole('button', { name: 'Edit' }).click();
+  await settled();
+};
+const leaveEdit = async () => {
+  await page.getByRole('button', { name: 'Done' }).click();
+  await settled();
+};
+
+await step('undo: a removed widget and a deleted page come back', async () => {
+  await enterEdit();
+  const before = await activePage();
+  const first = before.layout.slice().sort((a, b) => a.y - b.y || a.x - b.x)[0];
+  await page
+    .locator(`[data-widget-id="${first.i}"]`)
+    .getByRole('button', { name: /^Remove / })
+    .click();
+  await settled();
+  assert(!(await activePage()).widgets[first.i], 'widget not removed');
+  await undoToast.waitFor({ timeout: 2_000 });
+  assert(/^Removed /.test(await undoToast.innerText()), 'toast does not say what was removed');
+  await shot('30-undo-toast');
+  await undoToast.getByRole('button', { name: 'Undo' }).click();
+  await settled();
+  const after = await activePage();
+  assert(
+    JSON.stringify(after.widgets) === JSON.stringify(before.widgets) &&
+      JSON.stringify(after.layout) === JSON.stringify(before.layout),
+    'undo did not restore the widget where it was',
+  );
+  // A page: deleted without a confirmation, back with Ctrl+Z.
+  const pagesBefore = (await stored()).pages.map((p) => p.id);
+  await page.getByRole('tab', { name: /Minimal/ }).click();
+  await page.getByRole('button', { name: 'Page options' }).click();
+  await page.getByRole('button', { name: 'Delete page' }).click();
+  await settled();
+  assert((await stored()).pages.length === pagesBefore.length - 1, 'page not deleted');
+  await page.locator('body').press('Control+z');
+  await settled();
+  const back = await stored();
+  assert(
+    JSON.stringify(back.pages.map((p) => p.id)) === JSON.stringify(pagesBefore),
+    'page not back',
+  );
+  assert(
+    await page.getByRole('tab', { name: /Minimal/, selected: true }).isVisible(),
+    'restored page not active',
+  );
+  await leaveEdit();
+});
+
+await step('edit mode: arrow keys move a widget, Shift+arrows resize it, announced', async () => {
+  await enterEdit();
+  const before = await activePage();
+  const first = before.layout.slice().sort((a, b) => a.y - b.y || a.x - b.x)[0];
+  const grip = page
+    .locator(`[data-widget-id="${first.i}"]`)
+    .getByRole('button', { name: /^Move / });
+  await grip.focus();
+  const announcer = page.getByTestId('grid-announcer');
+  const placeOf = async () => (await activePage()).layout.find((l) => l.i === first.i)!;
+  await page.keyboard.press('ArrowRight');
+  await settled();
+  let now = await placeOf();
+  assert(now.x === first.x + 1, `ArrowRight: x ${first.x} → ${now.x}`);
+  assert(
+    /moved: column \d+, row \d+/.test((await announcer.textContent()) ?? ''),
+    'move not announced',
+  );
+  const focused = () => page.evaluate(() => document.activeElement?.getAttribute('aria-label'));
+  assert((await focused())?.startsWith('Move '), `focus left the grip: ${await focused()}`);
+  await page.keyboard.press('Shift+ArrowDown');
+  await settled();
+  now = await placeOf();
+  assert(now.h === first.h + 1, `Shift+ArrowDown: h ${first.h} → ${now.h}`);
+  assert(/resized/.test((await announcer.textContent()) ?? ''), 'resize not announced');
+  await page.keyboard.press('Shift+ArrowUp');
+  await page.keyboard.press('ArrowLeft');
+  await settled();
+  now = await placeOf();
+  assert(now.x === first.x && now.h === first.h, `not back: ${JSON.stringify(now)}`);
+  await assertGridLayout();
+  await leaveEdit();
+});
+
+await step('small window: stacked layout, readable titles, ⋯ menu, nothing saved', async () => {
+  const saved = JSON.stringify((await activePage()).layout);
+  await page.setViewportSize({ width: 720, height: 520 });
+  await enterEdit();
+  try {
+    await smallWindowChecks();
+  } finally {
+    // Back to the usual window, so a failure here doesn't trip the steps after it.
+    await page.setViewportSize({ width: 1440, height: 960 });
+    await leaveEdit();
+  }
+  assert(JSON.stringify((await activePage()).layout) === saved, 'narrow layout was saved');
+});
+async function smallWindowChecks() {
+  assert(
+    (await page.locator('[data-grid-cols]').getAttribute('data-grid-cols')) === '6',
+    'narrow window still uses 12 columns',
+  );
+  await page.getByTestId('compact-note').waitFor();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+  assert(overflow <= 0, `page scrolls sideways by ${overflow}px`);
+  const titles = await page
+    .locator('[data-widget-id] h2')
+    .evaluateAll((els) =>
+      els.map((el) => ({ text: el.textContent, w: el.getBoundingClientRect().width })),
+    );
+  assert(
+    titles.every((t) => t.w >= 80),
+    `titles squeezed: ${titles.map((t) => `${t.text} ${Math.round(t.w)}px`).join(', ')}`,
+  );
+  const handles = page.locator('.react-resizable-handle').filter({ visible: true });
+  assert((await handles.count()) === 0, 'resizable while stacked');
+  await assertGridLayout();
+  await shot('31-small-edit');
+  // In between, 12 columns again, and the narrowest headers fold their buttons into a menu.
+  await page.setViewportSize({ width: 1000, height: 700 });
+  await settled();
+  const menu = page.getByRole('button', { name: /^Actions for / }).first();
+  await menu.click();
+  const remove = page.locator('.bar-menu').getByRole('button', { name: /^Remove / });
+  await remove.waitFor();
+  assert(
+    (await page.evaluate(() => document.activeElement?.textContent?.trim())) === 'Settings',
+    'menu did not take focus',
+  );
+  await shot('32-actions-menu');
+  await page.keyboard.press('Escape');
+  assert((await remove.count()) === 0, 'menu did not close');
+  assert(
+    (await page.evaluate(() => document.activeElement?.getAttribute('aria-label')))?.startsWith(
+      'Actions for',
+    ),
+    'focus did not return to the menu button',
+  );
+}
+
+await step('calendar: arrow keys move between days in the month grid', async () => {
+  await enterEdit();
+  await page.getByRole('button', { name: 'Add widget' }).click();
+  await page.getByRole('button', { name: /^Calendar/ }).click();
+  await leaveEdit();
+  const cal = page.locator('[data-widget-type="calendar"]').last();
+  await cal.scrollIntoViewIfNeeded();
+  const stops = cal.locator('[data-day][tabindex="0"]');
+  assert((await stops.count()) === 1, `month grid has ${await stops.count()} tab stops`);
+  const start = (await stops.getAttribute('data-day'))!;
+  await stops.focus();
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowDown');
+  const day = () => page.evaluate(() => (document.activeElement as HTMLElement).dataset.day);
+  const expected = new Date(`${start}T12:00:00Z`);
+  expected.setUTCDate(expected.getUTCDate() + 8);
+  assert((await day()) === expected.toISOString().slice(0, 10), `landed on ${await day()}`);
+  const month = await cal.getByText(/^\w+ \d{4}$/).textContent();
+  await page.keyboard.press('PageDown');
+  await settled();
+  assert((await cal.getByText(/^\w+ \d{4}$/).textContent()) !== month, 'PageDown kept the month');
+  assert((await day())?.slice(0, 7) !== start.slice(0, 7), 'focus did not follow the month');
+  await shot('33-calendar-keys');
+  // Tidy up: the remove is undoable too.
+  await enterEdit();
+  await cal.getByRole('button', { name: /^Remove / }).click();
+  await leaveEdit();
+});
+
+if (stack.mock) {
+  await step('time zone: a note when the computer and Canvas disagree, dismissible', async () => {
+    const storage = await page.evaluate(() => JSON.stringify(localStorage));
+    const ctx = await browser.newContext({
+      viewport: { width: 1440, height: 960 },
+      timezoneId: 'America/New_York',
+    });
+    await ctx.addInitScript((s) => {
+      if (sessionStorage.getItem('__seeded')) return;
+      sessionStorage.setItem('__seeded', '1');
+      for (const [k, v] of Object.entries(JSON.parse(s) as Record<string, string>))
+        localStorage.setItem(k, v);
+    }, storage);
+    const away = await ctx.newPage();
+    await away.goto(stack.appUrl);
+    await away.getByRole('tab', { name: /Home/ }).waitFor({ timeout: 20_000 });
+    const note = away.getByTestId('time-zone-note');
+    await note.waitFor({ timeout: 10_000 });
+    const text = await note.innerText();
+    assert(
+      text.includes('America/New York') && text.includes('Europe/London'),
+      `note says: ${text}`,
+    );
+    await away.screenshot({ path: `${dir}/34-time-zone-note.png` });
+    await note.getByRole('button', { name: 'Dismiss time zone note' }).click();
+    await away.reload();
+    await away.getByRole('tab', { name: /Home/ }).waitFor({ timeout: 20_000 });
+    await away.evaluate(() => window.__tarpaulin!.settled({ timeoutMs: 15_000 }));
+    assert((await note.count()) === 0, 'note came back after dismissing');
+    await ctx.close();
+    assert((await page.getByTestId('time-zone-note').count()) === 0, 'note shown in London');
+  });
+}
 
 await step('layout survives a reload', async () => {
   const before = await activePage();

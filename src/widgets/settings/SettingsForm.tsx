@@ -1,3 +1,4 @@
+import { Fragment, type ReactNode } from 'react';
 import { z } from 'zod';
 import { Switch } from '../../ui';
 import { baseType, numberBounds, readMeta, type FieldMeta } from './fields';
@@ -6,6 +7,8 @@ export interface CourseOption {
   id: string;
   name: string;
   color: string;
+  /** Tells apart courses with the same name (term or course code). */
+  detail?: string;
 }
 
 interface SettingsFormProps {
@@ -13,6 +16,8 @@ interface SettingsFormProps {
   values: Record<string, unknown>;
   onChange: (values: Record<string, unknown>) => void;
   courses: CourseOption[];
+  /** Shown between the Content and Appearance sections (the widget style picker). */
+  between?: ReactNode;
 }
 
 const humanize = (s: string) =>
@@ -22,7 +27,7 @@ const humanize = (s: string) =>
     .replace(/^./, (c) => c.toUpperCase());
 
 /** Builds the settings panel from a zod schema: one control per field, grouped by section. */
-export function SettingsForm({ schema, values, onChange, courses }: SettingsFormProps) {
+export function SettingsForm({ schema, values, onChange, courses, between }: SettingsFormProps) {
   const entries = Object.entries(schema.shape as Record<string, z.ZodTypeAny>).map(([key, s]) => ({
     key,
     schema: s,
@@ -36,26 +41,29 @@ export function SettingsForm({ schema, values, onChange, courses }: SettingsForm
 
   return (
     <div className="flex flex-col gap-5">
-      {sections.map(([name, fields]) =>
-        fields.length ? (
-          <fieldset key={name} className="flex flex-col gap-3">
-            <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
-              {name}
-            </legend>
-            {fields.map((f) => (
-              <Field
-                key={f.key}
-                name={f.key}
-                schema={f.schema}
-                meta={f.meta}
-                value={values[f.key]}
-                onChange={(v) => set(f.key, v)}
-                courses={courses}
-              />
-            ))}
-          </fieldset>
-        ) : null,
-      )}
+      {sections.map(([name, fields]) => (
+        <Fragment key={name}>
+          {name === 'Appearance' && between}
+          {fields.length ? (
+            <fieldset className="flex flex-col gap-3">
+              <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+                {name}
+              </legend>
+              {fields.map((f) => (
+                <Field
+                  key={f.key}
+                  name={f.key}
+                  schema={f.schema}
+                  meta={f.meta}
+                  value={values[f.key]}
+                  onChange={(v) => set(f.key, v)}
+                  courses={courses}
+                />
+              ))}
+            </fieldset>
+          ) : null}
+        </Fragment>
+      ))}
     </div>
   );
 }
@@ -262,7 +270,12 @@ function Field({ name, schema, meta, value, onChange, courses }: FieldProps) {
                   style={{ backgroundColor: c.color }}
                   aria-hidden
                 />
-                <span className="truncate">{c.name}</span>
+                <span className="min-w-0 truncate">{c.name}</span>
+                {c.detail && (
+                  <span className="ml-auto shrink-0 truncate pl-1 text-xs text-muted">
+                    {c.detail}
+                  </span>
+                )}
               </label>
             </li>
           ))}

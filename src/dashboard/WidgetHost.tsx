@@ -5,6 +5,7 @@ import type { FrameSettings } from '../widgets/shared/frame';
 import { WidgetFrame } from '../widgets/shared/WidgetFrame';
 import type { WidgetSize } from '../widgets/types';
 import { ErrorBoundary } from './ErrorBoundary';
+import type { Nudge } from './layout';
 import type { WidgetInstance } from './types';
 
 interface WidgetHostProps {
@@ -15,6 +16,7 @@ interface WidgetHostProps {
   onSettings?: (id: string) => void;
   onRemove?: (id: string) => void;
   onDuplicate?: (id: string) => void;
+  onNudge?: (id: string, nudge: Nudge) => void;
   onData: (id: string, data: unknown) => void;
 }
 
@@ -27,6 +29,7 @@ export const WidgetHost = memo(function WidgetHost({
   onSettings,
   onRemove,
   onDuplicate,
+  onNudge,
   onData,
 }: WidgetHostProps) {
   const def = getWidget(instance.type);
@@ -52,6 +55,7 @@ export const WidgetHost = memo(function WidgetHost({
       onSettings={onSettings && (() => onSettings(id))}
       onRemove={onRemove && (() => onRemove(id))}
       onDuplicate={onDuplicate && (() => onDuplicate(id))}
+      onNudge={onNudge && ((nudge) => onNudge(id, nudge))}
     >
       <ErrorBoundary label={def.name}>
         <Component

@@ -299,11 +299,10 @@ export function PageTabs({ onMenuChange }: { onMenuChange?: (open: boolean) => v
             type="button"
             className="bar-menu-item text-danger hover:!bg-danger/10"
             disabled={pages.length <= 1}
+            // No confirmation: the undo toast brings the page back.
             onClick={() => {
-              if (confirm(`Delete “${active.name}”?`)) {
-                close();
-                deletePage(active.id);
-              }
+              close();
+              deletePage(active.id);
             }}
           >
             <Trash2 className="h-4 w-4" aria-hidden /> Delete page

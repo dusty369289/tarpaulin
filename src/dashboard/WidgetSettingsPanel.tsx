@@ -9,7 +9,8 @@ import { getSkin } from '../theme/skins';
 import { fullSchema, getWidget, normalizeSettings } from '../widgets/registry';
 import type { FrameSettings } from '../widgets/shared/frame';
 import { Switch } from '../ui';
-import { SettingsForm } from '../widgets/settings/SettingsForm';
+import { SettingsForm, type CourseOption } from '../widgets/settings/SettingsForm';
+import type { Course } from '../canvas/models';
 import { useDashboard } from './store';
 import type { Page } from './types';
 
@@ -75,8 +76,8 @@ function WidgetStyleSection({
           type="button"
           className="btn"
           onClick={() => {
-            updateSettings({ widgetStyle: effective });
             applyWidgetStyle(null, effective);
+            updateSettings({ widgetStyle: effective });
             setApplied(`Every widget on every page is now ${skin.name}.`);
           }}
         >
@@ -90,6 +91,21 @@ function WidgetStyleSection({
       )}
     </section>
   );
+}
+
+/** Picker rows for the course filter; courses sharing a name show their term or code. */
+export function courseOptions(courses: Iterable<Course>): CourseOption[] {
+  const list = [...courses];
+  const count = new Map<string, number>();
+  for (const c of list) count.set(c.name, (count.get(c.name) ?? 0) + 1);
+  return list.map((c) => {
+    const option: CourseOption = { id: c.id, name: c.name, color: c.color };
+    if ((count.get(c.name) ?? 0) > 1) {
+      const sameTerm = list.filter((o) => o.name === c.name && o.term?.name === c.term?.name);
+      option.detail = (sameTerm.length > 1 ? c.code : c.term?.name) || c.code;
+    }
+    return option;
+  });
 }
 
 export function WidgetSettingsPanel({
@@ -108,7 +124,7 @@ export function WidgetSettingsPanel({
   const def = instance && getWidget(instance.type);
   if (!instance || !def) return null;
   const values = normalizeSettings(instance.type, instance.settings);
-  const courses = catalog.inScope.byName().map((c) => ({ id: c.id, name: c.name, color: c.color }));
+  const courses = courseOptions(catalog.inScope.byName());
   return (
     <Drawer
       title={`${(values.title as string) || def.name} settings`}
@@ -119,19 +135,20 @@ export function WidgetSettingsPanel({
         </button>
       }
     >
-      <div className="flex flex-col gap-6">
-        <WidgetStyleSection
-          page={page}
-          values={values as unknown as FrameSettings}
-          onChange={(patch) => update(page.id, widgetId, { ...values, ...patch })}
-        />
-        <SettingsForm
-          schema={fullSchema(def)}
-          values={values}
-          onChange={(v) => update(page.id, widgetId, v)}
-          courses={courses}
-        />
-      </div>
+      {/* What the widget shows comes first; the style tiles are tall. */}
+      <SettingsForm
+        schema={fullSchema(def)}
+        values={values}
+        onChange={(v) => update(page.id, widgetId, v)}
+        courses={courses}
+        between={
+          <WidgetStyleSection
+            page={page}
+            values={values as unknown as FrameSettings}
+            onChange={(patch) => update(page.id, widgetId, { ...values, ...patch })}
+          />
+        }
+      />
     </Drawer>
   );
 }

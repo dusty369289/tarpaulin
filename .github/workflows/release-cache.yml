@@ -1,0 +1,88 @@
+name: Release cache
+
+# Keeps the Rust caches that release.yml restores warm. A run started by a pushed tag can only
+# restore caches saved on its own tag or on main, and nothing else on main builds the release
+# targets, so without this every tagged release compiles all its dependencies from scratch.
+# This builds each release target on main (cargo only: no installers, no signing, nothing
+# published) with the same cache key as release.yml.
+#
+# The cache holds the dependencies, not Tarpaulin's own code (rust-cache never keeps that), so it
+# only goes stale when the dependencies or the Rust toolchain change: hence the lockfile trigger
+# and the weekly run that picks up a new stable Rust.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src-tauri/Cargo.lock'
+      - 'src-tauri/Cargo.toml'
+      - '.github/workflows/release-cache.yml'
+  schedule:
+    - cron: '23 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-cache
+  cancel-in-progress: true
+
+jobs:
+  warm:
+    name: Warm ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      # Keep in step with the build matrix in release.yml (os and rust-targets make the key).
+      matrix:
+        include:
+          - name: macOS (Apple silicon)
+            os: macos-latest
+            rust-targets: aarch64-apple-darwin
+          - name: macOS (Intel)
+            os: macos-latest
+            rust-targets: x86_64-apple-darwin
+          - name: Windows (x64)
+            os: windows-latest
+            rust-targets: ''
+          - name: Windows (arm64)
+            os: windows-latest
+            rust-targets: aarch64-pc-windows-msvc
+          - name: Linux (x64)
+            os: ubuntu-22.04
+            rust-targets: ''
+          - name: Linux (arm64)
+            os: ubuntu-22.04-arm
+            rust-targets: ''
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Tauri system packages
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          # The runner's Microsoft apt source sometimes returns 403 and breaks apt-get update.
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list /etc/apt/sources.list.d/microsoft*.list
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev libssl-dev libdbus-1-dev patchelf
+      - name: Turn off Defender real-time scanning
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        shell: pwsh
+        run: Set-MpPreference -DisableRealtimeMonitoring $true
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          shared-key: release-${{ matrix.os }}-${{ matrix.rust-targets }}
+      - run: pnpm install --frozen-lockfile
+      # The same `tauri build` the release runs (so cargo sees the same features and flags), but
+      # it stops after compiling.
+      - name: Build without bundling
+        shell: bash
+        run: pnpm tauri build --no-bundle ${{ matrix.rust-targets && format('--target {0}', matrix.rust-targets) || '' }}

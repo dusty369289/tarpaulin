@@ -15,7 +15,7 @@ const schema = z.object({
   }),
   sortBy: field(z.enum(['name', 'score']).default('name'), { label: 'Sort by' }),
   showBars: field(z.boolean().default(true), { label: 'Show progress bars' }),
-  hideUngraded: field(z.boolean().default(false), { label: 'Hide courses with no grade yet' }),
+  hideUngraded: field(z.boolean().default(true), { label: 'Hide courses with no grade yet' }),
   warnBelow: field(z.number().int().min(0).max(100).default(40), {
     label: 'Highlight scores below',
     unit: '%',

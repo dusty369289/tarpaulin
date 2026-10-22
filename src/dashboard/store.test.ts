@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { bottomOf, DASHBOARD_VERSION, migrateDashboard, sanitize, useDashboard } from './store';
+import { useSettings } from '../app/settingsStore';
+import {
+  bottomOf,
+  DASHBOARD_VERSION,
+  migrateDashboard,
+  sanitize,
+  UNDO_LIMIT,
+  useDashboard,
+} from './store';
 
 describe('dashboard persistence migrations', () => {
   it('upgrades v1 (widgets as an array, no icons) to the current shape', () => {
@@ -146,5 +154,109 @@ describe('page and widget styles', () => {
     });
     expect(out.pages[0].background).toBe('dots');
     expect(out.pages[0].widgetStyle).toBeUndefined();
+  });
+});
+
+describe('undo', () => {
+  beforeEach(() => {
+    useDashboard.setState({ ...sanitize({}), undoStack: [] });
+    useSettings.setState({ background: 'plain', widgetStyle: 'card' });
+  });
+  const page = () => useDashboard.getState().pages[0];
+  // Changes in one task share an entry, so tests step past the task between "clicks".
+  const nextClick = () => new Promise<void>((r) => setTimeout(r, 0));
+
+  it('puts back a removed widget with its data and place', async () => {
+    const s = useDashboard.getState();
+    const id = s.addWidget(page().id, 'notes')!;
+    s.setWidgetData(page().id, id, { text: 'Remember the milk' });
+    s.updateWidgetSettings(page().id, id, { title: 'Ideas' });
+    const before = page();
+    await nextClick();
+    s.removeWidget(page().id, id);
+    expect(page().widgets[id]).toBeUndefined();
+    expect(useDashboard.getState().undoStack[0].label).toBe('Removed Ideas');
+    useDashboard.getState().undo();
+    expect(page()).toEqual(before);
+    expect(useDashboard.getState().undoStack).toHaveLength(0);
+  });
+
+  it('puts back a deleted page and makes it active again', async () => {
+    const s = useDashboard.getState();
+    const first = page().id;
+    const second = s.addPage('minimal');
+    await nextClick();
+    s.deletePage(second);
+    expect(useDashboard.getState().activePageId).toBe(first);
+    expect(useDashboard.getState().undoStack[0].label).toBe('Deleted “Minimal”');
+    useDashboard.getState().undo();
+    expect(useDashboard.getState().pages.map((p) => p.id)).toEqual([first, second]);
+    expect(useDashboard.getState().activePageId).toBe(second);
+  });
+
+  it('undoes a widget reset', async () => {
+    const s = useDashboard.getState();
+    const [id] = Object.keys(page().widgets);
+    s.updateWidgetSettings(page().id, id, { ...page().widgets[id].settings, title: 'Mine' });
+    await nextClick();
+    s.resetWidgetSettings(page().id, id);
+    expect(page().widgets[id].settings.title).toBe('');
+    useDashboard.getState().undo();
+    expect(page().widgets[id].settings.title).toBe('Mine');
+  });
+
+  it('treats a look picked in one click as one change, app look included', async () => {
+    const s = useDashboard.getState();
+    const [id] = Object.keys(page().widgets);
+    s.setPageLook(page().id, { background: 'cork' });
+    s.updateWidgetSettings(page().id, id, { ...page().widgets[id].settings, style: 'pixel' });
+    const before = page();
+    await nextClick();
+    // What Settings › Look does: the app look first, then every page.
+    useSettings.getState().update({ background: 'night-sky', widgetStyle: 'terminal' });
+    s.applyWidgetStyle(null, 'terminal');
+    s.clearPageBackgrounds();
+    expect(useDashboard.getState().undoStack).toHaveLength(1);
+    expect(useDashboard.getState().undoStack[0].label).toBe('Changed the look of every page');
+    useDashboard.getState().undo();
+    expect(page()).toEqual(before);
+    expect(useSettings.getState()).toMatchObject({ background: 'plain', widgetStyle: 'card' });
+  });
+
+  it('records nothing when a change changes nothing, and keeps the newest few', async () => {
+    const s = useDashboard.getState();
+    s.clearPageBackgrounds();
+    s.deletePage(page().id); // the last page stays
+    expect(useDashboard.getState().undoStack).toHaveLength(0);
+    for (let i = 0; i < UNDO_LIMIT + 3; i++) {
+      s.addWidget(page().id, 'clock');
+      await nextClick();
+      s.removeWidget(page().id, page().layout.at(-1)!.i);
+      await nextClick();
+    }
+    expect(useDashboard.getState().undoStack).toHaveLength(UNDO_LIMIT);
+  });
+
+  it('is never persisted', () => {
+    useDashboard.getState().removeWidget(page().id, page().layout[0].i);
+    const saved = JSON.parse(localStorage.getItem('tarpaulin.dashboard') ?? '{}');
+    expect(saved.state.undoStack).toBeUndefined();
+  });
+});
+
+describe('keyboard moves', () => {
+  beforeEach(() => useDashboard.setState({ ...sanitize({}), undoStack: [] }));
+  const page = () => useDashboard.getState().pages[0];
+
+  it('moves and resizes within the grid and stops at its edges', () => {
+    const s = useDashboard.getState();
+    const id = page().layout.find((l) => l.x === 0 && l.y === 0)!.i;
+    expect(s.nudgeWidget(page().id, id, { dx: -1 })).toBeNull();
+    const moved = s.nudgeWidget(page().id, id, { dx: 1 })!;
+    expect(moved.x).toBe(1);
+    expect(page().layout.find((l) => l.i === id)).toMatchObject({ x: 1 });
+    const grown = s.nudgeWidget(page().id, id, { dh: 1 })!;
+    expect(grown.h).toBe(moved.h + 1);
+    expect(s.nudgeWidget(page().id, 'missing', { dx: 1 })).toBeNull();
   });
 });

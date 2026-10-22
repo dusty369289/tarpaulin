@@ -144,3 +144,18 @@
 .reader-prose details + details {
   margin-top: 0.5em;
 }
+
+/* An image from another site that waits for a click (CanvasContent's remoteImages="ask"). */
+.reader-prose img[data-state='blocked'] {
+  border: 1px dashed rgb(var(--muted));
+  background: rgb(var(--surface-2));
+  cursor: pointer;
+}
+.reader-prose img[data-inline][data-state='blocked'] {
+  width: 1.4em;
+  min-height: 0;
+}
+.reader-prose a[data-image-link]::before {
+  content: '🖼 ';
+  display: inline-block;
+}

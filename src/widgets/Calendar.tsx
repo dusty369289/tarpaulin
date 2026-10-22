@@ -3,6 +3,7 @@ import {
   addMonths,
   addWeeks,
   eachDayOfInterval,
+  endOfDay,
   endOfMonth,
   endOfWeek,
   format,
@@ -14,7 +15,7 @@ import {
   startOfWeek,
 } from 'date-fns';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { z } from 'zod';
 import { useSettings } from '../app/settingsStore';
 import { fromDeadline, fromEvent, type ReaderItem } from '../reader/items';
@@ -44,6 +45,8 @@ export interface CalendarEntry {
   key: string;
   title: string;
   start: Date;
+  /** Events can run over several days; deadlines are a moment. */
+  end: Date | null;
   allDay: boolean;
   color: string;
   kind: 'work' | 'event' | 'announcement';
@@ -52,6 +55,67 @@ export interface CalendarEntry {
   /** What the reader opens; null opens Canvas. */
   item: ReaderItem | null;
 }
+
+/** Whether the entry is on day `d`: a multi-day event shows on every day it covers. */
+export function onDate(e: CalendarEntry, d: Date): boolean {
+  if (isSameDay(e.start, d)) return true;
+  // An end at midnight is exclusive: an event ending 00:00 Friday doesn't show on Friday.
+  return e.end !== null && e.start < startOfDay(d) && e.end > startOfDay(d);
+}
+
+/** The time column: start time on the first day, then "All day", and "–17:00" on the last. */
+function timeLabel(e: CalendarEntry, day: Date | null, timeFmt: string): string {
+  if (e.allDay) return 'All day';
+  if (!day || isSameDay(e.start, day)) return format(e.start, timeFmt);
+  if (e.end && e.end <= endOfDay(day)) return `–${format(e.end, timeFmt)}`;
+  return 'All day';
+}
+
+/** One row in a day list. At module level, so rows keep their DOM (and focus) across renders. */
+function EntryRow({
+  e,
+  day,
+  timeFmt,
+  onOpen,
+}: {
+  e: CalendarEntry;
+  /** The day the row is listed under. */
+  day: Date | null;
+  timeFmt: string;
+  onOpen: (e: CalendarEntry) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(e)}
+      className="cal-entry flex w-full items-center gap-2 rounded px-1 py-0.5 text-left hover:bg-surface-2"
+    >
+      <span className="cal-time w-[4.25rem] shrink-0 whitespace-nowrap text-xs tabular-nums text-muted">
+        {timeLabel(e, day, timeFmt)}
+      </span>
+      <span
+        aria-hidden
+        className={`h-2.5 w-2.5 shrink-0 ${e.kind === 'event' ? 'rounded-sm' : 'rounded-full'}`}
+        style={{ backgroundColor: e.color }}
+      />
+      <span className={`cal-title min-w-0 truncate ${e.done ? 'text-muted line-through' : ''}`}>
+        {e.title}
+      </span>
+    </button>
+  );
+}
+
+/** Day moves for the month grid's arrow keys. */
+const DAY_KEYS: Record<string, (d: Date, weekStartsOn: 0 | 1) => Date> = {
+  ArrowLeft: (d) => addDays(d, -1),
+  ArrowRight: (d) => addDays(d, 1),
+  ArrowUp: (d) => addDays(d, -7),
+  ArrowDown: (d) => addDays(d, 7),
+  Home: (d, weekStartsOn) => startOfWeek(d, { weekStartsOn }),
+  End: (d, weekStartsOn) => startOfDay(endOfWeek(d, { weekStartsOn })),
+  PageUp: (d) => addMonths(d, -1),
+  PageDown: (d) => addMonths(d, 1),
+};
 
 function range(
   view: CalendarSettings['view'],
@@ -110,6 +174,7 @@ export const Calendar = defineWidget({
           key: d.key,
           title: d.title,
           start: d.date!,
+          end: null,
           allDay: false,
           color: d.color,
           kind: d.isAnnouncement ? 'announcement' : 'work',
@@ -124,6 +189,7 @@ export const Calendar = defineWidget({
             key: `event:${e.id}`,
             title: e.title,
             start: e.start!,
+            end: e.end && e.end > e.start! ? e.end : null,
             allDay: e.allDay,
             color: e.color,
             kind: 'event',
@@ -145,7 +211,7 @@ export const Calendar = defineWidget({
     ]);
 
     // Entries are already in time order.
-    const onDay = (d: Date) => entries.filter((e) => isSameDay(e.start, d));
+    const onDay = (d: Date) => entries.filter((e) => onDate(e, d));
     // In month cells only a few chips fit, so unfinished work goes first and isn't hidden
     // behind "+N more".
     const inCell = (d: Date) =>
@@ -154,6 +220,7 @@ export const Calendar = defineWidget({
       );
     const step = (dir: 1 | -1) => {
       setSelected(null);
+      setFocusDay(null);
       setCursor((c) =>
         view === 'month'
           ? addMonths(c, dir)
@@ -167,25 +234,33 @@ export const Calendar = defineWidget({
         ? format(cursor, 'MMMM yyyy')
         : `${format(start, 'd MMM')} – ${format(end, 'd MMM')}`;
 
-    const EntryRow = ({ e }: { e: CalendarEntry }) => (
-      <button
-        type="button"
-        onClick={() => openItem(e.item, e.url)}
-        className="cal-entry flex w-full items-center gap-2 rounded px-1 py-0.5 text-left hover:bg-surface-2"
-      >
-        <span className="cal-time w-[4.25rem] shrink-0 whitespace-nowrap text-xs tabular-nums text-muted">
-          {e.allDay ? 'All day' : format(e.start, timeFmt)}
-        </span>
-        <span
-          aria-hidden
-          className={`h-2.5 w-2.5 shrink-0 ${e.kind === 'event' ? 'rounded-sm' : 'rounded-full'}`}
-          style={{ backgroundColor: e.color }}
-        />
-        <span className={`cal-title min-w-0 truncate ${e.done ? 'text-muted line-through' : ''}`}>
-          {e.title}
-        </span>
-      </button>
+    const onOpen = (e: CalendarEntry) => openItem(e.item, e.url);
+    const row = (e: CalendarEntry, d: Date | null) => (
+      <EntryRow key={e.key} e={e} day={d} timeFmt={timeFmt} onOpen={onOpen} />
     );
+
+    // Month grid keyboard: one day is the Tab stop and arrow keys move it, paging the month
+    // when they leave it.
+    const gridRef = useRef<HTMLDivElement>(null);
+    const [focusDay, setFocusDay] = useState<Date | null>(null);
+    const refocus = useRef(false);
+    const tabDay = focusDay ?? selected ?? (isSameMonth(new Date(), cursor) ? new Date() : cursor);
+    useEffect(() => {
+      if (!refocus.current || !focusDay) return;
+      refocus.current = false;
+      gridRef.current
+        ?.querySelector<HTMLElement>(`[data-day="${format(focusDay, 'yyyy-MM-dd')}"]`)
+        ?.focus();
+    });
+    const onGridKey = (ev: KeyboardEvent) => {
+      const move = DAY_KEYS[ev.key];
+      if (!move) return;
+      ev.preventDefault();
+      const next = move(focusDay ?? tabDay, weekStartsOn);
+      if (!isSameMonth(next, cursor)) setCursor(startOfMonth(next));
+      refocus.current = true;
+      setFocusDay(next);
+    };
 
     const weekdays = eachDayOfInterval({
       start: startOfWeek(new Date(), { weekStartsOn }),
@@ -208,12 +283,24 @@ export const Calendar = defineWidget({
             onClick={() => {
               setCursor(new Date());
               setSelected(null);
+              setFocusDay(null);
             }}
           >
             Today
           </button>
         </div>
-        <QueryGate queries={[deadlines.query]}>
+        {/* A failing events request shouldn't hide the deadlines, so it gets its own hint. */}
+        {settings.showEvents && events.query.isError && !events.query.data && (
+          <p className="text-xs text-danger" role="alert">
+            Couldn’t load calendar events from Canvas.
+          </p>
+        )}
+        <QueryGate
+          queries={[
+            deadlines.query,
+            { isLoading: events.query.isLoading, isError: false, error: null },
+          ]}
+        >
           {() => {
             if (view === 'month') {
               const days = eachDayOfInterval({ start, end });
@@ -238,6 +325,10 @@ export const Calendar = defineWidget({
                         ))}
                       </div>
                       <div
+                        ref={gridRef}
+                        role="group"
+                        aria-label={`${format(cursor, 'MMMM yyyy')}: arrow keys move between days`}
+                        onKeyDown={onGridKey}
                         className="grid flex-1 grid-cols-7 gap-px overflow-hidden rounded-md border border-border bg-border"
                         style={{ gridAutoRows: '1fr' }}
                       >
@@ -248,10 +339,13 @@ export const Calendar = defineWidget({
                             <button
                               type="button"
                               key={d.toISOString()}
+                              data-day={format(d, 'yyyy-MM-dd')}
+                              tabIndex={isSameDay(d, tabDay) ? 0 : -1}
+                              onFocus={() => setFocusDay(d)}
                               onClick={() => setSelected(isSel ? null : d)}
                               aria-label={`${format(d, 'EEEE d MMMM')}, ${list.length} item${list.length === 1 ? '' : 's'}`}
                               aria-pressed={Boolean(isSel)}
-                              className={`flex min-h-0 flex-col items-stretch gap-0.5 overflow-hidden p-0.5 text-left ${isSameMonth(d, cursor) ? 'bg-surface' : 'bg-surface-2/60 text-muted'} ${isSel ? 'ring-2 ring-inset ring-accent' : ''}`}
+                              className={`flex min-h-0 flex-col items-stretch gap-0.5 overflow-hidden p-0.5 text-left focus-visible:outline-offset-[-2px] ${isSameMonth(d, cursor) ? 'bg-surface' : 'bg-surface-2/60 text-muted'} ${isSel ? 'ring-2 ring-inset ring-accent' : ''}`}
                             >
                               <span
                                 className={`self-end rounded-full px-1 text-[11px] tabular-nums ${isToday(d) ? 'bg-accent text-accent-fg' : ''}`}
@@ -301,7 +395,7 @@ export const Calendar = defineWidget({
                           {format(selected, 'EEEE d MMMM')}
                         </div>
                         {picked.length ? (
-                          picked.map((e) => <EntryRow key={e.key} e={e} />)
+                          picked.map((e) => row(e, selected))
                         ) : (
                           <div className="text-xs text-muted">Nothing on this day.</div>
                         )}
@@ -325,9 +419,7 @@ export const Calendar = defineWidget({
                                 {format(d, 'EEE d MMM')}
                                 {isToday(d) && ' · Today'}
                               </h3>
-                              {onDay(d).map((e) => (
-                                <EntryRow key={e.key} e={e} />
-                              ))}
+                              {onDay(d).map((e) => row(e, d))}
                             </section>
                           ))
                         ) : (
@@ -366,7 +458,7 @@ export const Calendar = defineWidget({
                           {isToday(d) && ' · Today'}
                         </h3>
                         {list.length ? (
-                          list.map((e) => <EntryRow key={e.key} e={e} />)
+                          list.map((e) => row(e, d))
                         ) : (
                           <div className="px-1 text-xs text-muted/70">—</div>
                         )}

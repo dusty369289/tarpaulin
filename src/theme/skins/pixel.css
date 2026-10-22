@@ -1,5 +1,8 @@
 /* Pixel: stepped double border, square everything, blocky icons. */
 .skin-root[data-skin='pixel'] {
+  /* VT323's letters are small for its size (x-height 0.4em; Inter's is 0.55em), so small print
+     is at least 15px, as tall as 11px Inter. */
+  --small-print: max(0.9375rem, 15px);
   --pixel-outline: #1b1238;
   --pixel-drop: rgb(0 0 0 / 0.4);
   --pixel-digit-shadow: #e94f8a;
@@ -35,6 +38,9 @@
 }
 .skin-root[data-skin='pixel'] .skin-body {
   line-height: 1.1;
+}
+.skin-root[data-skin='pixel'] :is(.text-xs, .text-\[11px\], .text-\[10px\], .chip) {
+  font-size: var(--small-print);
 }
 .skin-root[data-skin='pixel'] svg.lucide {
   stroke-width: 3;

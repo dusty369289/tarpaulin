@@ -8,6 +8,9 @@ import DOMPurify from 'dompurify';
 //     deliberately (Canvas links in-app or in the browser, other sites after a prompt);
 //   - Canvas file images carry their file id, so the reader can fetch a signed URL with the
 //     token instead of a login-only page;
+//   - images from other sites carry their address in data-remote-src instead of src, so none
+//     load until the reader decides to (the user can keep other sites from seeing them read);
+//     plain-http images, which the app's CSP would block anyway, become a link to the image;
 //   - embedded players (iframe, video, audio) become a link to what they embed;
 //   - Canvas's own decorations (the screen-reader "Links to an external site." text and its
 //     icon) go, since the reader marks outside links itself.
@@ -150,7 +153,7 @@ export function sanitizeCanvasHtml(html: string, { baseUrl }: SanitizeOptions): 
       a.setAttribute('title', url.href);
     }
   }
-  for (const img of fragment.querySelectorAll('img')) {
+  for (const img of [...fragment.querySelectorAll('img')]) {
     const endpoint = img.getAttribute('data-api-endpoint');
     img.removeAttribute('data-api-endpoint');
     const src = resolve(img.getAttribute('src'), baseUrl);
@@ -162,8 +165,22 @@ export function sanitizeCanvasHtml(html: string, { baseUrl }: SanitizeOptions): 
       // Fetched with the token by the reader; the original src needs a browser session.
       img.removeAttribute('src');
       img.setAttribute('data-file-id', fileId);
-    } else if (src && (isWeb(src) || src.href.startsWith('data:image/'))) {
+    } else if (src?.href.startsWith('data:image/') || (src?.protocol === 'https:' && onCanvas)) {
       img.setAttribute('src', src.href);
+    } else if (src?.protocol === 'https:') {
+      img.removeAttribute('src');
+      img.setAttribute('data-remote-src', src.href);
+      img.setAttribute('data-host', src.host);
+    } else if (src?.protocol === 'http:') {
+      const a = document.createElement('a');
+      a.textContent = `Image: ${img.getAttribute('alt')?.trim() || src.host}`;
+      a.setAttribute('href', '#');
+      a.setAttribute('title', src.href);
+      a.setAttribute('data-href', src.href);
+      a.setAttribute('data-canvas', String(onCanvas));
+      a.setAttribute('data-image-link', '');
+      img.replaceWith(a);
+      continue;
     } else {
       // Nothing loadable (Outlook pastes often leave src-less images): show nothing.
       img.remove();
