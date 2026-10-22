@@ -9,7 +9,6 @@ import {
   format,
   isSameDay,
   isSameMonth,
-  isToday,
   startOfDay,
   startOfMonth,
   startOfWeek,
@@ -21,10 +20,13 @@ import { useSettings } from '../app/settingsStore';
 import { fromDeadline, fromEvent, type ReaderItem } from '../reader/items';
 import { useOpenItem } from '../reader/ReaderProvider';
 import { useCourseIds, useDeadlines, useEvents } from '../canvas/hooks';
-import { useTimeFormat } from '../lib/dates';
+import { nowInZone, useTimeFormat } from '../lib/dates';
 import { courseFilter, field } from './settings/fields';
 import { EmptyState, QueryGate } from './shared/ui';
 import { defineWidget } from './types';
+
+// "Today" in the zone times are shown in (Settings › Show times in), not the device's.
+const isToday = (d: Date) => isSameDay(d, nowInZone());
 
 const schema = z.object({
   view: field(z.enum(['month', 'week', 'agenda']).default('month'), { label: 'View' }),
@@ -149,7 +151,7 @@ export const Calendar = defineWidget({
   settingsSchema: schema,
   Component: function CalendarWidget({ settings, size }) {
     const weekStartsOn = useSettings((s) => (s.weekStartsOn === 'monday' ? 1 : 0));
-    const [cursor, setCursor] = useState(() => new Date());
+    const [cursor, setCursor] = useState(() => nowInZone());
     const [selected, setSelected] = useState<Date | null>(null);
     const courseIds = useCourseIds(settings.courseIds);
     const openItem = useOpenItem();
@@ -244,7 +246,8 @@ export const Calendar = defineWidget({
     const gridRef = useRef<HTMLDivElement>(null);
     const [focusDay, setFocusDay] = useState<Date | null>(null);
     const refocus = useRef(false);
-    const tabDay = focusDay ?? selected ?? (isSameMonth(new Date(), cursor) ? new Date() : cursor);
+    const tabDay =
+      focusDay ?? selected ?? (isSameMonth(nowInZone(), cursor) ? nowInZone() : cursor);
     useEffect(() => {
       if (!refocus.current || !focusDay) return;
       refocus.current = false;
@@ -263,8 +266,8 @@ export const Calendar = defineWidget({
     };
 
     const weekdays = eachDayOfInterval({
-      start: startOfWeek(new Date(), { weekStartsOn }),
-      end: endOfWeek(new Date(), { weekStartsOn }),
+      start: startOfWeek(nowInZone(), { weekStartsOn }),
+      end: endOfWeek(nowInZone(), { weekStartsOn }),
     });
 
     return (
@@ -281,7 +284,7 @@ export const Calendar = defineWidget({
             type="button"
             className="btn btn-ghost px-2 py-0.5 text-xs"
             onClick={() => {
-              setCursor(new Date());
+              setCursor(nowInZone());
               setSelected(null);
               setFocusDay(null);
             }}
@@ -311,7 +314,7 @@ export const Calendar = defineWidget({
               const chipSlots =
                 size.w >= 6 ? Math.max(0, Math.min(3, Math.floor((cellPx - 20) / 17))) : 0;
               // What's coming up from today (or the start of the month) for the side list.
-              const from = start > startOfDay(new Date()) ? start : startOfDay(new Date());
+              const from = start > startOfDay(nowInZone()) ? start : startOfDay(nowInZone());
               const upcoming = days.filter((d) => d >= from).filter((d) => onDay(d).length > 0);
               return (
                 <div className="cal-month min-h-0 flex-1">

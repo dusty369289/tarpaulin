@@ -26,6 +26,7 @@ const HEADLINES: Record<CanvasErrorKind, string> = {
   server: 'Canvas is having trouble.',
   rate_limited: 'Canvas asked us to slow down.',
   auth: 'Canvas didn’t accept your login.',
+  keychain: 'Tarpaulin couldn’t read your saved login.',
   forbidden: 'Canvas won’t show this to your account.',
   not_found: 'Canvas couldn’t find this.',
   other: 'Couldn’t load from Canvas.',
@@ -35,6 +36,7 @@ const HINTS: Partial<Record<CanvasErrorKind, string>> = {
   server: 'Try again in a minute.',
   rate_limited: 'Wait a minute, then try again.',
   auth: 'Reconnect from Settings.',
+  keychain: 'Unlock your system keychain, then try again.',
 };
 
 /** Canvas's own wording from a JSON error body: {"errors":[{"message":…}]} or {"message":…}. */
