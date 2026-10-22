@@ -31,6 +31,8 @@ export const SettingsSchema = z.object({
   /** Images in Canvas content hosted on other sites: load them, or wait for a click. */
   loadRemoteImages: z.boolean().default(true),
   notifications: NotificationPrefsSchema,
+  /** A preview of the week ahead, the evening before it starts (src/notifications/weekly.ts). */
+  weeklyPreview: z.boolean().default(true),
   /** When the OS opens Tarpaulin at login, start minimised. (Opening at login itself is an OS
    *  setting, read and written through the desktop bridge.) */
   startMinimized: z.boolean().default(true),
