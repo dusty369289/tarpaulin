@@ -1,20 +1,19 @@
-import { act } from '@testing-library/react';
 import { format } from 'date-fns';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS, useSettings } from '../app/settingsStore';
-import { planAccount, planItemKey } from '../planner/keys';
+import { accountScope } from '../canvas/account';
+import { planItemKey } from '../planner/keys';
 import { EMPTY_PLAN, usePlans } from '../planner/store';
-import { fixtureBundle, recordedAt, renderWithCanvas } from '../test/render';
+import { shown } from '../test/desktopMock';
+import { FIXTURE_ACCOUNT } from '../test/fixtures';
+import { runNotifications } from '../test/notifications';
+import { recordedAt } from '../test/render';
 import { planReminderStorageKey } from './usePlanReminders';
-import { NotificationRunner } from './useNotifications';
 
-const shown = vi.hoisted(() => [] as { title: string; body: string }[]);
-vi.mock('../app/desktop', () => ({
-  showNotification: async (title: string, body: string) => void shown.push({ title, body }),
-}));
+vi.mock('../app/desktop', () => import('../test/desktopMock'));
 
-const ACCOUNT = planAccount(fixtureBundle.meta.baseUrl, '1001');
-const OTHER = planAccount('https://other.example.edu', '1001');
+const ACCOUNT = FIXTURE_ACCOUNT;
+const OTHER = accountScope('https://other.example.edu', '1001');
 /** Midday on the recorded day, on this machine's clock. */
 const NOON = new Date(recordedAt.getFullYear(), recordedAt.getMonth(), recordedAt.getDate(), 12);
 const TODAY = format(NOON, 'yyyy-MM-dd');
@@ -24,11 +23,7 @@ const ITEM_15 = planItemKey('assignment', '1028', '1091'); // already submitted 
 const planned = () =>
   shown.filter((n) => n.title.startsWith('Planned for today')).map((n) => n.title);
 
-async function run() {
-  const view = renderWithCanvas(<NotificationRunner />);
-  for (let i = 0; i < 20; i++) await act(() => new Promise((r) => setTimeout(r, 20)));
-  view.unmount();
-}
+const run = () => runNotifications();
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] });

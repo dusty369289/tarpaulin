@@ -1,18 +1,19 @@
 import { addDays, differenceInCalendarDays, format, startOfDay } from 'date-fns';
-import { CheckCircle2, ClipboardList, ListChecks } from 'lucide-react';
+import { CheckCircle2, ClipboardList } from 'lucide-react';
 import { z } from 'zod';
 import { fromDeadline } from '../reader/items';
 import { useOpenItem } from '../reader/ReaderProvider';
 import { useCourseIds, useNow, useUpcoming } from '../canvas/hooks';
-import type { Deadline, Deadlines, DeadlineStatus } from '../canvas/models';
+import type { Deadline, Deadlines } from '../canvas/models';
 import { formatDue, useTimeFormat } from '../lib/dates';
-import { useAccountPlans, usePlanAccount } from '../planner/hooks';
+import { formatPoints } from '../lib/text';
+import { useAccountPlans, usePlanActions } from '../planner/hooks';
 import { planKeyForPlannerItem } from '../planner/keys';
-import { PlanStatusIcon } from '../planner/PlanStatusIcon';
-import { formatDoDate, nextStatus, STATUS_LABEL } from '../planner/selectors';
-import { usePlans, type Plan, type PlanStatus } from '../planner/store';
+import { PlanChips, PlanStatusButton } from '../planner/PlanBits';
+import { planSummary } from '../planner/selectors';
+import type { PlanStatus } from '../planner/store';
 import { courseFilter, field } from './settings/fields';
-import { Badge, CourseDot, EmptyState, LinkButton, QueryGate } from './shared/ui';
+import { CourseDot, DeadlineStatusBadge, EmptyState, LinkButton, QueryGate } from './shared/ui';
 import { defineWidget } from './types';
 
 const schema = z.object({
@@ -105,75 +106,6 @@ function dayLabel(date: Date, now: Date) {
   return format(date, 'EEE d MMM');
 }
 
-const STATUS_BADGE: Partial<
-  Record<DeadlineStatus, [tone: 'danger' | 'warning' | 'success' | 'muted', label: string]>
-> = {
-  excused: ['muted', 'Excused'],
-  graded: ['success', 'Graded'],
-  submitted: ['success', 'Submitted'],
-  'submitted-late': ['success', 'Submitted late'],
-  done: ['success', 'Done'],
-  missing: ['danger', 'Missing'],
-  overdue: ['danger', 'Overdue'],
-  'due-today': ['warning', 'Due today'],
-};
-
-function Status({ deadline, now }: { deadline: Deadline; now: Date }) {
-  const badge = STATUS_BADGE[deadline.status(now)];
-  return badge ? <Badge tone={badge[0]}>{badge[1]}</Badge> : null;
-}
-
-/** The do-date and checklist progress, for the row's meta line. */
-function PlanChips({ plan, now, timeFmt }: { plan: Plan; now: Date; timeFmt: string }) {
-  const done = plan.checklist.filter((s) => s.done).length;
-  const total = plan.checklist.length;
-  return (
-    <>
-      {plan.doDate && (
-        <span className="chip chip-tone whitespace-nowrap [--tone:var(--accent)]">
-          Plan: {formatDoDate(plan.doDate, now, timeFmt)}
-        </span>
-      )}
-      {total > 0 && (
-        <span
-          className="inline-flex items-center gap-0.5 whitespace-nowrap"
-          aria-label={`${done} of ${total} steps done`}
-          title={`${done} of ${total} steps done`}
-        >
-          <ListChecks className="h-3 w-3" aria-hidden />
-          {done}/{total}
-        </span>
-      )}
-    </>
-  );
-}
-
-/** The plan's status mark, and a click to move it on: Not started → In progress → Done. */
-function PlanStatusButton({
-  title,
-  status,
-  onCycle,
-}: {
-  title: string;
-  status: PlanStatus;
-  onCycle: () => void;
-}) {
-  const next = STATUS_LABEL[nextStatus(status)];
-  return (
-    <button
-      type="button"
-      className="btn-icon -my-0.5 h-6 w-6 shrink-0"
-      aria-label={`${title}: ${STATUS_LABEL[status]} in my plan. Mark ${next.toLowerCase()}`}
-      title={`My plan: ${STATUS_LABEL[status]}. Click for ${next.toLowerCase()}.`}
-      data-testid="plan-status"
-      data-status={status}
-      onClick={onCycle}
-    >
-      <PlanStatusIcon status={status} />
-    </button>
-  );
-}
-
 export const DueSoon = defineWidget({
   type: 'due-soon',
   name: 'Due soon',
@@ -188,21 +120,11 @@ export const DueSoon = defineWidget({
     const deadlines = useUpcoming(settings.daysAhead, settings.overdueDays);
     const openItem = useOpenItem();
     const timeFmt = useTimeFormat();
-    const account = usePlanAccount();
     const plans = useAccountPlans();
-    const editPlan = usePlans((s) => s.edit);
+    const { cycleStatus } = usePlanActions();
     const planOf = (d: Deadline) => {
       const key = planKeyForPlannerItem(d);
       return key ? (plans[key] ?? null) : undefined;
-    };
-    const cycle = (d: Deadline) => {
-      const key = planKeyForPlannerItem(d);
-      if (!account || !key) return;
-      editPlan(account, key, (p) => ({ status: nextStatus(p.status) }), {
-        title: d.title,
-        courseName: d.courseName,
-        dueAt: d.data.dueAt ?? d.data.date,
-      });
     };
 
     return (
@@ -266,17 +188,25 @@ export const DueSoon = defineWidget({
                                 <span className="min-w-0 truncate">{d.courseName}</span>
                               )}
                               {settings.showPoints && d.points != null && (
-                                <span className="whitespace-nowrap">{d.points} pts</span>
+                                <span className="whitespace-nowrap">
+                                  {formatPoints(d.points, { short: true })}
+                                </span>
                               )}
-                              <Status deadline={d} now={now} />
-                              {plan && <PlanChips plan={plan} now={now} timeFmt={timeFmt} />}
+                              <DeadlineStatusBadge deadline={d} now={now} />
+                              {plan && (
+                                <PlanChips
+                                  summary={planSummary(plan, now, timeFmt)}
+                                  now={now}
+                                  timeFmt={timeFmt}
+                                />
+                              )}
                             </div>
                           </div>
                           {plan !== undefined && (
                             <PlanStatusButton
                               title={d.title}
                               status={plan?.status ?? 'todo'}
-                              onCycle={() => cycle(d)}
+                              onCycle={() => cycleStatus(d)}
                             />
                           )}
                         </li>

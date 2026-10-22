@@ -2,6 +2,7 @@ import { addDays, differenceInCalendarDays, startOfDay } from 'date-fns';
 import { COURSE_PALETTE } from '../lib/color';
 import { toDate } from '../lib/dates';
 import { htmlToText } from './client';
+import { plannerItemRef, type ItemRef } from './kinds';
 import { currentTermCourses, currentTermName } from './terms';
 import type {
   AnnouncementData,
@@ -228,6 +229,23 @@ export type DeadlineStatus =
   | 'upcoming'
   | 'info';
 
+/** How each status is shown: its words and badge tone; null when there's nothing to say. */
+export const DEADLINE_STATUS: Record<
+  DeadlineStatus,
+  { label: string; tone: 'danger' | 'warning' | 'success' | 'muted' } | null
+> = {
+  excused: { label: 'Excused', tone: 'muted' },
+  graded: { label: 'Graded', tone: 'success' },
+  submitted: { label: 'Submitted', tone: 'success' },
+  'submitted-late': { label: 'Submitted late', tone: 'success' },
+  done: { label: 'Done', tone: 'success' },
+  missing: { label: 'Missing', tone: 'danger' },
+  overdue: { label: 'Overdue', tone: 'danger' },
+  'due-today': { label: 'Due today', tone: 'warning' },
+  upcoming: null,
+  info: null,
+};
+
 /** Anything on the Canvas planner: assignments, quizzes, discussions, announcements, events. */
 export class Deadline implements BelongsToCourse {
   readonly course: Course | null;
@@ -264,6 +282,10 @@ export class Deadline implements BelongsToCourse {
   }
   get color() {
     return this.course?.color ?? COURSE_PALETTE[0];
+  }
+  /** The work this is (see canvas/kinds.ts), or null for events, pages, announcements… */
+  get ref(): ItemRef | null {
+    return plannerItemRef(this.data.type, this.data.courseId, this.data.id);
   }
   get isAnnouncement() {
     return this.data.type === 'announcement';
@@ -449,6 +471,9 @@ export class CalendarEvent implements BelongsToCourse {
   get courseId() {
     return this.data.courseId;
   }
+  get courseName() {
+    return this.course?.name ?? this.data.contextName;
+  }
   get color() {
     return this.course?.color ?? COURSE_PALETTE[0];
   }
@@ -489,6 +514,16 @@ export class TodoItem implements BelongsToCourse {
   }
   get color() {
     return this.course?.color ?? COURSE_PALETTE[0];
+  }
+  /** The work it is, named as the planner names it: a quiz or graded discussion by its own id,
+   *  not its assignment's, so both lead to the same plan. */
+  get ref(): ItemRef | null {
+    const { courseId, quizId, discussionId, assignmentId } = this.data;
+    if (!courseId) return null;
+    if (quizId) return { kind: 'quiz', courseId, id: quizId };
+    if (discussionId) return { kind: 'discussion', courseId, id: discussionId };
+    if (assignmentId) return { kind: 'assignment', courseId, id: assignmentId };
+    return null;
   }
 }
 

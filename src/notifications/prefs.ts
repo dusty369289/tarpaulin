@@ -1,4 +1,6 @@
 import { z } from 'zod';
+// Not ../lib/dates: that reads the settings, whose schema includes this one.
+import { TimeOfDaySchema } from '../lib/days';
 
 /** Reminder lead times, in minutes before a deadline. */
 export const LEAD_OPTIONS = [
@@ -9,8 +11,6 @@ export const LEAD_OPTIONS = [
   { minutes: 60, label: '1 hour' },
   { minutes: 15, label: '15 minutes' },
 ] as const;
-
-const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 
 const prefs = z.object({
   enabled: z.boolean().default(true),
@@ -29,13 +29,13 @@ const prefs = z.object({
   grades: z.boolean().default(true),
   /** "Planned for today": on the do-date of work in My plan (src/planner). */
   planned: z.boolean().default(true),
-  /** A preview of the week ahead, the evening before it starts (weekly.ts). */
+  /** A preview of the week ahead, the evening before it starts (rules/weekly.ts). */
   weekly: z.boolean().default(true),
   quietHours: z
     .object({
       enabled: z.boolean().default(false),
-      start: time.default('22:00'),
-      end: time.default('08:00'),
+      start: TimeOfDaySchema.default('22:00'),
+      end: TimeOfDaySchema.default('08:00'),
     })
     .default({}),
 });

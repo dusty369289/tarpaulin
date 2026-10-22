@@ -1,7 +1,9 @@
-import { isValid, parseISO } from 'date-fns';
 import { z } from 'zod';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { isAccountScope } from '../canvas/account';
+import { DayKeySchema, TimeOfDaySchema } from '../lib/days';
+import { isRecord } from '../lib/storage';
 import { parsePlanItemKey } from './keys';
 
 // "My plan": when you'll do a piece of Canvas work, where you are with it, and its steps. It
@@ -10,7 +12,7 @@ import { parsePlanItemKey } from './keys';
 // keys.ts.
 
 export const PLAN_STORAGE_KEY = 'tarpaulin.plans';
-export const PLANS_VERSION = 1;
+const PLANS_VERSION = 1;
 
 export const PLAN_STATUSES = ['todo', 'doing', 'done'] as const;
 export type PlanStatus = (typeof PLAN_STATUSES)[number];
@@ -21,25 +23,16 @@ export const PRUNE_AFTER_MS = 60 * 24 * 60 * 60_000;
 /** How often "still in Canvas" is written back for one plan. */
 const SEEN_EVERY_MS = 24 * 60 * 60_000;
 
-const DAY = /^\d{4}-\d{2}-\d{2}$/;
-const day = z
-  .string()
-  .regex(DAY)
-  .refine((s) => isValid(parseISO(s)));
-const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
-
-export const StepSchema = z.object({
+const StepSchema = z.object({
   id: z.string().min(1).max(64),
   text: z.string().max(500),
   done: z.boolean(),
 });
-export type PlanStep = z.infer<typeof StepSchema>;
-
-export const DoDateSchema = z.object({
+const DoDateSchema = z.object({
   /** yyyy-MM-dd, on the wall clock times are shown in. */
-  day,
+  day: DayKeySchema,
   /** HH:mm, or null for "some time that day". */
-  time: time.nullable().default(null),
+  time: TimeOfDaySchema.nullable().default(null),
 });
 export type DoDate = z.infer<typeof DoDateSchema>;
 
@@ -70,11 +63,8 @@ export type AccountPlans = Record<string, Plan>;
 export type PlansByAccount = Record<string, AccountPlans>;
 
 /** Nothing planned: not worth keeping. */
-export const isEmptyPlan = (p: Plan) =>
+const isEmptyPlan = (p: Plan) =>
   p.status === 'todo' && p.doDate === null && p.checklist.length === 0;
-
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  Boolean(v) && typeof v === 'object' && !Array.isArray(v);
 
 /** Validates stored or imported plans. Unknown accounts, keys and broken plans are dropped. A
  *  plan without a valid change time counts as changed `now`, so it isn't pruned on sight. */
@@ -82,7 +72,7 @@ export function parsePlans(raw: unknown, now = Date.now()): PlansByAccount {
   const out: PlansByAccount = {};
   if (!isRecord(raw)) return out;
   for (const [account, plans] of Object.entries(raw)) {
-    if (!account.includes('|') || !isRecord(plans)) continue;
+    if (!isAccountScope(account) || !isRecord(plans)) continue;
     const kept: AccountPlans = {};
     for (const [key, value] of Object.entries(plans)) {
       if (!parsePlanItemKey(key) || !isRecord(value)) continue;
@@ -182,6 +172,9 @@ export const usePlans = create<PlanState>()(
       name: PLAN_STORAGE_KEY,
       version: PLANS_VERSION,
       partialize: (s) => ({ plans: s.plans }),
+      // Stored plans are checked field by field in `merge` (parsePlans), like the settings, so
+      // there's nothing to move yet. A later version that changes the shape moves it here.
+      migrate: (persisted) => persisted,
       merge: (persisted, current) => ({
         ...current,
         plans: prunePlans(parsePlans((persisted as { plans?: unknown } | null)?.plans), Date.now()),

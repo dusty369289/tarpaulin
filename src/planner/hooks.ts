@@ -1,9 +1,9 @@
 import { useCallback, useMemo } from 'react';
-import { useCanvas } from '../canvas/CanvasProvider';
-import { useProfile } from '../canvas/hooks';
+import { useAccountScope } from '../canvas/account';
+import type { Deadline } from '../canvas/models';
 import { newId } from '../lib/id';
-import { planAccount } from './keys';
-import { plansOn, planSummary, type PlannedItem, type PlanSummary } from './selectors';
+import { planKeyForPlannerItem } from './keys';
+import { nextStatus, planMetaOf } from './selectors';
 import {
   EMPTY_PLAN,
   usePlans,
@@ -16,56 +16,54 @@ import {
 
 const NO_PLANS: AccountPlans = {};
 
-/**
- * The signed-in account's scope, `<baseUrl>|<userId>`, worked out like notifications do: null
- * until the profile is known (or, if it can't load, the Canvas address alone).
- */
-export function usePlanAccount(): string | null {
-  const baseUrl = useCanvas().client?.baseUrl;
-  const profile = useProfile();
-  const userId = profile.data?.id ?? (profile.isError ? '' : null);
-  return baseUrl && userId !== null ? planAccount(baseUrl, userId) : null;
-}
-
 /** Every plan of the signed-in account (item key → plan). */
 export function useAccountPlans(): AccountPlans {
-  const account = usePlanAccount();
+  const account = useAccountScope();
   return usePlans((s) => (account && s.plans[account]) || NO_PLANS);
 }
 
 /** One item's plan in the signed-in account, or null when nothing is planned. */
 export function usePlan(key: string | null): Plan | null {
-  const account = usePlanAccount();
+  const account = useAccountScope();
   return usePlans((s) => (account && key && s.plans[account]?.[key]) || null);
 }
 
-/** One item's plan at a glance (see planSummary). */
-export function usePlanSummary(key: string | null, now: Date, timeFmt?: string): PlanSummary {
-  const plan = usePlan(key);
-  return useMemo(() => planSummary(plan, now, timeFmt), [plan, now, timeFmt]);
-}
-
-/** Items the signed-in account planned for `day`, for the calendar. */
-export function usePlansOn(day: Date): PlannedItem[] {
-  const plans = useAccountPlans();
-  return useMemo(() => plansOn(plans, day), [plans, day]);
+/** Changes to plans of the signed-in account; each is a no-op until the account is known. */
+export function usePlanActions() {
+  const account = useAccountScope();
+  const edit = usePlans((s) => s.edit);
+  return useMemo(
+    () => ({
+      ready: Boolean(account),
+      /** Changes one item's plan, keeping `meta` (what's known of the item) with it. */
+      edit: (key: string, change: (p: Plan) => Partial<Plan>, meta?: PlanMeta) => {
+        if (account) edit(account, key, change, meta);
+      },
+      /** Moves a planner item's plan on: Not started → In progress → Done → Not started. */
+      cycleStatus: (d: Deadline) => {
+        const key = planKeyForPlannerItem(d);
+        if (account && key)
+          edit(account, key, (p) => ({ status: nextStatus(p.status) }), planMetaOf(d));
+      },
+    }),
+    [account, edit],
+  );
 }
 
 /** Changes to one item's plan; each is a no-op until the account is known. */
 export function usePlanEditor(key: string | null, meta?: PlanMeta) {
-  const account = usePlanAccount();
+  const actions = usePlanActions();
   const plan = usePlan(key);
-  const edit = usePlans((s) => s.edit);
   const { title, courseName, dueAt } = meta ?? {};
   const change = useCallback(
     (fn: (p: Plan) => Partial<Plan>) => {
-      if (account && key) edit(account, key, fn, { title, courseName, dueAt });
+      if (key) actions.edit(key, fn, { title, courseName, dueAt });
     },
-    [account, key, edit, title, courseName, dueAt],
+    [actions, key, title, courseName, dueAt],
   );
   return useMemo(
     () => ({
-      ready: Boolean(account && key),
+      ready: Boolean(actions.ready && key),
       plan: plan ?? EMPTY_PLAN,
       setStatus: (status: PlanStatus) => change(() => ({ status })),
       setDoDate: (doDate: DoDate | null) => change(() => ({ doDate })),
@@ -83,6 +81,6 @@ export function usePlanEditor(key: string | null, meta?: PlanMeta) {
       removeStep: (id: string) =>
         change((p) => ({ checklist: p.checklist.filter((s) => s.id !== id) })),
     }),
-    [plan, change, account, key],
+    [plan, change, actions.ready, key],
   );
 }

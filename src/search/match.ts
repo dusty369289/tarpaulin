@@ -1,3 +1,5 @@
+import { fold } from '../lib/text';
+
 // Quick find's matcher: small, pure and forgiving. "ps4" finds "Problem set 4", "ml" finds
 // "Machine Learning", "cs229" finds a course coded "CS 229", and one slipped letter ("probelm")
 // still finds "Problem". Results rank by how well they match, then by how soon they are due.
@@ -26,7 +28,7 @@ export interface Ranked<T> {
   band: Band;
 }
 
-export type Band = 0 | 1 | 2;
+type Band = 0 | 1 | 2;
 
 /** An own-title match at least this good (word start, initials without skips) ranks in band 0. */
 const STRONG = 70;
@@ -59,11 +61,7 @@ const SCORE = {
  * boundaries ("CS-229", "ProblemSet4" and "problem set 4" all become words).
  */
 export function words(text: string): string[] {
-  return text
-    .normalize('NFKD')
-    .replace(/\p{M}+/gu, '')
-    .replace(/(\p{Ll})(\p{Lu})/gu, '$1 $2')
-    .toLocaleLowerCase()
+  return fold(text.replace(/(\p{Ll})(\p{Lu})/gu, '$1 $2'))
     .replace(/(\p{L})(\p{N})/gu, '$1 $2')
     .replace(/(\p{N})(\p{L})/gu, '$1 $2')
     .split(/[^\p{L}\p{N}]+/u)
@@ -72,10 +70,7 @@ export function words(text: string): string[] {
 
 /** The query's tokens: like `words`, but "ps4" stays one token so it can spell initials. */
 export function tokens(query: string): string[] {
-  return query
-    .normalize('NFKD')
-    .replace(/\p{M}+/gu, '')
-    .toLocaleLowerCase()
+  return fold(query)
     .split(/[^\p{L}\p{N}]+/u)
     .filter(Boolean);
 }
@@ -200,10 +195,12 @@ export function match(query: string, item: Searchable): Match {
   return { score, band };
 }
 
-/** Just the score of `match`. */
+/** Just the score of `match`.
+ *  @internal For tests. */
 export const matchScore = (query: string, item: Searchable): number => match(query, item).score;
 
-/** Sort key for "how soon": upcoming soonest first, then past most recent first, then undated. */
+/** Sort key for "how soon": upcoming soonest first, then past most recent first, then undated.
+ *  @internal For tests; `rank` uses it. */
 export function dueOrder(due: Date | null | undefined, now: Date): number {
   if (!due) return Number.MAX_SAFE_INTEGER;
   const t = due.getTime() - now.getTime();

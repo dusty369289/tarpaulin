@@ -16,8 +16,8 @@ import {
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { z } from 'zod';
-import { useSettings } from '../app/settingsStore';
-import { planKeyForPlannerItem, plansOn, useAccountPlans } from '../planner';
+import { useAccountPlans } from '../planner/hooks';
+import { indexByPlanKey, plansBetween } from '../planner/selectors';
 import { fromDeadline, fromEvent, type ReaderItem } from '../reader/items';
 import { useOpenItem } from '../reader/ReaderProvider';
 import {
@@ -27,8 +27,8 @@ import {
   useEvents,
   useUpcoming,
 } from '../canvas/hooks';
-import type { Deadline } from '../canvas/models';
-import { nowInZone, useTimeFormat } from '../lib/dates';
+import { dayKey, nowInZone, useTimeFormat, useWeekStartsOn } from '../lib/dates';
+import { plural } from '../lib/text';
 import {
   dayLoad,
   describeLoad,
@@ -138,10 +138,8 @@ function loadNote(load: DayLoad | null): string {
   const text = load && describeLoad(load);
   return text ? `, ${text}` : '';
 }
-const tooltip = (load: DayLoad | null) => {
-  const text = load && describeLoad(load);
-  return text ? text[0].toUpperCase() + text.slice(1) : undefined;
-};
+const tooltip = (load: DayLoad | null) =>
+  (load && describeLoad(load, { capitalise: true })) || undefined;
 
 /** The tint band that marks a busy day (see `.cal-load` in index.css). Purely visual: the
  *  day's label carries the same thing in words. */
@@ -193,7 +191,7 @@ export const Calendar = defineWidget({
   minSize: { w: 3, h: 5 },
   settingsSchema: schema,
   Component: function CalendarWidget({ settings, size }) {
-    const weekStartsOn = useSettings((s) => (s.weekStartsOn === 'monday' ? 1 : 0));
+    const weekStartsOn = useWeekStartsOn();
     const [cursor, setCursor] = useState(() => nowInZone());
     const [selected, setSelected] = useState<Date | null>(null);
     const courseIds = useCourseIds(settings.courseIds);
@@ -251,30 +249,24 @@ export const Calendar = defineWidget({
       // not deadlines, so they stay out of the load below. The shared planner window finds the
       // work even when it's due outside the visible range.
       if (settings.showWork) {
-        const work = new Map<string, Deadline>();
-        for (const d of [...wide.data, ...deadlines.data]) {
-          const key = planKeyForPlannerItem(d);
-          if (key) work.set(key, d);
-        }
+        const work = indexByPlanKey([...wide.data, ...deadlines.data]);
         const courses = new Set(courseIds);
-        for (let day = startOfDay(start); day <= end; day = addDays(day, 1)) {
-          for (const p of plansOn(plans, day)) {
-            if (p.plan.status === 'done' || !courses.has(p.courseId)) continue;
-            const d = work.get(p.key);
-            if (settings.hideCompleted && d?.isDone) continue;
-            out.push({
-              key: `plan:${p.key}`,
-              title: `Plan: ${d?.title ?? p.plan.title}`,
-              start: p.at,
-              end: null,
-              allDay: !p.hasTime,
-              color: d?.color ?? PLAN_FALLBACK_COLOR,
-              kind: 'plan',
-              done: false,
-              url: d?.url ?? null,
-              item: d ? fromDeadline(d) : null,
-            });
-          }
+        for (const p of plansBetween(plans, start, end)) {
+          if (p.plan.status === 'done' || !courses.has(p.courseId)) continue;
+          const d = work.get(p.key);
+          if (settings.hideCompleted && d?.isDone) continue;
+          out.push({
+            key: `plan:${p.key}`,
+            title: `Plan: ${d?.title ?? p.plan.title}`,
+            start: p.at,
+            end: null,
+            allDay: !p.hasTime,
+            color: d?.color ?? PLAN_FALLBACK_COLOR,
+            kind: 'plan',
+            done: false,
+            url: d?.url ?? null,
+            item: d ? fromDeadline(d) : null,
+          });
         }
       }
       return out.sort((a, b) => a.start.getTime() - b.start.getTime());
@@ -364,9 +356,7 @@ export const Calendar = defineWidget({
     useEffect(() => {
       if (!refocus.current || !focusDay) return;
       refocus.current = false;
-      gridRef.current
-        ?.querySelector<HTMLElement>(`[data-day="${format(focusDay, 'yyyy-MM-dd')}"]`)
-        ?.focus();
+      gridRef.current?.querySelector<HTMLElement>(`[data-day="${dayKey(focusDay)}"]`)?.focus();
     });
     const onGridKey = (ev: KeyboardEvent) => {
       const move = DAY_KEYS[ev.key];
@@ -463,12 +453,12 @@ export const Calendar = defineWidget({
                             <button
                               type="button"
                               key={d.toISOString()}
-                              data-day={format(d, 'yyyy-MM-dd')}
+                              data-day={dayKey(d)}
                               tabIndex={isSameDay(d, tabDay) ? 0 : -1}
                               onFocus={() => setFocusDay(d)}
                               onKeyDown={onGridKey}
                               onClick={() => setSelected(isSel ? null : d)}
-                              aria-label={`${format(d, 'EEEE d MMMM')}, ${list.length} item${list.length === 1 ? '' : 's'}${loadNote(dl)}`}
+                              aria-label={`${format(d, 'EEEE d MMMM')}, ${plural(list.length, 'item')}${loadNote(dl)}`}
                               title={tooltip(dl)}
                               data-load={dl && dl.level !== 'none' ? dl.level : undefined}
                               aria-pressed={Boolean(isSel)}

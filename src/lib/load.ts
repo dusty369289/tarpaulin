@@ -1,4 +1,8 @@
 import { addDays, format, startOfDay } from 'date-fns';
+import { PLANNER_TYPES } from '../canvas/kinds';
+import type { PlannerItemType } from '../canvas/types';
+import { dayKey } from './days';
+import { formatPoints } from './text';
 
 // How much work is due on a day or in a week, as one small, explainable number.
 //
@@ -16,7 +20,7 @@ import { addDays, format, startOfDay } from 'date-fns';
 /** What the load needs from a planner item (a `Deadline` fits). */
 export interface LoadSource {
   key: string;
-  type: string;
+  type: PlannerItemType;
   courseId: string | null;
   date: Date | null;
   points: number | null;
@@ -44,18 +48,16 @@ export interface WeekLoad extends DayLoad {
 }
 
 /** Day score thresholds: light from 1, busy from 3, heavy from 5. */
-export const DAY_LEVELS = { busy: 3, heavy: 5 } as const;
+const DAY_LEVELS = { busy: 3, heavy: 5 } as const;
 /** Week score thresholds: light from 1, busy from 6, heavy from 12. */
-export const WEEK_LEVELS = { busy: 6, heavy: 12 } as const;
+const WEEK_LEVELS = { busy: 6, heavy: 12 } as const;
 
-/** Item types that are due work even when Canvas sends no submission for them. */
-const DUE_TYPES = new Set(['assignment', 'quiz', 'discussion_topic', 'assessment_request']);
-
-export const EMPTY_LOAD: DayLoad = { score: 0, due: 0, points: 0, level: 'none' };
+const EMPTY_LOAD: DayLoad = { score: 0, due: 0, points: 0, level: 'none' };
 
 /** Work that's due (done or not): what the course baseline is built from. */
 function isWorkItem(d: LoadSource): boolean {
-  return d.isWork || DUE_TYPES.has(d.type);
+  // Some types are due work even when Canvas sends no submission for them.
+  return d.isWork || PLANNER_TYPES[d.type].dueWork;
 }
 
 /** Unfinished work with a due date: what counts toward the load. */
@@ -105,8 +107,6 @@ export function weekLevel(score: number, heaviestDay: LoadLevel = 'none'): LoadL
   if (score >= WEEK_LEVELS.busy || heaviestDay === 'heavy') return 'busy';
   return 'light';
 }
-
-const dayKey = (d: Date) => format(d, 'yyyy-MM-dd');
 
 /** The load of every day that has something due, by `yyyy-MM-dd`. */
 export type LoadByDay = Map<string, DayLoad>;
@@ -168,16 +168,6 @@ export function weekLoad(byDay: LoadByDay, start: Date): WeekLoad {
   };
 }
 
-const fmtPoints = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
-
-/** "busy: 3 due, 120 points"; null when nothing is due. */
-export function describeLoad(load: DayLoad): string | null {
-  if (load.due === 0) return null;
-  const pts =
-    load.points > 0 ? `, ${fmtPoints(load.points)} point${load.points === 1 ? '' : 's'}` : '';
-  return `${load.level}: ${load.due} due${pts}`;
-}
-
 const LEVEL_NAMES: Record<LoadLevel, string> = {
   none: 'Quiet',
   light: 'Light',
@@ -185,13 +175,30 @@ const LEVEL_NAMES: Record<LoadLevel, string> = {
   heavy: 'Heavy',
 };
 
+/** "Quiet", "Light", "Busy", "Heavy". */
+export const levelName = (level: LoadLevel) => LEVEL_NAMES[level];
+
+/**
+ * "busy: 3 due, 120 points" ("Busy: …" with `capitalise`, to stand on its own); null when nothing
+ * is due.
+ */
+export function describeLoad(
+  load: DayLoad,
+  { capitalise = false }: { capitalise?: boolean } = {},
+): string | null {
+  if (load.due === 0) return null;
+  const pts = load.points > 0 ? `, ${formatPoints(load.points)}` : '';
+  const level = capitalise ? levelName(load.level) : load.level;
+  return `${level}: ${load.due} due${pts}`;
+}
+
 /**
  * "Busy week · 7 due · heaviest Thu"; a light week stays short ("Light week · 2 due"); null when
  * nothing is due. `thisWeek` words it for the month view, which shows the current week's.
  */
 export function summariseWeek(week: WeekLoad, thisWeek = false): string | null {
   if (week.due === 0) return null;
-  const level = LEVEL_NAMES[week.level];
+  const level = levelName(week.level);
   const head = thisWeek ? `This week: ${level.toLowerCase()}` : `${level} week`;
   const parts = [head, `${week.due} due`];
   if (week.level !== 'light' && week.heaviest)

@@ -1,11 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import {
-  parsePlanItemKey,
-  planAccount,
-  planItemKey,
-  planKeyForPlannerItem,
-  planKeyForReaderItem,
-} from './keys';
+import { accountScope } from '../canvas/account';
+import { plannerItemRef } from '../canvas/kinds';
+import { parsePlanItemKey, planItemKey, planKeyForPlannerItem, planKeyForReaderItem } from './keys';
 import { plansOn, planSummary } from './selectors';
 import {
   EMPTY_PLAN,
@@ -16,14 +12,13 @@ import {
   prunePlans,
   PRUNE_AFTER_MS,
   usePlans,
-  type Plan,
 } from './store';
+import { plan } from '../test/fixtures';
 
-const A = planAccount('https://a.example.edu', '1');
-const B = planAccount('https://b.example.edu', '1');
+const A = accountScope('https://a.example.edu', '1');
+const B = accountScope('https://b.example.edu', '1');
 const PS4 = planItemKey('assignment', '10', '400');
 const QUIZ = planItemKey('quiz', '10', '400');
-const plan = (p: Partial<Plan>): Plan => ({ ...EMPTY_PLAN, updatedAt: Date.now(), ...p });
 
 beforeEach(() => usePlans.setState({ plans: {} }));
 
@@ -31,29 +26,20 @@ describe('plan keys', () => {
   it('names the kind, course and id, so a quiz and an assignment with one id differ', () => {
     expect(PS4).toBe('assignment:10:400');
     expect(QUIZ).not.toBe(PS4);
-    expect(parsePlanItemKey(PS4)).toEqual({ type: 'assignment', courseId: '10', id: '400' });
+    expect(parsePlanItemKey(PS4)).toEqual({ kind: 'assignment', courseId: '10', id: '400' });
     expect(parsePlanItemKey('event:10:4')).toBeNull();
   });
 
   it('matches between the planner and the reader', () => {
-    const fromPlanner = planKeyForPlannerItem({
-      type: 'discussion_topic',
-      courseId: '10',
-      data: { id: '7' },
-    });
+    const ref = plannerItemRef('discussion_topic', '10', '7');
+    const fromPlanner = planKeyForPlannerItem({ ref });
     expect(fromPlanner).toBe('discussion:10:7');
-    expect(planKeyForReaderItem({ kind: 'discussion', courseId: '10', id: '7' })).toBe(fromPlanner);
+    expect(planKeyForReaderItem({ ref: ref! })).toBe(fromPlanner);
     // Not work you plan.
-    expect(
-      planKeyForPlannerItem({ type: 'calendar_event', courseId: '10', data: { id: '1' } }),
-    ).toBeNull();
-    expect(
-      planKeyForPlannerItem({ type: 'assignment', courseId: null, data: { id: '1' } }),
-    ).toBeNull();
-    expect(planKeyForReaderItem({ kind: 'event', courseId: '10', id: '1' })).toBeNull();
-    expect(
-      planKeyForReaderItem({ kind: 'discussion', courseId: '10', id: '1', noPlan: true }),
-    ).toBeNull();
+    expect(plannerItemRef('calendar_event', '10', '1')).toBeNull();
+    expect(plannerItemRef('announcement', '10', '1')).toBeNull();
+    expect(plannerItemRef('assignment', null, '1')).toBeNull();
+    expect(planKeyForReaderItem({})).toBeNull();
   });
 });
 
@@ -230,7 +216,7 @@ describe('selectors', () => {
       now,
     );
     expect(items.map((i) => i.plan.title)).toEqual(['Any time', 'Early', 'Late']);
-    expect(items[1]).toMatchObject({ type: 'quiz', courseId: '10', id: '400', hasTime: true });
+    expect(items[1]).toMatchObject({ kind: 'quiz', courseId: '10', id: '400', hasTime: true });
     expect(items[1].at).toEqual(new Date(2026, 9, 20, 8));
   });
 });

@@ -2,11 +2,12 @@ import { addDays, subDays } from 'date-fns';
 import { ChevronDown, Plus, X } from 'lucide-react';
 import { useId, useState } from 'react';
 import { useNow } from '../canvas/hooks';
-import { toDate, useTimeFormat } from '../lib/dates';
+import { dayKey, toDate, useTimeFormat } from '../lib/dates';
 import { Segmented } from '../ui/Segmented';
 import { usePlanEditor } from './hooks';
+import { StepProgress } from './PlanBits';
 import { PlanStatusIcon } from './PlanStatusIcon';
-import { dayKey, planSummary, STATUS_LABEL } from './selectors';
+import { planSummary, STATUS_LABEL } from './selectors';
 import { PLAN_STATUSES } from './store';
 
 /**
@@ -133,9 +134,16 @@ export function PlanPanel({
           </fieldset>
 
           <div className="flex min-w-0 flex-col gap-1.5">
-            <span className="label mb-0" id={`${id}-steps`}>
-              Steps
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="label mb-0" id={`${id}-steps`}>
+                Steps
+              </span>
+              <StepProgress
+                done={summary.stepsDone}
+                total={summary.stepsTotal}
+                className="text-xs text-muted"
+              />
+            </div>
             {plan.checklist.length > 0 && (
               <ul aria-labelledby={`${id}-steps`} className="flex flex-col gap-0.5">
                 {plan.checklist.map((s) => (

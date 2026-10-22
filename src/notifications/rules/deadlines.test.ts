@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_NOTIFICATION_PREFS as DEFAULTS, NotificationPrefsSchema } from './prefs';
+import { inQuietHours } from '../core';
+import { DEFAULT_NOTIFICATION_PREFS as DEFAULTS, NotificationPrefsSchema } from '../prefs';
 import {
   EMPTY_STATE,
+  decideNotifications,
   formatRemaining,
-  inQuietHours,
-  planNotifications,
   type NotifyInput,
   type NotifyState,
-} from './rules';
+} from './deadlines';
 
 const now = new Date('2026-10-21T12:00:00');
 const at = (h: number) => new Date(now.getTime() + h * 3600_000);
@@ -24,7 +24,7 @@ const deadline = (key: string, dueInHours: number, done = false) => ({
 function run(steps: Array<{ input: NotifyInput; when: Date }>, prefs = DEFAULTS) {
   let state: NotifyState = EMPTY_STATE;
   return steps.map(({ input, when }) => {
-    const out = planNotifications(input, prefs, state, when, 'HH:mm');
+    const out = decideNotifications(input, prefs, state, when, 'HH:mm');
     state = out.state;
     return out.notes;
   });
@@ -136,20 +136,20 @@ describe('announcements and grades', () => {
 
   it('forgets the baseline when a category is switched off', () => {
     const off = { ...DEFAULTS, announcements: false };
-    let state = planNotifications(
+    let state = decideNotifications(
       { ...empty, announcements: [ann('1')] },
       DEFAULTS,
       EMPTY_STATE,
       now,
     ).state;
-    state = planNotifications(
+    state = decideNotifications(
       { ...empty, announcements: [ann('1'), ann('2')] },
       off,
       state,
       at(1),
     ).state;
     expect(state.seenAnnouncements).toBeNull();
-    const back = planNotifications(
+    const back = decideNotifications(
       { ...empty, announcements: [ann('1'), ann('2'), ann('3')] },
       DEFAULTS,
       state,

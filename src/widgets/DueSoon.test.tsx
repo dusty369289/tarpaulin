@@ -1,18 +1,18 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { addDays, format } from 'date-fns';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { WidgetHost } from '../dashboard/WidgetHost';
-import { planAccount, planItemKey } from '../planner/keys';
-import { EMPTY_PLAN, usePlans, type Plan } from '../planner/store';
-import { fixtureBundle, recordedAt, renderWithCanvas } from '../test/render';
+import { accountScope } from '../canvas/account';
+import { planItemKey } from '../planner/keys';
+import { usePlans } from '../planner/store';
+import { FIXTURE_ACCOUNT as ACCOUNT, plan } from '../test/fixtures';
+import { recordedAt } from '../test/render';
+import { renderWidget } from '../test/widgets';
 import { defaultSettings } from './registry';
 
 // "My plan" in Due soon, against the recorded fixtures (clock frozen at recording time).
-const ACCOUNT = planAccount(fixtureBundle.meta.baseUrl, '1001');
 const QUIZ_17 = planItemKey('quiz', '1028', '1094'); // "Item 17", due 23 Oct
 const QUIZ_19 = planItemKey('quiz', '1028', '1097'); // "Item 19", due 30 Oct
 const ITEM_20 = planItemKey('assignment', '1032', '1099'); // "Item 20", due 30 Oct
-const plan = (p: Partial<Plan>): Plan => ({ ...EMPTY_PLAN, updatedAt: Date.now(), ...p });
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] });
@@ -33,7 +33,7 @@ beforeEach(() => {
         }),
       },
       // Another account's plan for the same item must not show.
-      [planAccount('https://other.example.edu', '1001')]: {
+      [accountScope('https://other.example.edu', '1001')]: {
         [ITEM_20]: plan({ status: 'done', doDate: { day: '2026-10-22', time: null } }),
       },
     },
@@ -42,15 +42,7 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 async function renderDueSoon(settings: Record<string, unknown> = {}) {
-  renderWithCanvas(
-    <WidgetHost
-      id="d"
-      instance={{ type: 'due-soon', settings: { ...defaultSettings('due-soon'), ...settings } }}
-      size={{ w: 4, h: 9 }}
-      editMode={false}
-      onData={() => {}}
-    />,
-  );
+  renderWidget('due-soon', settings, { size: { w: 4, h: 9 } });
   await screen.findAllByTestId('due-item');
   // Plans show once the account (from the profile) is known.
   await waitFor(() => expect(document.querySelector('[data-plan-status="doing"]')).not.toBeNull());
@@ -111,7 +103,7 @@ describe('Due soon with My plan', () => {
     expect(screen.getAllByTestId('due-item').at(-1)).toHaveTextContent('Item 20');
     // The other account's plan for the same item is untouched.
     expect(
-      usePlans.getState().plans[planAccount('https://other.example.edu', '1001')][ITEM_20].doDate,
+      usePlans.getState().plans[accountScope('https://other.example.edu', '1001')][ITEM_20].doDate,
     ).not.toBeNull();
   });
 

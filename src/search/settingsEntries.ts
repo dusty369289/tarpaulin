@@ -8,7 +8,7 @@ import { CATEGORY_META, SETTINGS_CATEGORIES, type SettingsCategory } from '../ap
 // on that category. There's one per category, made from the category's own title, description,
 // keywords and icon (src/app/settingsNav.ts).
 
-export interface SettingsEntry {
+interface SettingsEntry {
   /** Stable id, kept in recent picks. */
   id: string;
   title: string;

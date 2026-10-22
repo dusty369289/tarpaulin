@@ -6,6 +6,7 @@ import { useCourseIds, useNow, useProfile, useUpcoming } from '../canvas/hooks';
 import { field } from './settings/fields';
 import { defineWidget } from './types';
 import { useTimeFormat } from '../lib/dates';
+import { plural } from '../lib/text';
 
 const schema = z.object({
   showGreeting: field(z.boolean().default(true), { label: 'Show greeting' }),
@@ -74,7 +75,7 @@ export const Clock = defineWidget({
             <div className="clock-sum truncate text-muted">
               {due === 0
                 ? 'Nothing due in the next 7 days.'
-                : `${due} thing${due === 1 ? '' : 's'} due in the next 7 days.`}
+                : `${plural(due, 'thing')} due in the next 7 days.`}
             </div>
           )}
         </div>

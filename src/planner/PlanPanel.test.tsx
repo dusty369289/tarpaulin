@@ -3,11 +3,12 @@ import { addDays, format } from 'date-fns';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ItemReader } from '../reader/ItemReader';
 import type { ReaderItem } from '../reader/items';
-import { fixtureBundle, recordedAt, renderWithCanvas } from '../test/render';
-import { planAccount, planItemKey } from './keys';
+import { accountScope } from '../canvas/account';
+import { FIXTURE_ACCOUNT as ACCOUNT } from '../test/fixtures';
+import { recordedAt, renderWithCanvas } from '../test/render';
+import { planItemKey } from './keys';
 import { usePlans } from './store';
 
-const ACCOUNT = planAccount(fixtureBundle.meta.baseUrl, '1001');
 const KEY = planItemKey('assignment', '1032', '1099');
 const ITEM: ReaderItem = {
   kind: 'assignment',
@@ -18,6 +19,7 @@ const ITEM: ReaderItem = {
   color: '#336699',
   url: null,
   inline: { dueAt: '2026-10-30T22:59:00Z' },
+  ref: { kind: 'assignment', courseId: '1032', id: '1099' },
 };
 const day = (d: Date) => format(d, 'yyyy-MM-dd');
 const plan = () => usePlans.getState().plans[ACCOUNT]?.[KEY];
@@ -89,7 +91,7 @@ describe('My plan in the reader', () => {
 
   it('shows the plan already saved, and nothing from another account', async () => {
     const { edit } = usePlans.getState();
-    edit(planAccount('https://other.example.edu', '1001'), KEY, () => ({ status: 'done' }));
+    edit(accountScope('https://other.example.edu', '1001'), KEY, () => ({ status: 'done' }));
     edit(ACCOUNT, KEY, () => ({ status: 'doing' }));
     const panel = await openPanel();
     await waitFor(() =>
@@ -102,7 +104,7 @@ describe('My plan in the reader', () => {
   it('is only there for work', async () => {
     renderWithCanvas(
       <ItemReader
-        item={{ ...ITEM, kind: 'announcement', inline: { html: '<p>Hi</p>' } }}
+        item={{ ...ITEM, kind: 'announcement', ref: undefined, inline: { html: '<p>Hi</p>' } }}
         onClose={() => {}}
       />,
     );
@@ -112,7 +114,7 @@ describe('My plan in the reader', () => {
 
   it('isn’t there for announcements that open as discussions', async () => {
     renderWithCanvas(
-      <ItemReader item={{ ...ITEM, kind: 'discussion', noPlan: true }} onClose={() => {}} />,
+      <ItemReader item={{ ...ITEM, kind: 'discussion', ref: undefined }} onClose={() => {}} />,
     );
     await screen.findByTestId('item-reader');
     expect(screen.queryByTestId('plan-panel')).toBeNull();

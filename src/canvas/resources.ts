@@ -1,4 +1,5 @@
 import type { z } from 'zod';
+import { DAY_KEY_RE } from '../lib/days';
 import { listResource, objectResource, type Urls } from './resource';
 import {
   RawAnnouncement,
@@ -34,7 +35,6 @@ const courseIdFromContext = (code: string | null | undefined) =>
   code?.startsWith('course_') ? code.slice('course_'.length) : null;
 
 const HEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
-const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** One path segment. Ids are digits in practice; anything else must not change the path. */
 const seg = (id: string) => encodeURIComponent(id);
@@ -257,7 +257,7 @@ export const CalendarEvents = (contextCodes: string[], startDate: string, endDat
       endAt: e.end_at ?? null,
       allDay: e.all_day ?? false,
       allDayDate:
-        e.all_day && e.all_day_date && DAY_RE.test(e.all_day_date) ? e.all_day_date : null,
+        e.all_day && e.all_day_date && DAY_KEY_RE.test(e.all_day_date) ? e.all_day_date : null,
       location: e.location_name || null,
       courseId: courseIdFromContext(e.context_code),
       contextName: e.context_name ?? '',
@@ -305,7 +305,8 @@ export const Todo = listResource({
       pointsPossible: a?.points_possible ?? null,
       htmlUrl: urls.absolute(a?.html_url ?? t.html_url),
       assignmentId: a?.id ?? null,
-      quizId: a ? null : (t.quiz?.id ?? null),
+      quizId: a?.quiz_id ?? t.quiz?.id ?? null,
+      discussionId: a?.discussion_topic?.id ?? null,
     };
   },
 });
