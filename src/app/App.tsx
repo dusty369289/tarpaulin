@@ -5,7 +5,7 @@ import { Dashboard } from '../dashboard/Dashboard';
 import { UndoToast } from '../dashboard/UndoToast';
 import { NotificationRunner } from '../notifications/useNotifications';
 import { describeError } from '../widgets/shared/ui';
-import { backgroundIfLaunchedAtLogin, setCloseToTray } from './desktop';
+import { setCloseToTray, startDesktopShell } from './desktop';
 import { useSettings } from './settingsStore';
 
 // Screens most launches never show load on demand: setup only runs once, Settings is a click away.
@@ -33,7 +33,7 @@ function routeFromHash(): Route {
 }
 
 export function App() {
-  const { connection, connectionLoading, connectionError } = useCanvas();
+  const { connection, connectionLoading, connectionError, connectionFromCache } = useCanvas();
   const [route, setRoute] = useState<Route>(routeFromHash);
   const onboarded = useSettings((s) => s.onboarded);
 
@@ -41,7 +41,7 @@ export function App() {
   useEffect(() => {
     // Order matters: the shell must know about the tray before deciding where to send the window.
     void setCloseToTray(closeToTray)
-      .then(() => backgroundIfLaunchedAtLogin(useSettings.getState().startMinimized))
+      .then(() => startDesktopShell(useSettings.getState().startMinimized))
       .catch(() => {});
     // Only the first run sends the window away; later runs just sync the setting.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -60,7 +60,9 @@ export function App() {
   };
 
   if (connectionLoading) return <Spinner />;
-  if (connectionError) return <ConnectionError error={connectionError} />;
+  // Offline, a 5xx or rate limited with a saved connection: carry on with the cached data.
+  // A rejected token or a locked keychain still stops here.
+  if (connectionError && !connectionFromCache) return <ConnectionError error={connectionError} />;
   if (!connection?.connected) return <Lazy screen={<Onboarding />} />;
   if (route === 'lab' && WidgetLab) {
     return (
@@ -74,6 +76,7 @@ export function App() {
     <>
       {/* Reminders run whichever page is showing. */}
       <NotificationRunner />
+      {connectionFromCache && <SavedConnectionNote />}
       {route === 'settings' ? (
         <>
           <Lazy screen={<SettingsPage onBack={() => go('dashboard')} />} />
@@ -98,6 +101,40 @@ function Spinner() {
 const Lazy = ({ screen }: { screen: ReactNode }) => (
   <Suspense fallback={<Spinner />}>{screen}</Suspense>
 );
+
+/**
+ * The connection check failed but the saved one is standing in. The bar's chip says whether the
+ * data is behind; this offers the same Retry the full-screen card would.
+ */
+function SavedConnectionNote() {
+  const { refreshConnection } = useCanvas();
+  const [retrying, setRetrying] = useState(false);
+  return (
+    <div className="pointer-events-none fixed bottom-4 left-4 z-40 flex max-w-[calc(100%-2rem)]">
+      <div
+        role="status"
+        data-testid="saved-connection"
+        className="card pointer-events-auto flex items-center gap-2 py-1.5 pl-3 pr-1.5 text-xs text-muted shadow-lg"
+      >
+        <span className="min-w-0">
+          Couldn’t check the Canvas connection, so this is saved data.
+        </span>
+        <button
+          type="button"
+          className="btn shrink-0 py-1"
+          disabled={retrying}
+          onClick={() => {
+            setRetrying(true);
+            void refreshConnection().finally(() => setRetrying(false));
+          }}
+        >
+          <RotateCw className={`h-3.5 w-3.5 ${retrying ? 'animate-spin' : ''}`} aria-hidden />
+          {retrying ? 'Retrying…' : 'Retry'}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 /** The connection check failed (offline, or in the desktop app a locked keychain). */
 function ConnectionError({ error }: { error: Error }) {
