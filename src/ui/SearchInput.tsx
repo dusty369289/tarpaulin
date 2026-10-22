@@ -1,4 +1,5 @@
 import { Search, X } from 'lucide-react';
+import type { Ref } from 'react';
 
 /** A search box with a clear button. */
 export function SearchInput({
@@ -7,12 +8,14 @@ export function SearchInput({
   placeholder = 'Search',
   label = placeholder,
   className = '',
+  inputRef,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   label?: string;
   className?: string;
+  inputRef?: Ref<HTMLInputElement>;
 }) {
   return (
     <div className={`relative ${className}`}>
@@ -21,6 +24,7 @@ export function SearchInput({
         aria-hidden
       />
       <input
+        ref={inputRef}
         type="search"
         aria-label={label}
         className="input pl-8 pr-8 [&::-webkit-search-cancel-button]:hidden"

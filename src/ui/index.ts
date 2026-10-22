@@ -11,7 +11,7 @@ export {
   type ConfirmOptions,
 } from './ConfirmDialog';
 export { FoldedList } from './FoldedList';
-export { Row, Section } from './layout';
+export { matchesQuery, Row, Section, SettingsFilter, useNoRows, useSettingsFilter } from './layout';
 export { Radio, RadioGroup } from './RadioGroup';
 export { SearchInput } from './SearchInput';
 export { Switch } from './Switch';

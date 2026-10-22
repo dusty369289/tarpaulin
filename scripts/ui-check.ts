@@ -7,7 +7,14 @@
 //   pnpm test:ui --live               # against a running `pnpm dev` (real Canvas)
 import { mkdirSync } from 'node:fs';
 import type { Page } from 'playwright';
-import { launch, startStack } from './browser';
+import {
+  currentMode,
+  launch,
+  openSettings,
+  pickMode,
+  settingsCategory,
+  startStack,
+} from './browser';
 
 const arg = (name: string) => process.argv.find((a) => a.startsWith(`--${name}=`))?.split('=')[1];
 const live = process.argv.includes('--live');
@@ -325,8 +332,8 @@ await step('leave edit mode', async () => {
 
 for (const theme of ['dark', 'high-contrast', 'light'] as const) {
   await step(`theme: ${theme}`, async () => {
-    await page.getByRole('button', { name: 'Settings', exact: true }).click();
-    await page.getByRole('combobox').first().selectOption(theme);
+    await openSettings(page, 'Appearance');
+    await pickMode(page, theme);
     await settled();
     const applied = await page.evaluate(() => document.documentElement.dataset.theme);
     assert(applied === theme, `theme is ${applied}`);
@@ -356,8 +363,8 @@ const LOOKS = [
 ] as const;
 
 async function setMode(theme: string) {
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  await page.getByRole('combobox').first().selectOption(theme);
+  await openSettings(page, 'Appearance');
+  await pickMode(page, theme);
   await settled();
 }
 
@@ -388,7 +395,7 @@ for (const mode of ['light', 'dark'] as const) {
   });
   for (const [look, background, skin, lightBg, darkBg] of LOOKS) {
     await step(`look: ${look} (${mode})`, async () => {
-      await page.getByRole('button', { name: 'Settings', exact: true }).click();
+      await openSettings(page, 'Appearance');
       const tile = page.getByTestId(`look-${look}`);
       const swatchModes = await tile
         .locator('[data-mode]')
@@ -427,9 +434,9 @@ for (const mode of ['light', 'dark'] as const) {
 }
 
 await step('high contrast overrides a textured look', async () => {
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await openSettings(page, 'Appearance');
   await page.getByTestId('look-cork').click();
-  await page.getByRole('combobox').first().selectOption('high-contrast');
+  await pickMode(page, 'high-contrast');
   await settled();
   await page.getByRole('button', { name: 'Dashboard' }).click();
   await settled();
@@ -510,7 +517,7 @@ await step('page style: own background, one widget restyled, then applied to all
 });
 
 await step('back to plain everywhere', async () => {
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await openSettings(page, 'Appearance');
   await page.getByTestId('look-plain').click();
   await page.getByRole('button', { name: 'Dashboard' }).click();
   await settled();
@@ -526,7 +533,7 @@ await step('back to plain everywhere', async () => {
 });
 
 await step('settings: course list folds and searches; tray switch is desktop-only', async () => {
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await openSettings(page, 'Courses');
   const list = page.getByRole('list', { name: 'courses' });
   await list.waitFor();
   const folded = await list.getByRole('listitem').count();
@@ -550,12 +557,13 @@ await step('settings: course list folds and searches; tray switch is desktop-onl
   await page.getByRole('searchbox', { name: 'Search courses' }).fill('zzzz-no-such-course');
   assert(await page.getByText(/No courses match/).isVisible(), 'no empty message');
   await page.getByRole('button', { name: 'Clear search' }).click();
+  await settled();
+  await shot('13a-settings-courses');
+  await settingsCategory(page, 'Startup & tray');
   assert(
     await page.getByRole('switch', { name: 'Keep running in the tray when closed' }).isDisabled(),
     'tray switch should be desktop-only in the browser',
   );
-  await settled();
-  await shot('13a-settings-courses');
   await page.getByRole('button', { name: 'Dashboard' }).click();
   await settled();
 });
@@ -566,13 +574,15 @@ await step('notifications: baseline is quiet, reminders fire once, test works', 
     !first.some((n) => n.body.startsWith('New announcement') || n.title.startsWith('Graded')),
     `first look announced existing items: ${JSON.stringify(first)}`,
   );
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await openSettings(page, 'Notifications');
   await page.getByRole('heading', { name: 'Notifications' }).waitFor();
+  await settingsCategory(page, 'Startup & tray');
   assert(
     (await page.getByRole('switch', { name: 'Open Tarpaulin when I log in' }).isDisabled()) &&
       (await page.getByText('Available in the desktop app.').first().isVisible()),
     'opening at login should be desktop-only in the browser',
   );
+  await settingsCategory(page, 'Notifications');
   // A week's lead puts plenty of the mock's deadlines inside the window.
   await page.getByRole('button', { name: '1 week before' }).click();
   await settled();
@@ -587,7 +597,7 @@ await step('notifications: baseline is quiet, reminders fire once, test works', 
   await page.getByRole('tab', { name: /Home/ }).waitFor();
   await settled();
   assert((await notes()).length === reminded.length, 'reminders repeated after a reload');
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await openSettings(page, 'Notifications');
   await page.getByRole('button', { name: 'Send a test' }).click();
   await page.getByText('Sent.').waitFor();
   const last = (await notes()).at(-1);
@@ -623,7 +633,8 @@ async function barFolded(folded: boolean) {
   await settled();
 }
 async function setBar(patch: { style?: 'frosted' | 'basic'; fold?: boolean }) {
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await openSettings(page, 'Appearance');
+  await page.getByRole('button', { name: 'More styling' }).click();
   if (patch.style) await page.getByLabel('Top bar style').selectOption(patch.style);
   if (patch.fold !== undefined) {
     const sw = page.getByRole('switch', { name: 'Fold away the top bar' });
@@ -790,7 +801,7 @@ await step('reader: announcements open with their body; Canvas mode skips the re
   await page.getByTestId('reader-content').waitFor();
   await shot('15-reader-announcement');
   await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await openSettings(page, 'Reading');
   await page.getByLabel('Clicking an assignment or announcement').selectOption('canvas');
   await page.getByRole('button', { name: 'Dashboard' }).click();
   await settled();
@@ -806,7 +817,7 @@ await step('reader: announcements open with their body; Canvas mode skips the re
   );
   await opened.close();
   assert((await page.getByTestId('item-reader').count()) === 0, 'reader opened in Canvas mode');
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await openSettings(page, 'Reading');
   await page.getByLabel('Clicking an assignment or announcement').selectOption('app');
   await page.getByRole('button', { name: 'Dashboard' }).click();
   await settled();
@@ -923,7 +934,7 @@ await step('reader: hostile Canvas HTML stays inert (edge data)', async () => {
   );
 
   await step('dialogs: settings asks with its own dialog, and focus comes back', async () => {
-    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await openSettings(page, 'Data & backup');
     await settled();
     const pagesBefore = JSON.stringify((await stored()).pages);
     const reset = page.getByRole('button', { name: /^Reset…/ });
@@ -943,17 +954,21 @@ await step('reader: hostile Canvas HTML stays inert (edge data)', async () => {
     await page.keyboard.press('Escape');
     await settled();
     // The same dialog in each mode, for the screenshots.
-    const mode = page.getByRole('combobox').first();
-    const modeBefore = await mode.inputValue();
+    await settingsCategory(page, 'Appearance');
+    const modeBefore = await currentMode(page);
     for (const theme of ['light', 'dark', 'high-contrast'] as const) {
-      await mode.selectOption(theme);
+      await settingsCategory(page, 'Appearance');
+      await pickMode(page, theme);
+      await settingsCategory(page, 'Data & backup');
       await reset.click();
       await ask.waitFor();
       await settled();
       await shot(`31-confirm-reset-${theme}`);
       await page.keyboard.press('Escape');
     }
-    await mode.selectOption(modeBefore);
+    await settingsCategory(page, 'Appearance');
+    await pickMode(page, modeBefore);
+    await settingsCategory(page, 'Data & backup');
     await reset.click();
     await ask.waitFor();
     await page.keyboard.press('Escape');
@@ -993,7 +1008,7 @@ await step('reader: hostile Canvas HTML stays inert (edge data)', async () => {
   });
 
   await step('radio groups: one Tab stop, arrow keys move and pick', async () => {
-    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await openSettings(page, 'Appearance');
     await settled();
     const looks = page.getByRole('radiogroup', { name: 'Look' });
     const radios = looks.getByRole('radio');
@@ -1388,7 +1403,7 @@ if (stack.mock) {
     await setTheme('system');
     await page.reload();
     await toDashboard();
-    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await openSettings(page, 'Account');
     const status = page.getByTestId('token-status');
     await status.waitFor();
     await settled();
@@ -1410,7 +1425,7 @@ if (stack.mock) {
     await expiryBanner.getByRole('button', { name: 'Dismiss' }).click();
     await reloadAs('realistic');
     assert((await expiryBanner.count()) === 0, 'warning for a token with no expiry');
-    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await openSettings(page, 'Account');
     await status.waitFor();
     await settled();
     assert((await status.innerText()).includes('No expiry date'), 'settings: no "no expiry"');

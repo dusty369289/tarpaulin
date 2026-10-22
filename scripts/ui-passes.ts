@@ -11,7 +11,7 @@
 //   pnpm test:ui:passes --strict            # pending checks fail too
 import { mkdirSync } from 'node:fs';
 import type { Browser, BrowserContext, Page } from 'playwright';
-import { launch, startStack, type TestStack } from './browser';
+import { launch, openSettings, startStack, type TestStack } from './browser';
 
 const arg = (name: string) => process.argv.find((a) => a.startsWith(`--${name}=`))?.split('=')[1];
 const strict = process.argv.includes('--strict');
@@ -168,7 +168,7 @@ if (passes.includes('small')) {
   });
   await page.getByRole('button', { name: 'Done' }).click();
   await settled(page);
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await openSettings(page, 'Appearance');
   await settled(page);
   await page.screenshot({ path: `${dir}/small-settings.png` });
   await check('small window: Settings never scrolls sideways', () => noSideScroll(page));

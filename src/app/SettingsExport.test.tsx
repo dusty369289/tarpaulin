@@ -1,4 +1,4 @@
-import { act, screen } from '@testing-library/react';
+import { act, fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderWithCanvas } from '../test/render';
@@ -25,6 +25,11 @@ beforeEach(() => {
 async function exportOnce() {
   renderWithCanvas(<SettingsPage onBack={() => {}} />);
   await act(() => new Promise((r) => setTimeout(r, 50)));
+  fireEvent.click(
+    within(screen.getByRole('navigation', { name: 'Settings categories' })).getByRole('button', {
+      name: 'Data & backup',
+    }),
+  );
   await userEvent.setup().click(screen.getByRole('button', { name: 'Export' }));
 }
 

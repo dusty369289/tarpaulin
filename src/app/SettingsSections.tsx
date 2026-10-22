@@ -1,0 +1,1043 @@
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  Bell,
+  BookOpen,
+  CalendarClock,
+  ChevronRight,
+  Database,
+  Download,
+  GraduationCap,
+  HelpCircle,
+  Info,
+  KeyRound,
+  Loader2,
+  LogOut,
+  MonitorCog,
+  Palette,
+  RefreshCw,
+  RotateCcw,
+  Upload,
+  UserRound,
+  type LucideIcon,
+} from 'lucide-react';
+import { useEffect, useId, useRef, useState, type ComponentType, type ReactNode } from 'react';
+import { useShallow } from 'zustand/react/shallow';
+import { useCanvas } from '../canvas/CanvasProvider';
+import { useCatalog, useProfile } from '../canvas/hooks';
+import {
+  exportDashboard,
+  importDashboard,
+  ImportError,
+  type ImportResult,
+} from '../dashboard/exportImport';
+import { buildPage, PRESETS, presetById } from '../dashboard/presets';
+import { useDashboard } from '../dashboard/store';
+import { BackgroundPicker, LookPicker, SkinPicker } from '../theme/pickers';
+import { TokenHelpDialog } from '../onboarding/TokenHelp';
+import {
+  FoldedList,
+  Radio,
+  RadioGroup,
+  Row,
+  Section,
+  Switch,
+  useConfirm,
+  useSettingsFilter,
+} from '../ui';
+import { NotificationsSettings, StartupSettings } from './DesktopSettings';
+import { nativeSaveSupported, saveExport } from './desktop';
+import { ReplaceToken } from './ReplaceToken';
+import { pickSettings, useSettings, type Settings } from './settingsStore';
+import type { SettingsCategory } from './settingsNav';
+import { useFormatExpiry } from './TokenBanner';
+import { useAuthFailure, useTokenExpiry } from './tokenHealth';
+import { ReleaseNotes } from './UpdateBanner';
+import { appVersion, useUpdater } from './updater';
+
+// What each Settings category holds. Every category is a list of `Section` cards of `Row`s, so
+// search can show the matching rows of all of them at once (see SettingsPage).
+
+// ── Appearance ───────────────────────────────────────────────────────────────────────────────
+
+const MODES: Array<[Settings['theme'], string]> = [
+  ['light', 'Light'],
+  ['dark', 'Dark'],
+  ['system', 'Match system'],
+  ['high-contrast', 'High contrast'],
+];
+
+/** Light, Dark, Match system, High contrast, as one segmented control. */
+function ModePicker() {
+  const theme = useSettings((s) => s.theme);
+  const update = useSettings((s) => s.update);
+  return (
+    <RadioGroup
+      label="Mode"
+      value={theme}
+      options={MODES.map(([id]) => id)}
+      onChange={(id) => update({ theme: id as Settings['theme'] })}
+      className="flex flex-wrap gap-0.5 rounded-lg border border-border bg-surface-2 p-0.5"
+    >
+      {MODES.map(([id, name]) => (
+        <Radio
+          key={id}
+          value={id}
+          label={name}
+          className={`rounded-md px-2.5 py-1 text-sm font-medium transition ${theme === id ? 'bg-accent text-accent-fg shadow-sm' : 'text-muted hover:bg-surface hover:text-text'}`}
+        >
+          {name}
+        </Radio>
+      ))}
+    </RadioGroup>
+  );
+}
+
+/** Settings most people never need, folded away until asked for. Search looks inside anyway. */
+function MoreStyling({ children }: { children: ReactNode }) {
+  const query = useSettingsFilter();
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  if (query) return <>{children}</>;
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <button
+          type="button"
+          className="btn btn-ghost -ml-2"
+          aria-expanded={open}
+          aria-controls={open ? id : undefined}
+          onClick={() => setOpen(!open)}
+        >
+          <ChevronRight
+            className={`h-4 w-4 transition-transform ${open ? 'rotate-90' : ''}`}
+            aria-hidden
+          />
+          More styling
+        </button>
+        {!open && (
+          <span className="text-xs text-muted">
+            Background, widget style, corners and the top bar
+          </span>
+        )}
+      </div>
+      {open && (
+        <div id={id} className="flex flex-col gap-6 animate-fade-in">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AppearanceSettings() {
+  const s = useSettings(
+    useShallow((s) => ({
+      theme: s.theme,
+      accent: s.accent,
+      font: s.font,
+      fontScale: s.fontScale,
+      radius: s.radius,
+      barStyle: s.barStyle,
+      barFoldAway: s.barFoldAway,
+      background: s.background,
+      widgetStyle: s.widgetStyle,
+    })),
+  );
+  const update = useSettings((s) => s.update);
+  const applyWidgetStyle = useDashboard((s) => s.applyWidgetStyle);
+  const clearPageBackgrounds = useDashboard((s) => s.clearPageBackgrounds);
+  const look = { background: s.background, widgetStyle: s.widgetStyle };
+  return (
+    <>
+      <Section>
+        <Row
+          stacked
+          label="Look"
+          help="A look sets the background and the widget style together, on every page. Each page can have its own (Edit › Style), and each widget too (its settings). Every look has a light and a dark version, picked by Mode below."
+          keywords="theme style"
+        >
+          <LookPicker
+            value={look}
+            columns="grid-cols-2 lg:grid-cols-4"
+            onPick={(l) => {
+              update({ background: l.background, widgetStyle: l.widgetStyle });
+              applyWidgetStyle(null, l.widgetStyle);
+              clearPageBackgrounds();
+            }}
+          />
+        </Row>
+      </Section>
+      <Section>
+        <Row
+          label="Mode"
+          help="Every look has a light and a dark version. High contrast swaps in maximum-contrast colours and keeps each style's shape and fonts."
+          keywords="theme light dark system high contrast"
+        >
+          <ModePicker />
+        </Row>
+        <Row
+          label="Accent colour"
+          help={s.theme === 'high-contrast' ? 'High contrast keeps its own accent.' : undefined}
+          keywords="color"
+        >
+          {s.accent && (
+            <button
+              type="button"
+              className="btn btn-ghost text-xs"
+              onClick={() => update({ accent: '' })}
+            >
+              Reset
+            </button>
+          )}
+          <input
+            type="color"
+            aria-label="Accent colour"
+            value={s.accent || '#4f46e5'}
+            onChange={(e) => update({ accent: e.target.value })}
+            className="h-8 w-12 cursor-pointer rounded border border-border bg-transparent"
+          />
+        </Row>
+        <Row label="Font" keywords="typeface">
+          <select
+            className="input w-auto"
+            aria-label="Font"
+            value={s.font}
+            onChange={(e) => update({ font: e.target.value as Settings['font'] })}
+          >
+            <option value="system">System</option>
+            <option value="rounded">Rounded</option>
+            <option value="serif">Serif</option>
+            <option value="mono">Monospace</option>
+            <option value="readable">Extra readable</option>
+          </select>
+        </Row>
+        <Row label="Text size" keywords="font zoom scale">
+          <input
+            type="range"
+            aria-label="Text size"
+            min={0.85}
+            max={1.3}
+            step={0.05}
+            value={s.fontScale}
+            onChange={(e) => update({ fontScale: Number(e.target.value) })}
+            className="accent-[rgb(var(--accent))]"
+          />
+          <span className="w-10 text-right text-xs tabular-nums">
+            {Math.round(s.fontScale * 100)}%
+          </span>
+        </Row>
+      </Section>
+      <MoreStyling>
+        <Section title="Page and widgets">
+          <Row stacked label="Background" help="The page behind the widgets." keywords="texture">
+            <BackgroundPicker
+              value={s.background}
+              onChange={(background) => update({ background })}
+            />
+          </Row>
+          <Row stacked label="Widget style" keywords="skin card">
+            <SkinPicker value={s.widgetStyle} onChange={(widgetStyle) => update({ widgetStyle })} />
+          </Row>
+          <Row label="Corner radius" keywords="rounded corners">
+            <input
+              type="range"
+              aria-label="Corner radius"
+              min={0}
+              max={24}
+              value={s.radius}
+              onChange={(e) => update({ radius: Number(e.target.value) })}
+              className="accent-[rgb(var(--accent))]"
+            />
+            <span className="w-10 text-right text-xs tabular-nums">{s.radius}px</span>
+          </Row>
+        </Section>
+        <Section title="Top bar">
+          <Row
+            label="Top bar style"
+            help="Frosted glass that the page shows through, or a plain strip."
+            keywords="header"
+          >
+            <select
+              className="input w-auto"
+              aria-label="Top bar style"
+              value={s.barStyle}
+              onChange={(e) => update({ barStyle: e.target.value as Settings['barStyle'] })}
+            >
+              <option value="frosted">Frosted</option>
+              <option value="basic">Basic</option>
+            </select>
+          </Row>
+          <Row
+            label="Fold away the top bar"
+            help="Gives the page the full window. Point at the top edge or press Tab to bring it back. Always shown on touch screens."
+            keywords="header hide"
+          >
+            <Switch
+              hideLabel
+              label="Fold away the top bar"
+              checked={s.barFoldAway}
+              onChange={(on) => update({ barFoldAway: on })}
+            />
+          </Row>
+        </Section>
+      </MoreStyling>
+    </>
+  );
+}
+
+// ── Courses ──────────────────────────────────────────────────────────────────────────────────
+
+function CoursesSettings() {
+  const catalog = useCatalog();
+  const courseScope = useSettings((s) => s.courseScope);
+  const nicknames = useSettings((s) => s.courseNicknames);
+  const update = useSettings((s) => s.update);
+  const setCourseColor = useSettings((s) => s.setCourseColor);
+  const setCourseNickname = useSettings((s) => s.setCourseNickname);
+  const toggleCourseHidden = useSettings((s) => s.toggleCourseHidden);
+  const term = catalog.currentTerm;
+  return (
+    <Section>
+      <Row
+        label="Show courses from"
+        help={
+          term
+            ? `Current term looks like ${term}. Hide single courses below.`
+            : 'Hide single courses below.'
+        }
+        keywords="term"
+      >
+        <select
+          className="input w-auto"
+          aria-label="Show courses from"
+          value={courseScope}
+          onChange={(e) => update({ courseScope: e.target.value as Settings['courseScope'] })}
+        >
+          <option value="all">All courses</option>
+          <option value="current">Current term only</option>
+        </select>
+      </Row>
+      <Row
+        stacked
+        label="Your courses"
+        help="A colour and a nickname for each course, or hide it everywhere."
+        keywords="colour color nickname rename hide show"
+      >
+        <FoldedList
+          items={catalog.scoped.byName().toArray()}
+          itemKey={(c) => c.id}
+          noun="courses"
+          searchText={(c) => `${c.canvasName} ${c.name} ${c.code ?? ''} ${c.term?.name ?? ''}`}
+          renderItem={(c) => {
+            const hidden = c.isHidden;
+            const nickname = nicknames[c.id] ?? '';
+            return (
+              <div
+                className={`flex flex-wrap items-center gap-2 py-2 ${hidden ? 'opacity-50' : ''}`}
+              >
+                <input
+                  type="color"
+                  aria-label={`Colour for ${c.canvasName}`}
+                  value={c.color}
+                  onChange={(e) => setCourseColor(c.id, e.target.value)}
+                  className="h-7 w-9 cursor-pointer rounded border border-border bg-transparent"
+                />
+                <div className="min-w-0 flex-1">
+                  <input
+                    // Remounts when the saved nickname changes underneath (a reset or an import).
+                    key={nickname}
+                    aria-label={`Nickname for ${c.canvasName}`}
+                    className="input py-1"
+                    placeholder={c.canvasName}
+                    defaultValue={nickname}
+                    onBlur={(e) => setCourseNickname(c.id, e.target.value)}
+                  />
+                  <div className="mt-0.5 truncate text-xs text-muted">
+                    {c.canvasName} · {c.term?.name ?? 'No term'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn px-2 py-1 text-xs"
+                  onClick={() => toggleCourseHidden(c.id)}
+                >
+                  {hidden ? 'Show' : 'Hide'}
+                </button>
+              </div>
+            );
+          }}
+        />
+      </Row>
+    </Section>
+  );
+}
+
+// ── Calendar & time ──────────────────────────────────────────────────────────────────────────
+
+const readableZone = (zone: string) => zone.replace(/_/g, ' ');
+
+function CalendarSettings() {
+  const s = useSettings(
+    useShallow((s) => ({ clock: s.clock, timesIn: s.timesIn, weekStartsOn: s.weekStartsOn })),
+  );
+  const update = useSettings((s) => s.update);
+  const canvasZone = useProfile().data?.timeZone ?? null;
+  const deviceZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return (
+    <Section>
+      <Row label="Week starts on" keywords="monday sunday calendar">
+        <select
+          className="input w-auto"
+          aria-label="Week starts on"
+          value={s.weekStartsOn}
+          onChange={(e) => update({ weekStartsOn: e.target.value as Settings['weekStartsOn'] })}
+        >
+          <option value="monday">Monday</option>
+          <option value="sunday">Sunday</option>
+        </select>
+      </Row>
+      <Row label="Clock" keywords="12-hour 24-hour time format">
+        <select
+          className="input w-auto"
+          aria-label="Clock"
+          value={s.clock}
+          onChange={(e) => update({ clock: e.target.value as Settings['clock'] })}
+        >
+          <option value="auto">System default</option>
+          <option value="12h">12-hour</option>
+          <option value="24h">24-hour</option>
+        </select>
+      </Row>
+      <Row
+        label="Show times in"
+        help={
+          canvasZone
+            ? `This computer uses ${readableZone(deviceZone)}; your Canvas account uses ${readableZone(canvasZone)}. Due times, Today and Tomorrow, the clock and quiet hours follow the one chosen here.`
+            : 'Your Canvas account doesn’t say which time zone it uses, so times follow this computer.'
+        }
+        keywords="time zone timezone"
+      >
+        <select
+          className="input w-auto"
+          aria-label="Show times in"
+          value={canvasZone ? s.timesIn : 'device'}
+          disabled={!canvasZone}
+          onChange={(e) => update({ timesIn: e.target.value as Settings['timesIn'] })}
+        >
+          <option value="device">This computer’s time zone</option>
+          <option value="canvas">Canvas’s time zone</option>
+        </select>
+      </Row>
+    </Section>
+  );
+}
+
+// ── Reading ──────────────────────────────────────────────────────────────────────────────────
+
+function ReadingSettings() {
+  const openItemsIn = useSettings((s) => s.openItemsIn);
+  const loadRemoteImages = useSettings((s) => s.loadRemoteImages);
+  const update = useSettings((s) => s.update);
+  return (
+    <Section>
+      <Row
+        label="Clicking an assignment or announcement"
+        help="Tarpaulin keeps a read-only copy; submitting and replying happen in Canvas."
+        keywords="open reader browser"
+      >
+        <select
+          className="input w-auto"
+          aria-label="Clicking an assignment or announcement"
+          value={openItemsIn}
+          onChange={(e) => update({ openItemsIn: e.target.value as Settings['openItemsIn'] })}
+        >
+          <option value="app">Read it in Tarpaulin</option>
+          <option value="canvas">Open it in Canvas</option>
+        </select>
+      </Row>
+      <Row
+        label="Load images from other sites"
+        help="Images in Canvas content that are hosted elsewhere can tell that site you opened it. Off shows a placeholder to click instead."
+        keywords="privacy remote pictures"
+      >
+        <Switch
+          hideLabel
+          label="Load images from other sites"
+          checked={loadRemoteImages}
+          onChange={(on) => update({ loadRemoteImages: on })}
+        />
+      </Row>
+    </Section>
+  );
+}
+
+// ── Account ──────────────────────────────────────────────────────────────────────────────────
+
+/** The access token's health, its expiry date, and the help and replace-in-place controls. */
+function TokenRow() {
+  const { connection } = useCanvas();
+  const expiry = useTokenExpiry();
+  const rejected = useAuthFailure();
+  const formatExpiry = useFormatExpiry();
+  const [open, setOpen] = useState<'help' | 'replace' | null>(null);
+  const e = expiry.data;
+  const status = rejected
+    ? 'Canvas rejected it: it has expired or been revoked.'
+    : expiry.isLoading
+      ? 'Checking when it expires…'
+      : e?.status === 'expires'
+        ? `Expires ${formatExpiry(e.expiresAt)}.`
+        : e?.status === 'never'
+          ? 'No expiry date: it works until you delete it in Canvas.'
+          : 'Canvas didn’t say when it expires.';
+  return (
+    <Row
+      label="Access token"
+      help={status}
+      helpTone={rejected ? 'danger' : undefined}
+      keywords="replace expiry expires how to get a token"
+      testId="token-status"
+      below={
+        <>
+          {open === 'replace' && (
+            <div className="rounded-md border border-border bg-surface-2/40 p-3 animate-fade-in">
+              <ReplaceToken onDone={() => setOpen(null)} />
+            </div>
+          )}
+          {open === 'help' && (
+            <TokenHelpDialog address={connection?.baseUrl} onClose={() => setOpen(null)} />
+          )}
+        </>
+      }
+    >
+      <button type="button" className="btn" onClick={() => setOpen('help')}>
+        <HelpCircle className="h-4 w-4" /> How to get a token
+      </button>
+      <button
+        type="button"
+        className={`btn ${rejected ? 'btn-primary' : ''}`}
+        aria-expanded={open === 'replace'}
+        onClick={() => setOpen(open === 'replace' ? null : 'replace')}
+      >
+        <KeyRound className="h-4 w-4" /> Replace token
+      </button>
+    </Row>
+  );
+}
+
+function AccountSettings() {
+  const { connection, transport, refreshConnection } = useCanvas();
+  const queryClient = useQueryClient();
+  return (
+    <>
+      <Section>
+        <Row label="Canvas" help={connection?.baseUrl ?? 'Not connected'} keywords="connection">
+          <span className="chip bg-surface-2 text-muted">
+            {connection?.method === 'oauth'
+              ? 'OAuth'
+              : connection?.method === 'token'
+                ? 'Access token'
+                : connection?.method}
+          </span>
+        </Row>
+        {(connection?.method === 'token' || connection?.method === 'dev-proxy') && <TokenRow />}
+      </Section>
+      {transport.canManageCredentials && (
+        <Section tone="danger">
+          <Row
+            label="Disconnect"
+            help="Removes the credentials from your keychain. Your pages and settings stay on this device."
+            keywords="sign out log out"
+          >
+            <button
+              type="button"
+              className="btn border-danger/50 text-danger hover:bg-danger/10"
+              onClick={async () => {
+                await transport.disconnect();
+                queryClient.removeQueries({ queryKey: ['canvas'] });
+                await refreshConnection();
+              }}
+            >
+              <LogOut className="h-4 w-4" /> Disconnect
+            </button>
+          </Row>
+        </Section>
+      )}
+    </>
+  );
+}
+
+// ── Data & backup ────────────────────────────────────────────────────────────────────────────
+
+function DataSettings() {
+  const refreshMinutes = useSettings((s) => s.refreshMinutes);
+  const update = useSettings((s) => s.update);
+  const resetAppearance = useSettings((s) => s.resetAppearance);
+  const replacePages = useDashboard((s) => s.replacePages);
+  const appendPages = useDashboard((s) => s.appendPages);
+  const queryClient = useQueryClient();
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [dialog, confirm] = useConfirm();
+  const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
+  const [includeSettings, setIncludeSettings] = useState(true);
+  const [includeData, setIncludeData] = useState(false);
+
+  const doExport = async () => {
+    const json = exportDashboard(
+      useDashboard.getState().pages,
+      pickSettings(useSettings.getState()),
+      { includeSettings, includeLocalData: includeData },
+    );
+    const name = `tarpaulin-dashboard-${new Date().toISOString().slice(0, 10)}.json`;
+    // Desktop: the native save dialog (webviews there don't all handle downloads).
+    if (nativeSaveSupported()) {
+      setMessage(null);
+      try {
+        const path = await saveExport(name, json);
+        if (path) setMessage({ tone: 'ok', text: `Exported to ${path}.` });
+      } catch (e) {
+        setMessage({ tone: 'error', text: `Export failed: ${String(e)}` });
+      }
+      return;
+    }
+    const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    // Attached, and revoked later: WebKit drops a download whose URL is revoked straight away.
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    setMessage({ tone: 'ok', text: `Exported as ${name}, in your downloads.` });
+  };
+
+  const doImport = async (file: File) => {
+    setMessage(null);
+    let result: ImportResult;
+    try {
+      result = importDashboard(await file.text());
+    } catch (e) {
+      setMessage({
+        tone: 'error',
+        text: e instanceof ImportError ? e.message : `Import failed: ${String(e)}`,
+      });
+      return;
+    }
+    const n = result.pages.length;
+    const pages = n === 1 ? '1 page' : `${n} pages`;
+    const them = n === 1 ? 'it' : 'them';
+    const mode = await confirm({
+      title: 'Import dashboard',
+      message: (
+        <>
+          <p>
+            “{file.name}” has {pages}. Replace your current pages with {them}, or add {them}{' '}
+            alongside?
+          </p>
+          <p className="mt-2 text-muted">
+            Replacing deletes your current pages, with their notes and checklists.
+            {result.settings ? ' The file’s settings replace yours either way.' : ''}
+          </p>
+        </>
+      ),
+      actions: [
+        { value: 'replace', label: 'Replace my pages', tone: 'danger' },
+        { value: 'append', label: 'Add alongside', tone: 'primary' },
+      ],
+    });
+    if (!mode) return;
+    if (mode === 'replace') replacePages(result.pages);
+    else appendPages(result.pages);
+    if (result.settings) update(result.settings);
+    setMessage({ tone: 'ok', text: `Imported ${pages}. ${result.warnings.join(' ')}`.trim() });
+  };
+
+  const applyPreset = async (id: string) => {
+    const preset = presetById(id);
+    if (!preset) return;
+    const answer = await confirm({
+      title: 'Replace all pages?',
+      message: (
+        <p>
+          Your pages and widgets are replaced with the “{preset.name}” layout, and the notes and
+          checklists on them are deleted. Your settings stay as they are.
+        </p>
+      ),
+      actions: [{ value: 'replace', label: 'Replace pages', tone: 'danger' }],
+    });
+    if (answer) replacePages([buildPage(preset)]);
+  };
+
+  const resetLookAndCourses = async () => {
+    const answer = await confirm({
+      title: 'Reset look and courses?',
+      message: (
+        <>
+          <p>
+            The look, mode, accent, font, text size, corners, top bar, clock, time zone and week
+            start go back to their defaults, and so do course colours, nicknames and hidden courses.
+          </p>
+          <p className="mt-2 text-muted">
+            Your pages and widgets, notifications, startup and tray settings and your Canvas
+            connection stay as they are.
+          </p>
+        </>
+      ),
+      actions: [{ value: 'reset', label: 'Reset', tone: 'danger' }],
+    });
+    if (answer) resetAppearance();
+  };
+
+  return (
+    <>
+      <Section title="Canvas data">
+        <Row
+          label="Refresh from Canvas every"
+          help="Data is cached locally so the app opens instantly."
+          keywords="interval minutes sync"
+        >
+          <input
+            type="number"
+            aria-label="Refresh interval in minutes"
+            min={1}
+            max={120}
+            className="input w-20"
+            value={refreshMinutes}
+            onChange={(e) =>
+              update({ refreshMinutes: Math.min(120, Math.max(1, Number(e.target.value) || 10)) })
+            }
+          />
+          <span className="text-sm text-muted">min</span>
+        </Row>
+        <Row
+          label="Cached Canvas data"
+          help="Throws away the saved copy and loads everything again."
+          keywords="cache clear reload"
+        >
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              queryClient.removeQueries({ queryKey: ['canvas'] });
+              void queryClient.refetchQueries();
+            }}
+          >
+            Clear & reload
+          </button>
+        </Row>
+      </Section>
+      <Section title="Backup">
+        <Row
+          label="Export dashboard"
+          help="Pages, widgets and their settings as a JSON file."
+          keywords="backup save file"
+          below={
+            <div className="flex flex-wrap gap-x-6 gap-y-2">
+              <Switch
+                label="Include settings"
+                checked={includeSettings}
+                onChange={setIncludeSettings}
+              />
+              <Switch
+                label="Include notes and checklists"
+                checked={includeData}
+                onChange={setIncludeData}
+              />
+            </div>
+          }
+        >
+          <button type="button" className="btn" onClick={() => void doExport()}>
+            <Download className="h-4 w-4" /> Export
+          </button>
+        </Row>
+        <Row
+          label="Import dashboard"
+          help="Asks whether to replace your pages or add to them."
+          keywords="restore backup file"
+        >
+          <input
+            ref={fileInput}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            data-testid="import-file"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void doImport(f);
+              e.target.value = '';
+            }}
+          />
+          <button type="button" className="btn" onClick={() => fileInput.current?.click()}>
+            <Upload className="h-4 w-4" /> Import…
+          </button>
+        </Row>
+        {message && (
+          <div className="px-4 py-3">
+            <p
+              role="status"
+              className={`rounded-md px-3 py-2 text-sm ${message.tone === 'ok' ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'}`}
+            >
+              {message.text}
+            </p>
+          </div>
+        )}
+      </Section>
+      <div className="mt-2 border-t border-border pt-5">
+        <Section
+          title="Reset"
+          tone="danger"
+          caption="These replace or delete what you’ve set up, and can’t be undone. Each asks first."
+        >
+          <Row label="Reset layout to a preset" help="Replaces all pages." keywords="layout pages">
+            <select
+              className="input w-auto"
+              aria-label="Reset layout to a preset"
+              defaultValue=""
+              onChange={(e) => {
+                const id = e.target.value;
+                e.target.value = '';
+                void applyPreset(id);
+              }}
+            >
+              <option value="" disabled>
+                Choose…
+              </option>
+              {PRESETS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </Row>
+          <Row
+            label="Reset look and courses"
+            help="Back to the default look, appearance and course colours. Pages, notifications and startup settings stay."
+            keywords="defaults appearance"
+          >
+            <button
+              type="button"
+              className="btn border-danger/50 text-danger hover:bg-danger/10"
+              onClick={() => void resetLookAndCourses()}
+            >
+              <RotateCcw className="h-4 w-4" /> Reset…
+            </button>
+          </Row>
+        </Section>
+      </div>
+      {dialog}
+    </>
+  );
+}
+
+// ── About ────────────────────────────────────────────────────────────────────────────────────
+
+function UpdatesSection() {
+  const { state, check, install } = useUpdater();
+  const autoCheck = useSettings((s) => s.autoCheckUpdates);
+  const update = useSettings((s) => s.update);
+  const [version, setVersion] = useState<string>('');
+  useEffect(() => {
+    void appVersion().then(setVersion);
+  }, []);
+  const busy =
+    state.status === 'checking' || state.status === 'downloading' || state.status === 'installing';
+  const offered =
+    state.status === 'available' || state.status === 'downloading' || state.status === 'installing';
+  return (
+    <Section title="Updates">
+      <Row
+        label="Version"
+        help={
+          state.status === 'unsupported' ? 'Updates are installed by the desktop app.' : undefined
+        }
+        keywords="about updates"
+      >
+        <span className="chip bg-surface-2 text-muted">{version || '…'}</span>
+      </Row>
+      {state.status !== 'unsupported' && (
+        <>
+          <Row
+            label="Check for updates automatically"
+            help="Once a day, from GitHub Releases."
+            keywords="auto update"
+          >
+            <Switch
+              hideLabel
+              label="Check for updates automatically"
+              checked={autoCheck}
+              onChange={(on) => update({ autoCheckUpdates: on })}
+            />
+          </Row>
+          <Row
+            label={
+              offered
+                ? `Version ${state.update.version} is available`
+                : state.status === 'current'
+                  ? 'You’re up to date'
+                  : state.status === 'error'
+                    ? 'Couldn’t check for updates'
+                    : 'Updates'
+            }
+            help={state.status === 'error' ? state.message : undefined}
+            keywords="check for updates what’s new"
+            below={
+              'update' in state &&
+              state.update.notes && (
+                <details className="text-sm">
+                  <summary className="cursor-pointer text-muted">What’s new</summary>
+                  <ReleaseNotes
+                    notes={state.update.notes}
+                    className="mt-2 rounded-md border border-border bg-surface-2 px-3 py-2"
+                  />
+                </details>
+              )
+            }
+          >
+            {offered ? (
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => void install()}
+                disabled={busy}
+              >
+                {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+                {state.status === 'downloading'
+                  ? `Downloading${state.total ? ` ${Math.round((state.received / state.total) * 100)}%` : '…'}`
+                  : state.status === 'installing'
+                    ? 'Installing…'
+                    : 'Update now'}
+              </button>
+            ) : (
+              <button type="button" className="btn" onClick={() => void check()} disabled={busy}>
+                {state.status === 'checking' ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                Check for updates
+              </button>
+            )}
+          </Row>
+        </>
+      )}
+    </Section>
+  );
+}
+
+function AppVersion() {
+  const [version, setVersion] = useState('');
+  useEffect(() => {
+    void appVersion().then(setVersion);
+  }, []);
+  return <span data-testid="app-version">{version ? `v${version}` : ''}</span>;
+}
+
+const SOURCE_URL = 'https://github.com/dusty369289/tarpaulin';
+
+/** The credit and source link that NOTICE.md asks every copy, and every modified version, to keep. */
+function Credit() {
+  const { transport } = useCanvas();
+  return (
+    <p className="px-1 py-2 text-center text-xs text-muted">
+      Tarpaulin <AppVersion /> by Ethan Wright · reads Canvas only. Notes and checklists stay on
+      this device.
+      <br />
+      Free software under the GNU GPL v3 ·{' '}
+      <button
+        type="button"
+        className="underline underline-offset-2 hover:text-text"
+        onClick={() => void transport.openWebLink(SOURCE_URL).catch(() => {})}
+      >
+        Source code and license
+      </button>
+    </p>
+  );
+}
+
+function AboutSettings() {
+  // The credit stays out of search results: it isn't a setting, and every view of About has it.
+  const query = useSettingsFilter();
+  return (
+    <>
+      <UpdatesSection />
+      {!query && <Credit />}
+    </>
+  );
+}
+
+// ── The categories, in sidebar order ─────────────────────────────────────────────────────────
+
+export interface CategoryInfo {
+  id: SettingsCategory;
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  Content: ComponentType;
+}
+
+export const CATEGORIES: CategoryInfo[] = [
+  {
+    id: 'appearance',
+    title: 'Appearance',
+    description: 'The look, light or dark mode, colours and text.',
+    icon: Palette,
+    Content: AppearanceSettings,
+  },
+  {
+    id: 'courses',
+    title: 'Courses',
+    description: 'Which courses show, with their colours and nicknames.',
+    icon: GraduationCap,
+    Content: CoursesSettings,
+  },
+  {
+    id: 'calendar',
+    title: 'Calendar & time',
+    description: 'The first day of the week, the clock and the time zone.',
+    icon: CalendarClock,
+    Content: CalendarSettings,
+  },
+  {
+    id: 'notifications',
+    title: 'Notifications',
+    description: 'Deadline reminders, announcements, grades and quiet hours.',
+    icon: Bell,
+    Content: NotificationsSettings,
+  },
+  {
+    id: 'reading',
+    title: 'Reading',
+    description: 'Where assignments and announcements open, and outside images.',
+    icon: BookOpen,
+    Content: ReadingSettings,
+  },
+  {
+    id: 'startup',
+    title: 'Startup & tray',
+    description: 'Opening at login and running in the tray.',
+    icon: MonitorCog,
+    Content: StartupSettings,
+  },
+  {
+    id: 'account',
+    title: 'Account',
+    description: 'Your Canvas connection and access token.',
+    icon: UserRound,
+    Content: AccountSettings,
+  },
+  {
+    id: 'data',
+    title: 'Data & backup',
+    description: 'Refreshing, the cache, export and import, and resets.',
+    icon: Database,
+    Content: DataSettings,
+  },
+  {
+    id: 'about',
+    title: 'About',
+    description: 'The version, updates, and where Tarpaulin comes from.',
+    icon: Info,
+    Content: AboutSettings,
+  },
+];
