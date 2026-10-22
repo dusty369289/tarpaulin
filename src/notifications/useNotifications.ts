@@ -7,6 +7,7 @@ import { useAnnouncements, useCatalog, useDeadlines, useNow, useProfile } from '
 import { useTimeFormat } from '../lib/dates';
 import { EMPTY_STATE, planNotifications, type NotifyInput, type NotifyState } from './rules';
 import { useWeeklyPreview } from './useWeeklyPreview';
+import { usePlanReminders } from './usePlanReminders';
 
 // Runs in the background while the app is open: every minute, and whenever Canvas data
 // refreshes, it asks the rules which notifications are due and shows them. It reads the same
@@ -115,5 +116,6 @@ export function useNotifications() {
 export function NotificationRunner() {
   useNotifications();
   useWeeklyPreview();
+  usePlanReminders();
   return null;
 }
