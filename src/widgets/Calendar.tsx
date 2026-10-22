@@ -28,6 +28,7 @@ import {
   useUpcoming,
 } from '../canvas/hooks';
 import { dayKey, nowInZone, useTimeFormat, useWeekStartsOn } from '../lib/dates';
+import { plural } from '../lib/text';
 import {
   dayLoad,
   describeLoad,
@@ -137,10 +138,8 @@ function loadNote(load: DayLoad | null): string {
   const text = load && describeLoad(load);
   return text ? `, ${text}` : '';
 }
-const tooltip = (load: DayLoad | null) => {
-  const text = load && describeLoad(load);
-  return text ? text[0].toUpperCase() + text.slice(1) : undefined;
-};
+const tooltip = (load: DayLoad | null) =>
+  (load && describeLoad(load, { capitalise: true })) || undefined;
 
 /** The tint band that marks a busy day (see `.cal-load` in index.css). Purely visual: the
  *  day's label carries the same thing in words. */
@@ -459,7 +458,7 @@ export const Calendar = defineWidget({
                               onFocus={() => setFocusDay(d)}
                               onKeyDown={onGridKey}
                               onClick={() => setSelected(isSel ? null : d)}
-                              aria-label={`${format(d, 'EEEE d MMMM')}, ${list.length} item${list.length === 1 ? '' : 's'}${loadNote(dl)}`}
+                              aria-label={`${format(d, 'EEEE d MMMM')}, ${plural(list.length, 'item')}${loadNote(dl)}`}
                               title={tooltip(dl)}
                               data-load={dl && dl.level !== 'none' ? dl.level : undefined}
                               aria-pressed={Boolean(isSel)}

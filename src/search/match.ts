@@ -1,3 +1,5 @@
+import { fold } from '../lib/text';
+
 // Quick find's matcher: small, pure and forgiving. "ps4" finds "Problem set 4", "ml" finds
 // "Machine Learning", "cs229" finds a course coded "CS 229", and one slipped letter ("probelm")
 // still finds "Problem". Results rank by how well they match, then by how soon they are due.
@@ -59,11 +61,7 @@ const SCORE = {
  * boundaries ("CS-229", "ProblemSet4" and "problem set 4" all become words).
  */
 export function words(text: string): string[] {
-  return text
-    .normalize('NFKD')
-    .replace(/\p{M}+/gu, '')
-    .replace(/(\p{Ll})(\p{Lu})/gu, '$1 $2')
-    .toLocaleLowerCase()
+  return fold(text.replace(/(\p{Ll})(\p{Lu})/gu, '$1 $2'))
     .replace(/(\p{L})(\p{N})/gu, '$1 $2')
     .replace(/(\p{N})(\p{L})/gu, '$1 $2')
     .split(/[^\p{L}\p{N}]+/u)
@@ -72,10 +70,7 @@ export function words(text: string): string[] {
 
 /** The query's tokens: like `words`, but "ps4" stays one token so it can spell initials. */
 export function tokens(query: string): string[] {
-  return query
-    .normalize('NFKD')
-    .replace(/\p{M}+/gu, '')
-    .toLocaleLowerCase()
+  return fold(query)
     .split(/[^\p{L}\p{N}]+/u)
     .filter(Boolean);
 }

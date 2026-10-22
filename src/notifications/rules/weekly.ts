@@ -1,6 +1,6 @@
 import { addDays, addHours, format, startOfWeek } from 'date-fns';
 import { dayKey } from '../../lib/days';
-import { loadByDay, weekLoad, type LoadSource } from '../../lib/load';
+import { levelName, loadByDay, weekLoad, type LoadSource } from '../../lib/load';
 import { isMuted, type Note } from '../core';
 import type { NotificationPrefs } from '../prefs';
 
@@ -69,9 +69,9 @@ export function decideWeeklyPreview(
     load.due === 1
       ? `${when}: 1 due, on ${dayName}`
       : `${when}: ${load.due} due, heaviest on ${dayName} (${load.heaviest.load.due})`;
-  const level = { none: 'A quiet', light: 'A light', busy: 'A busy', heavy: 'A heavy' }[load.level];
+  const level = levelName(load.level).toLowerCase();
   return {
-    notes: [{ title, body: `${level} week ahead. Open Tarpaulin to plan it.` }],
+    notes: [{ title, body: `A ${level} week ahead. Open Tarpaulin to plan it.` }],
     state: { lastWeek: week },
   };
 }

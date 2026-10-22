@@ -12,13 +12,14 @@ import {
   Sun,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useMemo, useReducer } from 'react';
+import { useMemo } from 'react';
 import { useSettings } from '../app/settingsStore';
 import { useCanvas } from '../canvas/CanvasProvider';
 import { PLANNER_TYPES } from '../canvas/kinds';
 import {
   SHARED_PLANNER_WINDOW,
   useAnnouncements,
+  useCachedResource,
   useCatalog,
   useNow,
   useUpcoming,
@@ -31,6 +32,7 @@ import type {
   PlannerItemData,
   TodoData,
 } from '../canvas/types';
+import { uniqueBy } from '../lib/arrays';
 import { formatDayTime, relative, toDate, useTimeFormat } from '../lib/dates';
 import {
   fromAnnouncement,
@@ -113,41 +115,6 @@ function dueText(date: Date, now: Date, timeFmt: string, prefix = 'Due'): string
 const joinDetail = (...parts: Array<string | null | undefined | false>) =>
   parts.filter(Boolean).join(' · ');
 
-/**
- * Every query of one Canvas list already in the cache, whatever its range: the calendar's other
- * months, the to-do list, missing work. Read only: it never makes a request, so Quick find shows
- * what the widgets have loaded and adds nothing to what the app asks Canvas for.
- */
-function useCachedLists<T>(kind: string): T[] {
-  const queryClient = useQueryClient();
-  const baseUrl = useCanvas().client?.baseUrl;
-  const [version, bump] = useReducer((n: number) => n + 1, 0);
-  useEffect(
-    () =>
-      queryClient.getQueryCache().subscribe((e) => {
-        if (e.type === 'updated' && e.query.queryKey[2] === kind) bump();
-      }),
-    [queryClient, kind],
-  );
-  return useMemo(() => {
-    void version;
-    return queryClient
-      .getQueryCache()
-      .findAll({ queryKey: ['canvas', baseUrl, kind] })
-      .flatMap((q) => (Array.isArray(q.state.data) ? (q.state.data as T[]) : []));
-  }, [queryClient, baseUrl, kind, version]);
-}
-
-function uniqueBy<T>(items: T[], key: (item: T) => string): T[] {
-  const seen = new Set<string>();
-  return items.filter((i) => {
-    const k = key(i);
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
-}
-
 /** Everything Quick find can find, from data the app already has. */
 export function useSearchEntries(actions: EntryActions): { entries: SearchEntry[]; now: Date } {
   const catalog = useCatalog();
@@ -163,11 +130,11 @@ export function useSearchEntries(actions: EntryActions): { entries: SearchEntry[
   // other ranges are cached.
   const upcoming = useUpcoming(SHARED_PLANNER_WINDOW.daysAhead, SHARED_PLANNER_WINDOW.daysBack);
   const recentNews = useAnnouncements(scopeIds, 14);
-  const plannerCached = useCachedLists<PlannerItemData>('planner');
-  const announcementsCached = useCachedLists<AnnouncementData>('announcements');
-  const eventsCached = useCachedLists<CalendarEventData>('calendar');
-  const todosCached = useCachedLists<TodoData>('todo');
-  const missingCached = useCachedLists<AssignmentData>('missing');
+  const plannerCached = useCachedResource<PlannerItemData>('planner');
+  const announcementsCached = useCachedResource<AnnouncementData>('announcements');
+  const eventsCached = useCachedResource<CalendarEventData>('calendar');
+  const todosCached = useCachedResource<TodoData>('todo');
+  const missingCached = useCachedResource<AssignmentData>('missing');
 
   const commands = useQuickFind((s) => s.commands);
   const theme = useResolvedTheme();

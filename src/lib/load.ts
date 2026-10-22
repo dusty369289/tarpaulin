@@ -2,6 +2,7 @@ import { addDays, format, startOfDay } from 'date-fns';
 import { PLANNER_TYPES } from '../canvas/kinds';
 import type { PlannerItemType } from '../canvas/types';
 import { dayKey } from './days';
+import { formatPoints } from './text';
 
 // How much work is due on a day or in a week, as one small, explainable number.
 //
@@ -167,16 +168,6 @@ export function weekLoad(byDay: LoadByDay, start: Date): WeekLoad {
   };
 }
 
-const fmtPoints = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
-
-/** "busy: 3 due, 120 points"; null when nothing is due. */
-export function describeLoad(load: DayLoad): string | null {
-  if (load.due === 0) return null;
-  const pts =
-    load.points > 0 ? `, ${fmtPoints(load.points)} point${load.points === 1 ? '' : 's'}` : '';
-  return `${load.level}: ${load.due} due${pts}`;
-}
-
 const LEVEL_NAMES: Record<LoadLevel, string> = {
   none: 'Quiet',
   light: 'Light',
@@ -184,13 +175,30 @@ const LEVEL_NAMES: Record<LoadLevel, string> = {
   heavy: 'Heavy',
 };
 
+/** "Quiet", "Light", "Busy", "Heavy". */
+export const levelName = (level: LoadLevel) => LEVEL_NAMES[level];
+
+/**
+ * "busy: 3 due, 120 points" ("Busy: …" with `capitalise`, to stand on its own); null when nothing
+ * is due.
+ */
+export function describeLoad(
+  load: DayLoad,
+  { capitalise = false }: { capitalise?: boolean } = {},
+): string | null {
+  if (load.due === 0) return null;
+  const pts = load.points > 0 ? `, ${formatPoints(load.points)}` : '';
+  const level = capitalise ? levelName(load.level) : load.level;
+  return `${level}: ${load.due} due${pts}`;
+}
+
 /**
  * "Busy week · 7 due · heaviest Thu"; a light week stays short ("Light week · 2 due"); null when
  * nothing is due. `thisWeek` words it for the month view, which shows the current week's.
  */
 export function summariseWeek(week: WeekLoad, thisWeek = false): string | null {
   if (week.due === 0) return null;
-  const level = LEVEL_NAMES[week.level];
+  const level = levelName(week.level);
   const head = thisWeek ? `This week: ${level.toLowerCase()}` : `${level} week`;
   const parts = [head, `${week.due} due`];
   if (week.level !== 'light' && week.heaviest)
