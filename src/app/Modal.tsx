@@ -1,32 +1,41 @@
 import { X } from 'lucide-react';
-import { useEffect, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import { useDialog } from '../ui/useDialog';
+
+// Both are modal: focus moves in and stays in, Escape closes only the topmost one, and focus
+// returns to the opener on close (see src/ui/useDialog.ts).
 
 export function Modal({
   title,
   onClose,
   children,
   wide,
+  role = 'dialog',
+  describedBy,
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
   wide?: boolean;
+  /** 'alertdialog' for a question that needs an answer before going on. */
+  role?: 'dialog' | 'alertdialog';
+  /** Id of the text that explains the dialog, read out with its name. */
+  describedBy?: string;
 }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  const ref = useDialog<HTMLDivElement>(onClose);
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-fade-in"
       onMouseDown={onClose}
     >
       <div
-        role="dialog"
+        ref={ref}
+        role={role}
         aria-modal="true"
         aria-label={title}
-        className={`card max-h-[85vh] w-full overflow-hidden shadow-2xl animate-pop-in ${wide ? 'max-w-3xl' : 'max-w-md'}`}
+        aria-describedby={describedBy}
+        tabIndex={-1}
+        className={`card max-h-[85vh] w-full overflow-hidden shadow-2xl outline-none animate-pop-in ${wide ? 'max-w-3xl' : 'max-w-md'}`}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
@@ -43,32 +52,34 @@ export function Modal({
 
 export function Drawer({
   title,
+  label,
   onClose,
   children,
   footer,
   wide,
 }: {
   title: string;
+  /** Accessible name, when the visible title is only a category ("Assignment"). */
+  label?: string;
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
   /** Reading width instead of a settings column. */
   wide?: boolean;
 }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  const ref = useDialog<HTMLElement>(onClose);
   return (
     <div
       className="fixed inset-0 z-40 flex justify-end bg-black/20 animate-fade-in"
       onMouseDown={onClose}
     >
       <aside
+        ref={ref}
         role="dialog"
-        aria-label={title}
-        className={`flex h-full w-full ${wide ? 'max-w-2xl' : 'max-w-sm'} flex-col border-l border-border bg-surface shadow-2xl animate-slide-in-right`}
+        aria-modal="true"
+        aria-label={label ?? title}
+        tabIndex={-1}
+        className={`flex h-full w-full ${wide ? 'max-w-2xl' : 'max-w-sm'} flex-col border-l border-border bg-surface shadow-2xl outline-none animate-slide-in-right`}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border px-4 py-3">

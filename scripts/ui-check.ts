@@ -846,6 +846,182 @@ await step('reader: hostile Canvas HTML stays inert (edge data)', async () => {
   await settled();
 });
 
+// Dialogs and keyboard: focus moves into a dialog and stays there, Escape closes only the top
+// one, focus goes back to whatever opened it, confirmations are the app's own (never the
+// browser's confirm()), and the look pickers are radio groups with arrow keys.
+{
+  /** Whether focus is inside the element `selector` matches, and a short name for where it is. */
+  const focusIn = (selector: string) =>
+    page.evaluate((sel) => {
+      const at = document.activeElement as HTMLElement | null;
+      const box = document.querySelector(sel);
+      return {
+        inside: Boolean(at && box?.contains(at)),
+        where: at
+          ? `${at.tagName.toLowerCase()} "${(at.textContent ?? '').trim().slice(0, 30)}"`
+          : 'nothing',
+      };
+    }, selector);
+  const nativeDialogs: string[] = [];
+  page.on('dialog', (d) => {
+    nativeDialogs.push(d.message());
+    void d.dismiss();
+  });
+
+  await step(
+    'dialogs: the reader takes focus, keeps Tab inside, one Escape per dialog',
+    async () => {
+      const reader = await openInReader('due-soon', ['assignment']);
+      const title = (await reader.locator('header h3').first().innerText()).trim();
+      const drawer = page.getByRole('dialog', { name: `Assignment: ${title}` });
+      assert(await drawer.isVisible(), `reader is not labelled "Assignment: ${title}"`);
+      assert((await focusIn('[role="dialog"]')).inside, 'focus did not move into the reader');
+      for (let i = 0; i < 12; i++) {
+        await page.keyboard.press(i % 3 === 2 ? 'Shift+Tab' : 'Tab');
+        const f = await focusIn('[role="dialog"]');
+        assert(f.inside, `Tab ${i + 1} left the reader for ${f.where}`);
+      }
+      const link = page.getByTestId('reader-content').locator('a[data-canvas="false"]').first();
+      await link.focus();
+      await page.keyboard.press('Enter');
+      const prompt = page.getByRole('dialog', { name: 'Open this link?' });
+      await prompt.waitFor();
+      assert(
+        await prompt
+          .getByRole('button', { name: 'Open in browser' })
+          .evaluate((b) => b === document.activeElement),
+        'focus did not move into the link prompt',
+      );
+      for (let i = 0; i < 4; i++) {
+        await page.keyboard.press('Tab');
+        const f = await focusIn('[aria-label="Open this link?"]');
+        assert(f.inside, `Tab ${i + 1} left the link prompt for ${f.where}`);
+      }
+      await settled();
+      await shot('30-dialog-stacked');
+      await page.keyboard.press('Escape');
+      await settled();
+      assert((await prompt.count()) === 0, 'Escape did not close the link prompt');
+      assert(await drawer.isVisible(), 'one Escape closed the reader too');
+      assert(
+        await link.evaluate((a) => a === document.activeElement),
+        'focus did not return to the link',
+      );
+      await page.keyboard.press('Escape');
+      await settled();
+      assert(
+        (await page.getByTestId('item-reader').count()) === 0,
+        'second Escape left the reader open',
+      );
+      const back = await focusIn('[data-widget-type="due-soon"] [data-testid="widget-body"]');
+      assert(back.inside, `focus went to ${back.where}, not the item that opened the reader`);
+    },
+  );
+
+  await step('dialogs: settings asks with its own dialog, and focus comes back', async () => {
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await settled();
+    const pagesBefore = JSON.stringify((await stored()).pages);
+    const reset = page.getByRole('button', { name: /^Reset…/ });
+    await reset.click();
+    const ask = page.getByRole('alertdialog', { name: 'Reset look and courses?' });
+    await ask.waitFor();
+    assert(
+      await ask
+        .getByRole('button', { name: 'Cancel' })
+        .evaluate((b) => b === document.activeElement),
+      'focus is not on Cancel',
+    );
+    for (let i = 0; i < 5; i++) {
+      await page.keyboard.press('Tab');
+      assert((await focusIn('[role="alertdialog"]')).inside, `Tab ${i + 1} left the dialog`);
+    }
+    await page.keyboard.press('Escape');
+    await settled();
+    // The same dialog in each mode, for the screenshots.
+    const mode = page.getByRole('combobox').first();
+    const modeBefore = await mode.inputValue();
+    for (const theme of ['light', 'dark', 'high-contrast'] as const) {
+      await mode.selectOption(theme);
+      await reset.click();
+      await ask.waitFor();
+      await settled();
+      await shot(`31-confirm-reset-${theme}`);
+      await page.keyboard.press('Escape');
+    }
+    await mode.selectOption(modeBefore);
+    await reset.click();
+    await ask.waitFor();
+    await page.keyboard.press('Escape');
+    await settled();
+    assert((await ask.count()) === 0, 'Escape did not close the dialog');
+    assert(
+      await reset.evaluate((b) => b === document.activeElement),
+      'focus did not return to Reset…',
+    );
+
+    // Import asks Replace / Add alongside / Cancel; Cancel changes nothing.
+    await page.getByTestId('import-file').setInputFiles({
+      name: 'mine.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(
+        JSON.stringify({
+          format: 'tarpaulin-dashboard',
+          version: 2,
+          exportedAt: new Date().toISOString(),
+          pages: (await stored()).pages.slice(0, 1),
+        }),
+      ),
+    });
+    const imp = page.getByRole('alertdialog', { name: 'Import dashboard' });
+    await imp.waitFor();
+    for (const name of ['Cancel', 'Replace my pages', 'Add alongside'])
+      assert(await imp.getByRole('button', { name }).isVisible(), `import has no "${name}"`);
+    await imp.getByRole('button', { name: 'Cancel' }).click();
+    assert((await imp.count()) === 0, 'Cancel did not close the import dialog');
+    assert(
+      JSON.stringify((await stored()).pages) === pagesBefore,
+      'cancelled import changed pages',
+    );
+    assert(nativeDialogs.length === 0, `native dialogs: ${nativeDialogs.join(' | ')}`);
+    await page.getByRole('button', { name: 'Dashboard' }).click();
+    await settled();
+  });
+
+  await step('radio groups: one Tab stop, arrow keys move and pick', async () => {
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await settled();
+    const looks = page.getByRole('radiogroup', { name: 'Look' });
+    const radios = looks.getByRole('radio');
+    const stops = await radios.evaluateAll(
+      (els) => els.filter((el) => (el as HTMLElement).tabIndex === 0).length,
+    );
+    assert(stops === 1, `${stops} Tab stops in the look picker`);
+    const plain = page.getByTestId('look-plain');
+    assert((await plain.getAttribute('aria-checked')) === 'true', 'plain is not the checked look');
+    await plain.focus();
+    await page.keyboard.press('ArrowLeft');
+    const prev = await page.evaluate(() => (document.activeElement as HTMLElement).dataset.testid);
+    assert(prev && prev !== 'look-plain', 'ArrowLeft did not move');
+    assert(
+      (await page.getByTestId(prev).getAttribute('aria-checked')) === 'true',
+      'ArrowLeft did not pick the look',
+    );
+    await page.keyboard.press('ArrowRight');
+    assert(
+      (await plain.getAttribute('aria-checked')) === 'true',
+      'ArrowRight did not go back to plain',
+    );
+    await page.keyboard.press('Tab');
+    assert(
+      !(await focusIn('[role="radiogroup"][aria-label="Look"]')).inside,
+      'Tab stayed in the look picker',
+    );
+    await page.getByRole('button', { name: 'Dashboard' }).click();
+    await settled();
+  });
+}
+
 await step('layout survives a reload', async () => {
   const before = await activePage();
   await page.reload();

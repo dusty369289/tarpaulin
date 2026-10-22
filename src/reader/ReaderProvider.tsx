@@ -1,9 +1,16 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 import { useSettings } from '../app/settingsStore';
 import { useCanvas } from '../canvas/CanvasProvider';
-import { ItemReader } from './ItemReader';
+import { ItemReader, preloadReaderContent } from './ItemReader';
 import type { ReaderItem } from './items';
-import './reader.css';
 
 const ReaderContext = createContext<((item: ReaderItem) => void) | null>(null);
 
@@ -11,6 +18,11 @@ const ReaderContext = createContext<((item: ReaderItem) => void) | null>(null);
 export function ReaderProvider({ children }: { children: ReactNode }) {
   const [item, setItem] = useState<ReaderItem | null>(null);
   const close = useCallback(() => setItem(null), []);
+  // Fetch the content renderer a little after start, so the first item opens without a wait.
+  useEffect(() => {
+    const t = setTimeout(preloadReaderContent, 2_000);
+    return () => clearTimeout(t);
+  }, []);
   return (
     <ReaderContext.Provider value={setItem}>
       {children}
