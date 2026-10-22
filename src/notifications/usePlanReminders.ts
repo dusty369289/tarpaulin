@@ -4,7 +4,7 @@ import { useAccountScope } from '../canvas/account';
 import { useTimeFormat } from '../lib/dates';
 import { isRecord } from '../lib/storage';
 import { useAccountPlans } from '../planner/hooks';
-import { planKeyForPlannerItem } from '../planner/keys';
+import { indexByPlanKey } from '../planner/selectors';
 import { usePlans } from '../planner/store';
 import type { NotificationPrefs } from './prefs';
 import {
@@ -49,15 +49,10 @@ export function usePlanReminders() {
   const markSeen = usePlans((s) => s.markSeen);
 
   // Canvas's view of each planned item: its current title, and whether it's handed in.
-  const canvas = useMemo(() => {
-    const byKey = new Map<string, { title: string; courseName: string; done: boolean }>();
-    if (!deadlines.query.data) return null;
-    for (const d of deadlines.data) {
-      const key = planKeyForPlannerItem(d);
-      if (key) byKey.set(key, { title: d.title, courseName: d.courseName, done: d.isDone });
-    }
-    return byKey;
-  }, [deadlines]);
+  const canvas = useMemo(
+    () => (deadlines.query.data ? indexByPlanKey(deadlines.data) : null),
+    [deadlines],
+  );
 
   const seen = useMemo(
     () => (canvas ? Object.keys(plans).filter((k) => canvas.has(k)) : []),
@@ -78,7 +73,7 @@ export function usePlanReminders() {
             title: live?.title ?? p.title,
             courseName: live?.courseName ?? p.courseName,
             doDate: p.doDate,
-            done: p.status === 'done' || Boolean(live?.done),
+            done: p.status === 'done' || Boolean(live?.isDone),
           },
         ];
       }),

@@ -1,7 +1,16 @@
 import { useCallback, useMemo } from 'react';
 import { useAccountScope } from '../canvas/account';
+import type { Deadline } from '../canvas/models';
 import { newId } from '../lib/id';
-import { plansOn, planSummary, type PlannedItem, type PlanSummary } from './selectors';
+import { planKeyForPlannerItem } from './keys';
+import {
+  nextStatus,
+  planMetaOf,
+  plansOn,
+  planSummary,
+  type PlannedItem,
+  type PlanSummary,
+} from './selectors';
 import {
   EMPTY_PLAN,
   usePlans,
@@ -38,21 +47,42 @@ export function usePlansOn(day: Date): PlannedItem[] {
   return useMemo(() => plansOn(plans, day), [plans, day]);
 }
 
+/** Changes to plans of the signed-in account; each is a no-op until the account is known. */
+export function usePlanActions() {
+  const account = useAccountScope();
+  const edit = usePlans((s) => s.edit);
+  return useMemo(
+    () => ({
+      ready: Boolean(account),
+      /** Changes one item's plan, keeping `meta` (what's known of the item) with it. */
+      edit: (key: string, change: (p: Plan) => Partial<Plan>, meta?: PlanMeta) => {
+        if (account) edit(account, key, change, meta);
+      },
+      /** Moves a planner item's plan on: Not started → In progress → Done → Not started. */
+      cycleStatus: (d: Deadline) => {
+        const key = planKeyForPlannerItem(d);
+        if (account && key)
+          edit(account, key, (p) => ({ status: nextStatus(p.status) }), planMetaOf(d));
+      },
+    }),
+    [account, edit],
+  );
+}
+
 /** Changes to one item's plan; each is a no-op until the account is known. */
 export function usePlanEditor(key: string | null, meta?: PlanMeta) {
-  const account = useAccountScope();
+  const actions = usePlanActions();
   const plan = usePlan(key);
-  const edit = usePlans((s) => s.edit);
   const { title, courseName, dueAt } = meta ?? {};
   const change = useCallback(
     (fn: (p: Plan) => Partial<Plan>) => {
-      if (account && key) edit(account, key, fn, { title, courseName, dueAt });
+      if (key) actions.edit(key, fn, { title, courseName, dueAt });
     },
-    [account, key, edit, title, courseName, dueAt],
+    [actions, key, title, courseName, dueAt],
   );
   return useMemo(
     () => ({
-      ready: Boolean(account && key),
+      ready: Boolean(actions.ready && key),
       plan: plan ?? EMPTY_PLAN,
       setStatus: (status: PlanStatus) => change(() => ({ status })),
       setDoDate: (doDate: DoDate | null) => change(() => ({ doDate })),
@@ -70,6 +100,6 @@ export function usePlanEditor(key: string | null, meta?: PlanMeta) {
       removeStep: (id: string) =>
         change((p) => ({ checklist: p.checklist.filter((s) => s.id !== id) })),
     }),
-    [plan, change, account, key],
+    [plan, change, actions.ready, key],
   );
 }

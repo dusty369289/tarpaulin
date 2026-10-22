@@ -6,8 +6,6 @@ import {
   FileText,
   HelpCircle,
   Lock,
-  Megaphone,
-  MessagesSquare,
   Repeat,
   Upload,
   User,
@@ -18,9 +16,11 @@ import { Drawer } from '../app/Modal';
 import { useSettings } from '../app/settingsStore';
 import { useCanvas } from '../canvas/CanvasProvider';
 import { useResource } from '../canvas/hooks';
+import { READER_KINDS } from '../canvas/kinds';
 import * as R from '../canvas/resources';
 import type { ItemDetail } from '../canvas/types';
 import { toDate, useTimeFormat } from '../lib/dates';
+import { formatPoints, plural } from '../lib/text';
 import { planKeyForReaderItem } from '../planner/keys';
 import { PlanPanel } from '../planner/PlanPanel';
 import { Badge, CourseDot, ErrorState, LoadingState } from '../widgets/shared/ui';
@@ -37,14 +37,6 @@ const loadContent = () =>
   }));
 export const preloadReaderContent = () => void loadContent().catch(() => {});
 const CanvasContent = lazy(() => loadContent().then((m) => ({ default: m.CanvasContent })));
-
-const KIND: Record<ItemDetail['kind'], { label: string; icon: LucideIcon }> = {
-  assignment: { label: 'Assignment', icon: FileText },
-  quiz: { label: 'Quiz', icon: HelpCircle },
-  discussion: { label: 'Discussion', icon: MessagesSquare },
-  announcement: { label: 'Announcement', icon: Megaphone },
-  event: { label: 'Event', icon: CalendarClock },
-};
 
 const SUBMISSION_TYPES: Record<string, string> = {
   online_upload: 'File upload',
@@ -111,7 +103,7 @@ export function ItemReader({ item, onClose }: { item: ReaderItem; onClose: () =>
   const { openLink } = useCanvas();
   const timeFmt = useTimeFormat();
   const { detail, query } = useDetail(item);
-  const kind = KIND[item.kind];
+  const kind = READER_KINDS[item.kind];
   const remoteImages = useSettings((s) => (s.loadRemoteImages ? 'load' : 'ask'));
   const when = (iso: string | null | undefined) => {
     const d = toDate(iso);
@@ -154,7 +146,7 @@ export function ItemReader({ item, onClose }: { item: ReaderItem; onClose: () =>
           <ul className="grid gap-1.5 sm:grid-cols-2">
             {detail.dueAt && <Fact icon={Clock}>Due {when(detail.dueAt)}</Fact>}
             {detail.pointsPossible != null && (
-              <Fact icon={FileText}>{detail.pointsPossible} points</Fact>
+              <Fact icon={FileText}>{formatPoints(detail.pointsPossible)}</Fact>
             )}
             {detail.unlockAt && new Date(detail.unlockAt) > new Date() && (
               <Fact icon={Lock}>Opens {when(detail.unlockAt)}</Fact>
@@ -164,12 +156,10 @@ export function ItemReader({ item, onClose }: { item: ReaderItem; onClose: () =>
               <Fact icon={Clock}>{detail.timeLimitMinutes} minute time limit</Fact>
             )}
             {detail.questionCount != null && (
-              <Fact icon={HelpCircle}>{detail.questionCount} questions</Fact>
+              <Fact icon={HelpCircle}>{plural(detail.questionCount, 'question')}</Fact>
             )}
             {detail.allowedAttempts != null && (
-              <Fact icon={Repeat}>
-                {detail.allowedAttempts} attempt{detail.allowedAttempts === 1 ? '' : 's'}
-              </Fact>
+              <Fact icon={Repeat}>{plural(detail.allowedAttempts, 'attempt')}</Fact>
             )}
             {types.length > 0 && <Fact icon={Upload}>{types.join(', ')}</Fact>}
             {detail.postedAt && <Fact icon={CalendarClock}>Posted {when(detail.postedAt)}</Fact>}

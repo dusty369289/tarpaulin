@@ -1,6 +1,9 @@
 import { atTime, dayKey, formatDay, formatDayTime } from '../lib/dates';
-import { parsePlanItemKey, type PlanItemType } from './keys';
-import type { AccountPlans, DoDate, Plan, PlanStatus } from './store';
+import type { WorkKind } from '../canvas/kinds';
+import type { Deadline } from '../canvas/models';
+import { plural } from '../lib/text';
+import { parsePlanItemKey, planKeyForPlannerItem } from './keys';
+import type { AccountPlans, DoDate, Plan, PlanMeta, PlanStatus } from './store';
 
 // Small, pure reads of plans, for the reader, Due soon, the reminder and the calendar.
 
@@ -52,8 +55,7 @@ export function planSummary(
   const parts: string[] = [];
   if (status !== 'todo') parts.push(STATUS_LABEL[status]);
   if (doDate) parts.push(`Planned for ${formatDoDate(doDate, now, timeFmt)}`);
-  if (steps.length)
-    parts.push(`${stepsDone} of ${steps.length} step${steps.length === 1 ? '' : 's'}`);
+  if (steps.length) parts.push(`${stepsDone} of ${plural(steps.length, 'step')}`);
   return {
     status,
     doDate,
@@ -65,7 +67,7 @@ export function planSummary(
 
 export interface PlannedItem {
   key: string;
-  type: PlanItemType;
+  kind: WorkKind;
   courseId: string;
   id: string;
   plan: Plan;
@@ -74,19 +76,44 @@ export interface PlannedItem {
   hasTime: boolean;
 }
 
-/** Items planned for `day` (any time that day), untimed first, then by time. For the calendar. */
-export function plansOn(plans: AccountPlans, day: Date): PlannedItem[] {
-  const want = dayKey(day);
+/**
+ * Items planned from `first` to `last` (whole days, inclusive), by day; within a day untimed
+ * first, then by time. For the calendar.
+ */
+export function plansBetween(plans: AccountPlans, first: Date, last: Date): PlannedItem[] {
+  const [from, to] = [dayKey(first), dayKey(last)];
   const out: PlannedItem[] = [];
   for (const [key, plan] of Object.entries(plans)) {
     const ref = parsePlanItemKey(key);
-    if (!ref || plan.doDate?.day !== want) continue;
+    const day = plan.doDate?.day;
+    if (!ref || !plan.doDate || !day || day < from || day > to) continue;
     out.push({ key, ...ref, plan, at: doDateAt(plan.doDate), hasTime: plan.doDate.time !== null });
   }
   return out.sort(
     (a, b) =>
+      a.plan.doDate!.day.localeCompare(b.plan.doDate!.day) ||
       Number(a.hasTime) - Number(b.hasTime) ||
       a.at.getTime() - b.at.getTime() ||
       a.plan.title.localeCompare(b.plan.title),
   );
 }
+
+/** Items planned for `day` (any time that day), untimed first, then by time. */
+export const plansOn = (plans: AccountPlans, day: Date) => plansBetween(plans, day, day);
+
+/** Planner items by plan key, for joining plans to what Canvas says now. Later items win. */
+export function indexByPlanKey(deadlines: Iterable<Deadline>): Map<string, Deadline> {
+  const out = new Map<string, Deadline>();
+  for (const d of deadlines) {
+    const key = planKeyForPlannerItem(d);
+    if (key) out.set(key, d);
+  }
+  return out;
+}
+
+/** What a plan keeps of its Canvas item (for reminders and the calendar when it isn't loaded). */
+export const planMetaOf = (d: Deadline): PlanMeta => ({
+  title: d.title,
+  courseName: d.courseName,
+  dueAt: d.data.dueAt ?? d.data.date,
+});

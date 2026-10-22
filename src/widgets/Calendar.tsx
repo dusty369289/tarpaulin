@@ -17,8 +17,7 @@ import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { z } from 'zod';
 import { useAccountPlans } from '../planner/hooks';
-import { planKeyForPlannerItem } from '../planner/keys';
-import { plansOn } from '../planner/selectors';
+import { indexByPlanKey, plansBetween } from '../planner/selectors';
 import { fromDeadline, fromEvent, type ReaderItem } from '../reader/items';
 import { useOpenItem } from '../reader/ReaderProvider';
 import {
@@ -28,7 +27,6 @@ import {
   useEvents,
   useUpcoming,
 } from '../canvas/hooks';
-import type { Deadline } from '../canvas/models';
 import { dayKey, nowInZone, useTimeFormat, useWeekStartsOn } from '../lib/dates';
 import {
   dayLoad,
@@ -252,30 +250,24 @@ export const Calendar = defineWidget({
       // not deadlines, so they stay out of the load below. The shared planner window finds the
       // work even when it's due outside the visible range.
       if (settings.showWork) {
-        const work = new Map<string, Deadline>();
-        for (const d of [...wide.data, ...deadlines.data]) {
-          const key = planKeyForPlannerItem(d);
-          if (key) work.set(key, d);
-        }
+        const work = indexByPlanKey([...wide.data, ...deadlines.data]);
         const courses = new Set(courseIds);
-        for (let day = startOfDay(start); day <= end; day = addDays(day, 1)) {
-          for (const p of plansOn(plans, day)) {
-            if (p.plan.status === 'done' || !courses.has(p.courseId)) continue;
-            const d = work.get(p.key);
-            if (settings.hideCompleted && d?.isDone) continue;
-            out.push({
-              key: `plan:${p.key}`,
-              title: `Plan: ${d?.title ?? p.plan.title}`,
-              start: p.at,
-              end: null,
-              allDay: !p.hasTime,
-              color: d?.color ?? PLAN_FALLBACK_COLOR,
-              kind: 'plan',
-              done: false,
-              url: d?.url ?? null,
-              item: d ? fromDeadline(d) : null,
-            });
-          }
+        for (const p of plansBetween(plans, start, end)) {
+          if (p.plan.status === 'done' || !courses.has(p.courseId)) continue;
+          const d = work.get(p.key);
+          if (settings.hideCompleted && d?.isDone) continue;
+          out.push({
+            key: `plan:${p.key}`,
+            title: `Plan: ${d?.title ?? p.plan.title}`,
+            start: p.at,
+            end: null,
+            allDay: !p.hasTime,
+            color: d?.color ?? PLAN_FALLBACK_COLOR,
+            kind: 'plan',
+            done: false,
+            url: d?.url ?? null,
+            item: d ? fromDeadline(d) : null,
+          });
         }
       }
       return out.sort((a, b) => a.start.getTime() - b.start.getTime());

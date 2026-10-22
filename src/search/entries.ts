@@ -2,25 +2,20 @@ import { useQueryClient } from '@tanstack/react-query';
 import { addDays, endOfDay, format } from 'date-fns';
 import {
   AlertCircle,
-  BookOpen,
   CalendarDays,
-  ClipboardCheck,
-  FileText,
   GraduationCap,
-  ListChecks,
   ListTodo,
   Megaphone,
-  MessagesSquare,
   Moon,
   RefreshCw,
   Settings,
-  StickyNote,
   Sun,
   type LucideIcon,
 } from 'lucide-react';
 import { useEffect, useMemo, useReducer } from 'react';
 import { useSettings } from '../app/settingsStore';
 import { useCanvas } from '../canvas/CanvasProvider';
+import { PLANNER_TYPES } from '../canvas/kinds';
 import {
   SHARED_PLANNER_WINDOW,
   useAnnouncements,
@@ -28,7 +23,7 @@ import {
   useNow,
   useUpcoming,
 } from '../canvas/hooks';
-import type { Deadline } from '../canvas/models';
+import { DEADLINE_STATUS, type Deadline } from '../canvas/models';
 import type {
   AnnouncementData,
   AssignmentData,
@@ -41,6 +36,7 @@ import {
   fromAnnouncement,
   fromDeadline,
   fromEvent,
+  fromMissing,
   fromTodo,
   type ReaderItem,
 } from '../reader/items';
@@ -101,27 +97,11 @@ export interface EntryActions {
   onShowDashboard: () => void;
 }
 
-const PLANNER_KIND: Record<PlannerItemData['type'], [string, LucideIcon]> = {
-  assignment: ['Assignment', FileText],
-  quiz: ['Quiz', ListChecks],
-  discussion_topic: ['Discussion', MessagesSquare],
-  announcement: ['Announcement', Megaphone],
-  wiki_page: ['Page', BookOpen],
-  planner_note: ['Note', StickyNote],
-  calendar_event: ['Event', CalendarDays],
-  assessment_request: ['Peer review', ClipboardCheck],
-  other: ['Item', FileText],
-};
-
-const STATUS_LABEL: Partial<Record<ReturnType<Deadline['status']>, string>> = {
-  excused: 'Excused',
-  graded: 'Graded',
-  submitted: 'Submitted',
-  'submitted-late': 'Submitted late',
-  done: 'Done',
-  missing: 'Missing',
-  overdue: 'Overdue',
-};
+/** A deadline's status for the detail line. Not "Due today": the line already says when. */
+function statusText(d: Deadline, now: Date): string | undefined {
+  const status = d.status(now);
+  return status === 'due-today' ? undefined : DEADLINE_STATUS[status]?.label;
+}
 
 /** "Due tomorrow 23:59", "Due Fri 12:00", "Due 12 Nov"; without a prefix, "Tomorrow 23:59". */
 function dueText(date: Date, now: Date, timeFmt: string, prefix = 'Due'): string {
@@ -207,15 +187,13 @@ export function useSearchEntries(actions: EntryActions): { entries: SearchEntry[
     // their own groups (and give way to the fuller copies from their own lists).
     const deadlines = catalog
       .deadlines(uniqueBy([...upcoming.data.map((d) => d.data), ...plannerCached], (d) => d.key))
-      .filter((d) => inScope(d.courseId));
+      .inCourses(scopeIds);
     const announcements = catalog
       .announcements(
         uniqueBy([...recentNews.data.map((a) => a.data), ...announcementsCached], (a) => a.id),
       )
-      .filter((a) => inScope(a.courseId));
-    const events = catalog
-      .events(uniqueBy(eventsCached, (e) => e.id))
-      .filter((e) => inScope(e.courseId));
+      .inCourses(scopeIds);
+    const events = catalog.events(uniqueBy(eventsCached, (e) => e.id)).inCourses(scopeIds);
     const announcementIds = new Set(announcements.map((a) => a.id));
     const eventIds = new Set(events.map((e) => e.id));
     // Work the planner already has, so to-dos and missing work don't show it twice.
@@ -226,7 +204,7 @@ export function useSearchEntries(actions: EntryActions): { entries: SearchEntry[
       `same:${courseId}|${title}|${due ? Date.parse(due) : ''}`;
 
     for (const d of deadlines) {
-      const [kind, icon] = PLANNER_KIND[d.type];
+      const { label: kind, icon } = PLANNER_TYPES[d.type];
       if (d.isAnnouncement && announcementIds.has(d.data.id)) continue;
       if (d.isEvent && eventIds.has(d.data.id)) continue;
       if (d.type === 'assignment') plannerWork.add(`assignment:${d.data.id}`);
@@ -246,7 +224,7 @@ export function useSearchEntries(actions: EntryActions): { entries: SearchEntry[
         context: courseWords(d.courseId, d.courseName),
         keywords: [kind],
         due: d.date,
-        detail: joinDetail(when, STATUS_LABEL[d.status(now)], d.courseName),
+        detail: joinDetail(when, statusText(d, now), d.courseName),
         icon,
         kind,
         color: d.course || d.courseId ? d.color : undefined,
@@ -256,8 +234,7 @@ export function useSearchEntries(actions: EntryActions): { entries: SearchEntry[
       });
     }
 
-    for (const t of catalog.todos(uniqueBy(todosCached, (t) => t.key))) {
-      if (!inScope(t.courseId)) continue;
+    for (const t of catalog.todos(uniqueBy(todosCached, (t) => t.key)).inCourses(scopeIds)) {
       const a = t.data.assignmentId;
       const q = t.data.quizId;
       if (
@@ -292,18 +269,6 @@ export function useSearchEntries(actions: EntryActions): { entries: SearchEntry[
         continue;
       const course = catalog.course(m.courseId);
       const dueAt = toDate(m.dueAt);
-      const item: ReaderItem | null = m.courseId
-        ? {
-            kind: 'assignment',
-            courseId: m.courseId,
-            id: m.id,
-            title: m.name,
-            courseName: course?.name ?? '',
-            color: catalog.colorOf(m.courseId),
-            url: m.htmlUrl,
-            inline: { dueAt: m.dueAt, pointsPossible: m.pointsPossible },
-          }
-        : null;
       out.push({
         id: `missing:${m.id}`,
         group: 'due',
@@ -316,7 +281,7 @@ export function useSearchEntries(actions: EntryActions): { entries: SearchEntry[
         kind: 'Missing work',
         color: m.courseId ? catalog.colorOf(m.courseId) : undefined,
         canvasUrl: m.htmlUrl,
-        open: reader(item, m.htmlUrl),
+        open: reader(fromMissing(m, catalog), m.htmlUrl),
         pending: true,
       });
     }
@@ -338,7 +303,7 @@ export function useSearchEntries(actions: EntryActions): { entries: SearchEntry[
     }
 
     for (const e of events) {
-      const courseName = e.course?.name ?? e.data.contextName;
+      const courseName = e.courseName;
       const when = e.start
         ? e.allDay
           ? format(e.start, 'EEE d MMM')

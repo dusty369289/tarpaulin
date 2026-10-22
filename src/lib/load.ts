@@ -1,4 +1,6 @@
 import { addDays, format, startOfDay } from 'date-fns';
+import { PLANNER_TYPES } from '../canvas/kinds';
+import type { PlannerItemType } from '../canvas/types';
 import { dayKey } from './days';
 
 // How much work is due on a day or in a week, as one small, explainable number.
@@ -17,7 +19,7 @@ import { dayKey } from './days';
 /** What the load needs from a planner item (a `Deadline` fits). */
 export interface LoadSource {
   key: string;
-  type: string;
+  type: PlannerItemType;
   courseId: string | null;
   date: Date | null;
   points: number | null;
@@ -49,14 +51,12 @@ export const DAY_LEVELS = { busy: 3, heavy: 5 } as const;
 /** Week score thresholds: light from 1, busy from 6, heavy from 12. */
 export const WEEK_LEVELS = { busy: 6, heavy: 12 } as const;
 
-/** Item types that are due work even when Canvas sends no submission for them. */
-const DUE_TYPES = new Set(['assignment', 'quiz', 'discussion_topic', 'assessment_request']);
-
 export const EMPTY_LOAD: DayLoad = { score: 0, due: 0, points: 0, level: 'none' };
 
 /** Work that's due (done or not): what the course baseline is built from. */
 function isWorkItem(d: LoadSource): boolean {
-  return d.isWork || DUE_TYPES.has(d.type);
+  // Some types are due work even when Canvas sends no submission for them.
+  return d.isWork || PLANNER_TYPES[d.type].dueWork;
 }
 
 /** Unfinished work with a due date: what counts toward the load. */

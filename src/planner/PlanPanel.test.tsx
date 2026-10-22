@@ -19,6 +19,7 @@ const ITEM: ReaderItem = {
   color: '#336699',
   url: null,
   inline: { dueAt: '2026-10-30T22:59:00Z' },
+  ref: { kind: 'assignment', courseId: '1032', id: '1099' },
 };
 const day = (d: Date) => format(d, 'yyyy-MM-dd');
 const plan = () => usePlans.getState().plans[ACCOUNT]?.[KEY];
@@ -103,7 +104,7 @@ describe('My plan in the reader', () => {
   it('is only there for work', async () => {
     renderWithCanvas(
       <ItemReader
-        item={{ ...ITEM, kind: 'announcement', inline: { html: '<p>Hi</p>' } }}
+        item={{ ...ITEM, kind: 'announcement', ref: undefined, inline: { html: '<p>Hi</p>' } }}
         onClose={() => {}}
       />,
     );
@@ -113,7 +114,7 @@ describe('My plan in the reader', () => {
 
   it('isn’t there for announcements that open as discussions', async () => {
     renderWithCanvas(
-      <ItemReader item={{ ...ITEM, kind: 'discussion', noPlan: true }} onClose={() => {}} />,
+      <ItemReader item={{ ...ITEM, kind: 'discussion', ref: undefined }} onClose={() => {}} />,
     );
     await screen.findByTestId('item-reader');
     expect(screen.queryByTestId('plan-panel')).toBeNull();

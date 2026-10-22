@@ -5,6 +5,7 @@ import { useNow } from '../canvas/hooks';
 import { dayKey, toDate, useTimeFormat } from '../lib/dates';
 import { Radio, RadioGroup } from '../ui/RadioGroup';
 import { usePlanEditor } from './hooks';
+import { StepProgress } from './PlanBits';
 import { PlanStatusIcon } from './PlanStatusIcon';
 import { planSummary, STATUS_LABEL } from './selectors';
 import { PLAN_STATUSES } from './store';
@@ -143,9 +144,16 @@ export function PlanPanel({
           </fieldset>
 
           <div className="flex min-w-0 flex-col gap-1.5">
-            <span className="label mb-0" id={`${id}-steps`}>
-              Steps
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="label mb-0" id={`${id}-steps`}>
+                Steps
+              </span>
+              <StepProgress
+                done={summary.stepsDone}
+                total={summary.stepsTotal}
+                className="text-xs text-muted"
+              />
+            </div>
             {plan.checklist.length > 0 && (
               <ul aria-labelledby={`${id}-steps`} className="flex flex-col gap-0.5">
                 {plan.checklist.map((s) => (

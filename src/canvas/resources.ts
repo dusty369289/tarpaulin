@@ -305,7 +305,8 @@ export const Todo = listResource({
       pointsPossible: a?.points_possible ?? null,
       htmlUrl: urls.absolute(a?.html_url ?? t.html_url),
       assignmentId: a?.id ?? null,
-      quizId: a ? null : (t.quiz?.id ?? null),
+      quizId: a?.quiz_id ?? t.quiz?.id ?? null,
+      discussionId: a?.discussion_topic?.id ?? null,
     };
   },
 });
