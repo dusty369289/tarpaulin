@@ -23,6 +23,7 @@
     "test:all": "vitest run && tsx scripts/widget-lab.ts && tsx scripts/ui-check.ts && tsx scripts/ui-passes.ts",
     "format:check": "prettier --check .",
     "demo:video": "tsx scripts/demo-video.ts",
+    "readme:assets": "tsx scripts/readme-assets.ts",
     "release:version": "tsx scripts/version.ts",
     "test:themes": "tsx scripts/theme-sweep.ts"
   },

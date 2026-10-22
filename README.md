@@ -1,64 +1,139 @@
+<div align="center">
+
+<img src="public/icon.png" width="96" height="96" alt="">
+
 # Tarpaulin
 
-A calmer front end for Canvas LMS. Tarpaulin is a desktop app (Tauri) that connects to your Canvas
-account and lets you build pages out of widgets, such as what's due soon, a calendar, grades,
-announcements and a countdown to your next deadline. Each widget can be dragged, resized and configured.
+**Your Canvas deadlines, calendar and grades on one calm desktop dashboard.**
 
-- **9 widgets**: Due soon, Calendar (month / week / agenda), Grades, Announcements, Courses,
-  To-do (Canvas to-dos plus your own checklist), Countdown, Notes (Markdown), Clock & greeting.
-- **Pages and presets**: _Deadline Focus_, _Weekly Planner_ and _Minimal_, or build your own.
-- **Deep customisation**: every widget has its own settings (course filter, time window, sort,
-  grouping and so on) plus shared appearance options (title, accent colour, density, background,
-  opacity, corners). Course colours and nicknames are set once and used everywhere.
-- **Looks**: seven complete looks (Plain, Cork board, Bullet journal, Blueprint, Terminal, Swiss
-  poster, Arcade), each a page background plus a widget style, and each with its own light and
-  dark version. Backgrounds and widget styles can also be mixed separately, set per page, and set
-  per widget (with paper colours and tilt), with one-click "apply to all on this page / all pages".
-- **Themes**: light, dark, high contrast and system, applied to every look, with a custom accent,
-  font, text size and corner radius.
-- **Read things in Tarpaulin**: clicking an assignment, quiz, discussion, announcement or event
-  opens a reader with its full description, due and lock dates, points, attempts, submission
-  types and your submission status, in Tarpaulin's own typography (or open it in Canvas, if you
-  prefer; Settings › Appearance). Content is cached, so it reopens instantly and offline.
-- **Notifications**: deadline reminders (1 week to 15 minutes before; pick any), new
-  announcements and grades, with quiet hours. Only things that appear after you connect are
-  announced, so connecting never floods you, and each reminder fires once.
-- **Lives in the tray**: closing the window keeps Tarpaulin running so reminders keep coming
-  (switch it off in Settings); quit from the tray icon. It can also open at login, straight to
-  the tray.
-- **Export / import** your dashboard as JSON.
-- **Read-only by design**: Tarpaulin never submits, edits or marks anything in Canvas. Notes and
-  checklists stay on your device.
-- **Updates itself** from GitHub Releases, with signed updates.
+[![Latest release](https://img.shields.io/github/v/release/dusty369289/tarpaulin?style=flat-square&color=6366f1&label=release)](https://github.com/dusty369289/tarpaulin/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/dusty369289/tarpaulin/total?style=flat-square&color=0f7a6c)](https://github.com/dusty369289/tarpaulin/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/dusty369289/tarpaulin/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/dusty369289/tarpaulin/actions/workflows/ci.yml)
+[![Built with Tauri 2](https://img.shields.io/badge/built%20with-Tauri%202-24C8DB?style=flat-square&logo=tauri&logoColor=white)](https://tauri.app)
 
-## Getting started
+[![Download for Windows](https://img.shields.io/badge/Windows-download-0078D4?style=for-the-badge&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0id2hpdGUiPjxyZWN0IHg9IjEiIHk9IjEiIHdpZHRoPSI2LjUiIGhlaWdodD0iNi41Ii8+PHJlY3QgeD0iOC41IiB5PSIxIiB3aWR0aD0iNi41IiBoZWlnaHQ9IjYuNSIvPjxyZWN0IHg9IjEiIHk9IjguNSIgd2lkdGg9IjYuNSIgaGVpZ2h0PSI2LjUiLz48cmVjdCB4PSI4LjUiIHk9IjguNSIgd2lkdGg9IjYuNSIgaGVpZ2h0PSI2LjUiLz48L3N2Zz4=)](https://github.com/dusty369289/tarpaulin/releases/latest/download/Tarpaulin-windows-x64-setup.exe)
+[![Download for macOS](https://img.shields.io/badge/macOS-download-1f2937?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/dusty369289/tarpaulin/releases/latest/download/Tarpaulin-macos-apple-silicon.dmg)
+[![Download for Linux](https://img.shields.io/badge/Linux-download-E95420?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/dusty369289/tarpaulin/releases/latest/download/Tarpaulin-linux-x64.AppImage)
 
-```sh
-pnpm install
-pnpm tauri dev      # desktop app
-```
+<sub>Windows 10 and 11 · macOS on Apple silicon and Intel · Linux x64 and arm64 · [every download](#download)</sub>
 
-On Linux, Tauri needs `libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libssl-dev libdbus-1-dev pkg-config`.
+</div>
 
-When it opens, connect to your Canvas account in one of two ways:
+<br>
 
-### Personal access token (simplest)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/dusty369289/tarpaulin/readme-assets/hero-dark.webp">
+  <img alt="Tarpaulin showing a week: a clock, a countdown to the next deadline, grades, a week calendar and what's due soon" src="https://raw.githubusercontent.com/dusty369289/tarpaulin/readme-assets/hero-light.webp">
+</picture>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/dusty369289/tarpaulin/readme-assets/facts-dark.svg">
+    <img alt="Tarpaulin at a glance" src="https://raw.githubusercontent.com/dusty369289/tarpaulin/readme-assets/facts-light.svg">
+  </picture>
+</p>
+
+Tarpaulin connects to your Canvas LMS account and lays out what matters on pages you arrange
+yourself: what's due, your week and month, grades, announcements, and a countdown to the next
+deadline. It only reads from Canvas. It never submits, edits or marks anything there.
+
+<sub>The pictures on this page are drawn from the app itself, on an invented term of example
+courses, and are refreshed every time the app changes.</sub>
+
+## Highlights
+
+<table>
+<tr>
+<td width="55%"><img src="https://raw.githubusercontent.com/dusty369289/tarpaulin/readme-assets/month.webp" alt="A month calendar with classes, deadlines and events, a to-do list and announcements"></td>
+<td>
+
+### Your term at a glance
+
+Classes, deadlines and events share one calendar, by month, week or agenda. Pick a day to see
+everything on it. Due soon, grades, announcements and your own to-do list sit beside it, each in
+your course colours.
+
+</td>
+</tr>
+<tr>
+<td>
+
+### Read without leaving
+
+Click an assignment, quiz, discussion or announcement to read it in Tarpaulin, with its due and
+lock dates, points, attempts and your submission status. Things you've opened are cached, so
+they reopen instantly, even offline.
+
+</td>
+<td width="55%"><img src="https://raw.githubusercontent.com/dusty369289/tarpaulin/readme-assets/reader.webp" alt="An assignment open in Tarpaulin's reader"></td>
+</tr>
+<tr>
+<td width="55%"><img src="https://raw.githubusercontent.com/dusty369289/tarpaulin/readme-assets/looks.webp" alt="The looks, one after another: cork board, bullet journal, blueprint, terminal, Swiss poster and arcade"></td>
+<td>
+
+### Seven looks, each light and dark
+
+Plain, Cork board, Bullet journal, Blueprint, Terminal, Swiss poster and Arcade. Each is a
+background and a widget style made for each other, and you can mix them per page or per widget.
+High contrast, a custom accent, font and text size work in every look.
+
+</td>
+</tr>
+</table>
+
+**And more:**
+
+- **Nine widgets** you can drag, resize and set up one by one: Due soon, Calendar, Grades,
+  Announcements, Courses, To-do, Countdown, Notes and Clock. Start from the _Deadline Focus_,
+  _Weekly Planner_ or _Minimal_ layouts, or a blank page.
+- **Reminders** for deadlines (anywhere from a week to 15 minutes before), new announcements and
+  new grades, with quiet hours. Connecting never floods you: only things that appear afterwards
+  are announced.
+- **Lives in the tray**, so reminders keep coming with the window closed. It can open at login,
+  straight to the tray.
+- **Works offline** from what it last loaded, for up to two weeks, and says how fresh it is.
+- **Keyboard friendly**: move and resize widgets with the arrow keys, undo with Ctrl/⌘+Z.
+- **Export and import** your pages as a file, to move them to another computer.
+- **Updates itself** from this repository's releases. Updates are signed, and installed only if
+  the signature checks out.
+
+## Download
+
+| Platform                | Download                                                                                                                                                                                                                                                                                                                 |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Windows** x64         | [Installer (.exe)](https://github.com/dusty369289/tarpaulin/releases/latest/download/Tarpaulin-windows-x64-setup.exe) · [MSI](https://github.com/dusty369289/tarpaulin/releases/latest/download/Tarpaulin-windows-x64.msi)                                                                                               |
+| **Windows** arm64       | [Installer (.exe)](https://github.com/dusty369289/tarpaulin/releases/latest/download/Tarpaulin-windows-arm64-setup.exe)                                                                                                                                                                                                  |
+| **macOS** Apple silicon | [Disk image (.dmg)](https://github.com/dusty369289/tarpaulin/releases/latest/download/Tarpaulin-macos-apple-silicon.dmg)                                                                                                                                                                                                 |
+| **macOS** Intel         | [Disk image (.dmg)](https://github.com/dusty369289/tarpaulin/releases/latest/download/Tarpaulin-macos-intel.dmg)                                                                                                                                                                                                         |
+| **Linux** x64           | [AppImage](https://github.com/dusty369289/tarpaulin/releases/latest/download/Tarpaulin-linux-x64.AppImage) · [.deb](https://github.com/dusty369289/tarpaulin/releases/latest/download/Tarpaulin-linux-x64.deb) · [.rpm](https://github.com/dusty369289/tarpaulin/releases/latest/download/Tarpaulin-linux-x64.rpm)       |
+| **Linux** arm64         | [AppImage](https://github.com/dusty369289/tarpaulin/releases/latest/download/Tarpaulin-linux-arm64.AppImage) · [.deb](https://github.com/dusty369289/tarpaulin/releases/latest/download/Tarpaulin-linux-arm64.deb) · [.rpm](https://github.com/dusty369289/tarpaulin/releases/latest/download/Tarpaulin-linux-arm64.rpm) |
+
+Older versions and release notes are on the [Releases](https://github.com/dusty369289/tarpaulin/releases) page.
+
+> [!NOTE]
+> The installers aren't signed with Apple or Microsoft certificates yet, so the first launch shows
+> a warning. On macOS, right-click the app and choose **Open**. On Windows, choose
+> **More info → Run anyway**. After that, Tarpaulin updates itself: it checks once a day, shows a
+> banner when a new version is out, and reopens where you were after **Update now**.
+
+## Connect your Canvas account
+
+Most students use an access token, which takes a minute:
 
 1. In Canvas, open **Account → Settings**.
-2. Under **Approved Integrations**, choose **+ New Access Token**, give it a purpose (e.g.
+2. Under **Approved Integrations**, choose **+ New Access Token**, give it a purpose (for example
    "Tarpaulin") and generate it.
-3. Paste your Canvas address (e.g. `canvas.youruni.edu`) and the token into Tarpaulin, then click **Test & connect**.
+3. In Tarpaulin, enter your Canvas address (such as `canvas.youruni.edu`) and paste the token,
+   then choose **Test & connect**.
 
-The token is stored in your operating system's keychain (macOS Keychain, Windows Credential
-Manager, or Secret Service on Linux), never in the app's files or in the web view.
+The sign-in screen has the same steps under **How do I get a token?** If your token has an expiry
+date, Tarpaulin warns you two weeks and again three days before it runs out. If Canvas stops
+accepting it, a banner lets you paste a new one without losing your pages or settings.
 
-If the token has an expiry date, Tarpaulin looks it up (Canvas's own token API, with the token
-itself) and warns 14 days and again 3 days ahead; Settings shows the date. If Canvas rejects the
-token (expired or revoked), a banner stays up until you paste a new one, which you can do in place
-without losing your layout or settings. The sign-in screen has the same steps under **How do I get
-a token?**
+<details>
+<summary><b>Signing in with OAuth instead</b> (needs your Canvas admin)</summary>
 
-### OAuth ("Sign in with Canvas")
+<br>
 
 This needs a **developer key** from your institution's Canvas admin:
 
@@ -74,220 +149,83 @@ This needs a **developer key** from your institution's Canvas admin:
 4. In Tarpaulin choose **Sign in (OAuth)**, enter the address, client ID and secret, and approve
    access in the browser window that opens. Tokens refresh automatically.
 
-## Releases and updates
+</details>
 
-Prebuilt installers for macOS (Apple silicon and Intel), Windows (x64 `.msi`/`.exe` and arm64 `.exe`)
-and Linux (`.deb`, `.rpm` and AppImage, x64 and arm64) are on
-the [Releases](https://github.com/dusty369289/tarpaulin/releases) page. Installed copies keep
-themselves up to date: Tarpaulin checks GitHub Releases once a day (you can turn this off in
-**Settings → Updates**), shows a banner when a new version is out, and installs it with **Update now**: one click,
-then Tarpaulin downloads, installs silently, and reopens in the same window position on the same
-page with all your data (dashboards, settings and cached Canvas data live in the app's data
-folder, which updates don't touch). Updates are only applied if they're signed with the
-project's updater key. The version you're on is in Settings › Updates and at the bottom of
-Settings.
+## Your data
 
-The builds aren't code-signed with Apple or Microsoft certificates yet, so the first launch shows a
-warning. On macOS, right-click the app and choose **Open**. On Windows, choose **More info → Run anyway**.
+- **Read-only.** Tarpaulin only ever asks Canvas for information. It can't submit, post, edit or
+  mark anything.
+- **Your token stays in your system's keychain** (macOS Keychain, Windows Credential Manager or
+  Secret Service on Linux), never in the app's files.
+- **Notes, checklists and layouts stay on your computer.** Nothing is sent anywhere except to your
+  own Canvas address, and to GitHub to check for updates (which you can turn off in
+  **Settings → Updates**).
+- **Images from other websites** in Canvas pages can be held back until you choose to load them
+  (**Settings → Appearance**).
 
-### Contributing and CI
+## The looks
 
-Changes go to `main` through pull requests. `.github/workflows/ci.yml` runs on every pull request
-into `main` and on every push to `main`: format, lint, typecheck, unit tests, build, the widget
-sweeps, the theme sweep, the UI check and the Rust tests. On pull requests the slow parts only
-run when they can be affected: the widget and theme sweeps when widget, theme, Canvas-data or
-mock code changes, Rust tests when `src-tauri/` changes, and docs-only changes skip it all.
-Pushes to `main` always run everything. A final **CI passed** job sums it up, and
-`main` requires it, so nothing merges until it's green.
+<table>
+<tr>
+<td align="center"><img src="https://raw.githubusercontent.com/dusty369289/tarpaulin/readme-assets/look-cork.webp" alt="Cork board look"><br><sub>Cork board</sub></td>
+<td align="center"><img src="https://raw.githubusercontent.com/dusty369289/tarpaulin/readme-assets/look-journal.webp" alt="Bullet journal look"><br><sub>Bullet journal</sub></td>
+<td align="center"><img src="https://raw.githubusercontent.com/dusty369289/tarpaulin/readme-assets/look-blueprint.webp" alt="Blueprint look, dark"><br><sub>Blueprint</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="https://raw.githubusercontent.com/dusty369289/tarpaulin/readme-assets/look-terminal.webp" alt="Terminal look, dark"><br><sub>Terminal</sub></td>
+<td align="center"><img src="https://raw.githubusercontent.com/dusty369289/tarpaulin/readme-assets/look-swiss.webp" alt="Swiss poster look"><br><sub>Swiss poster</sub></td>
+<td align="center"><img src="https://raw.githubusercontent.com/dusty369289/tarpaulin/readme-assets/look-arcade.webp" alt="Arcade look, dark"><br><sub>Arcade</sub></td>
+</tr>
+</table>
 
-### Cutting a release
+## Questions
 
-```sh
-pnpm release:version 0.2.0         # sets the version in package.json, Cargo.toml and tauri.conf.json
-git commit -am "Release 0.2.0"     # then merge it into main through a pull request
-git tag v0.2.0 origin/main && git push origin v0.2.0
-```
+<details>
+<summary><b>Will it work with my school's Canvas?</b></summary>
 
-Instead of pushing the tag, you can open **Actions › Release › Run workflow** on `main` and enter
-`0.2.0`. That run creates the `v0.2.0` tag itself and builds it.
+<br>
 
-The tag triggers `.github/workflows/release.yml`, which checks that the versions match the tag, runs
-the unit tests, builds every platform, publishes the release and uploads `latest.json` for the
-updater. It needs a repository secret named `TAURI_SIGNING_PRIVATE_KEY` (and
-`TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if the key has one) whose public half is `plugins.updater.pubkey`
-in `src-tauri/tauri.conf.json`. Generate a new pair with
-`pnpm tauri signer generate -w ~/.tauri/tarpaulin.key`. Keep the private key safe: losing it means
-existing installs can no longer verify updates.
+Yes, if you can create an access token in your Canvas settings. A few institutions turn that off;
+then your Canvas admin can set up the OAuth sign-in above instead.
 
-## How it's built
+</details>
 
-```
-src-tauri/            Rust shell
-  src/canvas.rs       read-only GET under /api/v1/ with Link-header pagination (allowlisted)
-  src/auth.rs         keychain credentials, OAuth code exchange and refresh
-  src/lib.rs          the only commands JS can call (see capabilities/default.json)
-  src/desktop.rs      notifications and opening at login
-  src/tray.rs         tray icon, close-to-tray
-src/
-  canvas/
-    resources.ts      every Canvas endpoint, declared once (path, query, schema, mapping, cache key)
-    models.ts         Course, Grade, Deadline, Announcement… and chainable collections
-    hooks.ts          useResource, useCatalog, useDeadlines, useAnnouncements, …
-    transport.ts      Tauri (Rust) / dev proxy / recorded fixtures
-  widgets/            one file per widget + registry.ts; settings forms are generated from zod
-  dashboard/          pages, grid (react-grid-layout), presets, export/import, persisted store
-  notifications/      reminder rules (pure, unit-tested) and the hook that runs them
-  ui/                 shared controls (Switch, Section/Row, SearchInput, FoldedList): reuse
-                      these instead of hand-rolling, so every screen stays consistent
-  theme/ onboarding/ app/
-mock-canvas/          a local Canvas impersonator used for development and tests
-scripts/              smoke test, fixture recorder, widget-lab sweep, UI check
-```
+<details>
+<summary><b>What happens when I'm offline?</b></summary>
 
-- **Security.** All Canvas HTTP happens in Rust. The web view has no HTTP, filesystem or shell
-  access, only the commands Tarpaulin defines (Canvas reads, sign-in, opening Canvas links, and the
-  update check and install). Paths must be under `/api/v1/` on your Canvas
-  host, pagination links are checked against that origin, and only links to your Canvas host can
-  be opened.
-- **Models over plain data.** Responses are mapped once into plain JSON (which is cached and
-  persisted), then wrapped in model classes when read. Widgets read like
-  `deadlines.inCourses(ids).undone().sortByDue()` and `course.grade.format('both')`.
-- **Canvas content is untrusted.** Item bodies are stored as Canvas sent them and sanitised
-  (DOMPurify, a strict allowlist) every time they're shown: no scripts, styles, forms, frames or
-  event handlers survive, and inline styles give way to our CSS. Links are inert until clicked:
-  Canvas links open on your Canvas host, other sites only after a prompt. Canvas file images are
-  fetched as signed URLs through the API, since their normal URLs need a browser login. The edge
-  mock scenario carries a hostile body that the UI check opens to prove nothing runs.
-- **Caching.** Every resource is cached per account with TanStack Query. It's fresh for the whole
-  refresh interval (default 10 minutes, set in Settings), refreshed in the background, and
-  persisted to local storage, so the app opens instantly. All planner-based widgets share a single
-  window of data, so a whole dashboard makes one request per resource. A test checks this.
+<br>
 
-### Looks, backgrounds and widget styles
+Tarpaulin shows what it last loaded, for up to two weeks, with a note saying when it was updated.
+It refreshes on its own when you're back online.
 
-A widget's style comes from the most specific place that sets one: the widget's own settings,
-then its page (Edit › Style), then Settings › Look. Backgrounds work the same way per page.
+</details>
 
-- **Widget styles** (`src/theme/skins/`) are one `.ts` and one `.css` file each: colours as theme
-  tokens scoped to the widget (so every widget's content restyles itself), optional paper
-  colours, fonts (bundled with Fontsource, so they work offline), tilt, decorations (pins, tape,
-  washi) and icon treatment. The CSS does the rest: Terminal's box-drawn headers and `[x]`
-  checkboxes, Blueprint's lettered panels, Pixel's stepped borders and blocky icons.
-- **Backgrounds** (`src/theme/backgrounds/`) paint the page and bring chrome colours that read on
-  them.
-- **Looks** (`src/theme/looks.ts`) pair a background with a style.
+<details>
+<summary><b>Can I use it on more than one computer?</b></summary>
 
-**Light and dark.** Every style, paper and background has `tokens: { light, dark }` (and a
-swatch per mode), picked by Settings › Appearance › Mode, with Match system resolved through
-`prefers-color-scheme`. `<html>` and each widget's `.skin-root` carry `data-mode="light|dark"`,
-so the CSS textures, rules, glows and decorations switch too (`[data-mode='dark']` selectors or
-CSS variables, never a fixed colour). The dark versions have their own character rather than
-inverted colours:
+<br>
 
-| Look           | Light                                        | Dark                                         |
-| -------------- | -------------------------------------------- | -------------------------------------------- |
-| Plain          | Light theme cards                            | Dark theme cards                             |
-| Cork board     | Natural cork, bright Post-its in pencil      | Charred cork, deep muted notes in pale ink   |
-| Bullet journal | Cream dot grid, black ink, coral/mint washi  | Charcoal dot grid, pale gel pen, dusty washi |
-| Blueprint      | Whiteprint: blue lines, red-pencil markup    | Prussian blue, white lines, yellow pencil    |
-| Terminal       | Green-bar printout, ink in green/amber/blue  | Glowing phosphor and scanlines on black      |
-| Swiss poster   | Newsprint, black rules, black frame, one red | Black poster, off-white rules, red frame     |
-| Arcade         | Daytime sky with clouds, pastel 8-bit panels | Starry night, deep 8-bit panels              |
+Yes. Install it on each and connect the same account. To bring your pages along, use
+**Settings → Export** on one and **Import** on the other.
 
-Index card (a style without its own look) is a white ruled card or a charcoal one with pale
-rules. **High contrast** keeps overriding the page chrome (textures give way to black) and drops
-each style's colours, so widgets keep their shape, fonts, tilt and decorations but use the
-high-contrast palette, with glows and paper textures removed and a solid edge on every widget.
+</details>
 
-A unit test checks every style, paper and background in both modes for WCAG AA text contrast
-(text and secondary text 4.5:1, accent and status colours 3:1, text on the accent 4.5:1).
+<details>
+<summary><b>How do I uninstall it?</b></summary>
 
-### Adding a widget
+<br>
 
-Create `src/widgets/MyWidget.tsx` with `defineWidget({ type, name, icon, defaultSize, minSize,
-settingsSchema, Component })` and add it to the list in `src/widgets/registry.ts`. Give each
-setting a default and a label with `field(z…, { label })`, and the settings panel is generated for you.
+Uninstall it like any other app for your system. To remove your saved token as well, choose
+**Disconnect** in Settings first.
 
-## Development without (or with) a Canvas account
+</details>
 
-| Command                            | Data source                                                                                                                                                                                                                                                                                                                                                                                     |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm dev:mock`                    | The local mock Canvas (start it with `pnpm canvas:mock`). Pick a dataset with `MOCK_SCENARIO=realistic` (default), `showcase` (a busy, tidy term for demos), `dense`, `edge`, `empty` or `flaky`. Token health: `expiring-10d` (any number of days), `expired` (rejected); the others never expire. It always sends the mock token `mock-<scenario>`, never a `CANVAS_TOKEN` you have exported. |
-| `pnpm dev`                         | Your real Canvas through a GET-only dev proxy. Set `CANVAS_BASE_URL` and `CANVAS_TOKEN` (see `.env.example`). The token stays server-side.                                                                                                                                                                                                                                                      |
-| `VITE_TRANSPORT=fixtures pnpm dev` | Anonymised recorded responses.                                                                                                                                                                                                                                                                                                                                                                  |
+## For developers
 
-All of the mock data (and the recorded fixtures in `src/canvas/fixtures/`, which are generated
-from the mock) is invented. No real accounts, people or courses are in this repository.
+Tarpaulin is a [Tauri 2](https://tauri.app) app: a React and TypeScript interface over a small Rust
+shell that holds the token and talks to Canvas. It comes with a mock Canvas, so you can run and
+test everything without an account. [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) covers running it,
+how it's built, adding a widget, the test suites, CI and cutting a release.
 
-The **mock Canvas** (`mock-canvas/`) implements the endpoints Tarpaulin reads, with Canvas's
-behaviour: bearer auth, `Link` pagination (10 per page by default), date filtering, and the quirks
-observed on a live instance (the 28-day announcement window, `all_events` ignoring dates, only ten
-context codes honoured, `submissions: false` on announcements, relative planner URLs). It also
-implements the OAuth endpoints (`mock-client` / `mock-secret`) and records any write attempt.
-Scenarios are written with a fluent builder:
-`w.academicTerm(0).course('Politics').assignment('Essay', w.at({ days: 3 }))`.
-
-## Testing
-
-```sh
-pnpm test            # unit tests (Vitest): client vs mock Canvas, models, widgets vs recorded
-                     # fixtures, store migrations, export/import, settings form, anonymiser
-pnpm test:widgets    # every widget × 7 widths × 7 heights × setting variants × 5 mock scenarios
-pnpm test:themes     # the widget sweep in every widget style × light and dark, skipping
-                     # unchanged styles
-pnpm test:ui         # real UI driven with the mouse: presets, edit, drag, resize, add, settings,
-                     # themes, every look in light and dark, page and per-widget styles
-pnpm test:ui:passes  # the smallest window, dialogs by keyboard, a flaky or missing network
-pnpm test:all        # all of the above
-pnpm lint && pnpm typecheck && pnpm build
-cd src-tauri && cargo clippy --all-targets -- -D warnings && cargo test
-```
-
-`test:ui:passes` marks the checks that wait on a fix still being made as pending, with who owns
-it: they run and are reported but don't fail until their note is removed (`--strict` fails them
-too).
-
-`test:widgets` and `test:ui` start their own mock Canvas and Vite server, so they need no
-credentials or network. Add `--live` to run them against a `pnpm dev` connected to real Canvas,
-and `--shots` (widgets) to save screenshot galleries. They never sleep: the app exposes
-`window.__tarpaulin.settled()`, which resolves when no requests are in flight, no animations are
-running and the DOM has stopped changing. Chromium runs with an uncapped frame rate, so a full
-sweep of about 3,600 renders takes around a minute.
-
-The widget sweep fails on horizontal scrolling, elements escaping the widget, text clipped or
-squashed by its container, and fit-to-box widgets (clock, countdown) that would need to scroll.
-Every run also asserts that no request tried to write to Canvas.
-
-`test:themes` repeats the sweep in each widget style and each colour mode (on the realistic and
-edge-case data). Each style/mode pair has a hash of the style's own files (which hold both its
-variants), the mode, and everything all styles share: every file the lab page imports (found by
-following imports, so new helpers are covered without a list to update), the lab scripts, mock
-data and the lockfile (`--inputs` lists them). A pair that passed at its current hash is skipped, so editing one style
-re-sweeps only that style, while changing a widget re-sweeps all of them. Passes are kept in
-`.cache/theme-sweep.json` locally and in the Actions cache on CI. Use `--all` to ignore the cache
-and `--modes=dark` to sweep one mode. The underlying `test:widgets` takes `--modes=light,dark`
-(and `--skins=…`), or exact `--pairs=postit:dark,card:dark`; with `--shots`, galleries land in
-`screenshots/lab/<scenario>/<style>/<mode>/`. Each style is also checked for text contrast
-against the background it actually renders on (WCAG AA, 4.5:1), and for text under 11px
-(unless its letters are as tall as 11px Inter's, as with the pixel fonts); any finding fails the
-sweep. `test:widgets --contrast` only reports them.
-
-To render the product demo (captioned, human-paced, on the invented `showcase` term):
-
-```sh
-pnpm demo:video              # → screenshots/demo/tarpaulin-demo.mp4 (needs ffmpeg)
-pnpm demo:video --fps=60 --workers=3
-```
-
-Rendering is deterministic rather than screen-recorded. The page runs on a virtual clock
-(`scripts/virtual-time.js`) that advances exactly one frame per step, so pacing is perfect
-whatever the machine. Unchanged frames are reused, the pointer is drawn by ffmpeg, and several
-browsers render interleaved chunks in parallel. An 88-second video takes about 80 seconds.
-
-Against a live account:
-
-```sh
-pnpm canvas:smoke    # calls every endpoint, prints counts and field coverage
-pnpm canvas:record   # refreshes src/canvas/fixtures/canvas.json (names, emails, ids, codes,
-                     # free text and grades are replaced with placeholders)
-```
+<sub>Tarpaulin is an independent project. It isn't made by, or affiliated with, Instructure or
+Canvas LMS.</sub>

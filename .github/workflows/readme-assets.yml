@@ -1,0 +1,53 @@
+name: README assets
+
+# Renders the README's screenshots, looks carousel and facts (scripts/readme-assets.ts) and
+# force-pushes them to the `readme-assets` branch, which README.md's images point at. That branch
+# holds only the latest render, so main never takes a commit for it.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'mock-canvas/**'
+      - 'index.html'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'vite.config.ts'
+      - 'tailwind.config.ts'
+      - 'scripts/readme-assets.ts'
+      - 'scripts/browser.ts'
+      - '.github/workflows/readme-assets.yml'
+  # Started by release.yml after each release, for the new version and installer size.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: readme-assets
+  cancel-in-progress: true
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-browser
+      - name: Count the unit tests
+        run: |
+          pnpm vitest run --reporter=json --outputFile=.cache/vitest.json > /dev/null
+          echo "TEST_COUNT=$(jq .numTotalTests .cache/vitest.json)" >> "$GITHUB_ENV"
+      - name: Render
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: pnpm readme:assets
+      - name: Push to the readme-assets branch
+        working-directory: .cache/readme
+        run: |
+          git init -q -b readme-assets
+          git add -A
+          git -c user.name='github-actions[bot]' \
+            -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -qm "README assets for ${GITHUB_SHA::7}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" \
+            readme-assets
