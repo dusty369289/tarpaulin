@@ -316,6 +316,67 @@
         background: var(--surface);
         width: 100%;
       }
+      /* The hero's look picker: small swatches of each look, right above the screenshot */
+      .look-pick {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: center;
+        align-items: center;
+        margin-top: 26px;
+      }
+      .look-pick-label {
+        font-size: 13.5px;
+        font-weight: 600;
+        color: var(--muted);
+        margin-right: 4px;
+      }
+      .look-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 5px 12px 5px 5px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text);
+        font: 500 13.5px/1 var(--font);
+        cursor: pointer;
+        transition:
+          border-color 0.15s,
+          box-shadow 0.15s;
+      }
+      .look-chip:hover {
+        border-color: var(--accent);
+      }
+      .look-chip[aria-pressed='true'] {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 1px var(--accent);
+      }
+      .look-chip i {
+        width: 34px;
+        height: 22px;
+        border-radius: 999px;
+        background-size: cover;
+        background-position: 30% 20%;
+        flex: none;
+      }
+      #hero-shot {
+        position: relative;
+        margin-top: 14px;
+      }
+      #hero-shot .hero-look {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        opacity: 0;
+        transition: opacity 0.35s ease;
+        pointer-events: none;
+      }
+      #hero-shot .hero-look.on {
+        opacity: 1;
+      }
       .only-dark {
         display: none !important;
       }
@@ -799,19 +860,22 @@
           </div>
           <small id="cta-meta">Windows, macOS and Linux</small>
         </div>
-        <div class="shot">
+        <div class="look-pick" id="look-pick" role="group" aria-label="Try a look">
+          <span class="look-pick-label">Try a look</span>
+        </div>
+        <div class="shot" id="hero-shot">
           <img
             class="only-light"
             src="img/hero-light.webp"
-            width="1600"
-            height="867"
+            width="2400"
+            height="1300"
             alt="Tarpaulin showing a week: a clock, a countdown to the next deadline, grades, a calendar and what's due soon"
           />
           <img
             class="only-dark"
             src="img/hero-dark.webp"
-            width="1600"
-            height="867"
+            width="2400"
+            height="1300"
             alt="The same week in dark mode"
             loading="lazy"
           />
@@ -833,8 +897,8 @@
             <div class="feature-img">
               <img
                 src="img/month.webp"
-                width="1200"
-                height="650"
+                width="1800"
+                height="975"
                 alt="A month calendar with classes and deadlines, a to-do list and announcements"
                 loading="lazy"
               />
@@ -854,8 +918,8 @@
             <div class="feature-img">
               <img
                 src="img/reader.webp"
-                width="1200"
-                height="650"
+                width="1800"
+                height="975"
                 alt="An assignment open in Tarpaulin"
                 loading="lazy"
               />
@@ -1241,6 +1305,49 @@
         syncModeButton();
       };
 
+      // The hero's look picker: Plain is the screenshot above (following light or dark); the others
+      // fade in over it.
+      const PICK = [
+        ['plain', 'Plain'],
+        ['cork', 'Cork board'],
+        ['journal', 'Bullet journal'],
+        ['blueprint', 'Blueprint'],
+        ['terminal', 'Terminal'],
+        ['swiss', 'Swiss poster'],
+        ['arcade', 'Arcade'],
+      ];
+      const pick = $('#look-pick'),
+        hero = $('#hero-shot');
+      const heroLooks = {};
+      for (const [id, name] of PICK) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'look-chip';
+        b.dataset.look = id;
+        b.setAttribute('aria-pressed', id === 'plain');
+        b.innerHTML = `<i style="background-image:url(img/${id === 'plain' ? 'hero-light' : 'look-' + id}.webp)"></i>${name}`;
+        b.onclick = () => {
+          if (id !== 'plain' && !heroLooks[id]) {
+            const img = new Image(2400, 1300);
+            img.className = 'hero-look';
+            img.alt = `Tarpaulin in the ${name} look`;
+            img.src = `img/look-${id}.webp`;
+            hero.appendChild(img);
+            heroLooks[id] = img;
+            img
+              .decode()
+              .catch(() => {})
+              .then(() => requestAnimationFrame(() => img.classList.add('on')));
+          }
+          for (const [k, img] of Object.entries(heroLooks))
+            if (k !== id) img.classList.remove('on');
+          if (heroLooks[id]) heroLooks[id].classList.add('on');
+          for (const c of pick.querySelectorAll('.look-chip'))
+            c.setAttribute('aria-pressed', c === b);
+        };
+        pick.appendChild(b);
+      }
+
       // The looks: click one, or let them play
       const LOOKS = [
         ['cork', 'Cork board'],
@@ -1253,7 +1360,7 @@
       const stage = $('#look-stage'),
         tabs = $('#look-tabs');
       const imgs = LOOKS.map(([id, name], i) => {
-        const img = new Image(1440, 780);
+        const img = new Image(2400, 1300);
         img.src = `img/look-${id}.webp`;
         img.alt = `The ${name} look`;
         img.loading = i ? 'lazy' : 'eager';

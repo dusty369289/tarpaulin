@@ -77,7 +77,9 @@ async function settle(page: Page) {
   await page.waitForTimeout(400);
 }
 
-async function shot(page: Page, name: string, width: number, quality = 82) {
+// Captured at 2x and kept large, so text stays sharp on the website's full-width pictures and on
+// high-density screens; quality 90 keeps small text free of WebP's blur.
+async function shot(page: Page, name: string, width: number, quality = 90) {
   const png = join(RAW, `${name}.png`);
   await page.screenshot({ path: png });
   ffmpeg([
@@ -179,7 +181,7 @@ async function main() {
     for (const mode of ['light', 'dark'] as const) {
       await setMode(mode);
       await settle(page);
-      await shot(page, `hero-${mode}`, 1600);
+      await shot(page, `hero-${mode}`, 2400);
     }
 
     // Reading an assignment without leaving the app.
@@ -188,7 +190,7 @@ async function main() {
     await page.getByTestId('due-item').first().getByRole('button').first().click();
     await page.getByTestId('reader-content').waitFor();
     await settle(page);
-    await shot(page, 'reader', 1200);
+    await shot(page, 'reader', 1800);
     await page.keyboard.press('Escape');
 
     // The month, with a busy day picked.
@@ -207,7 +209,7 @@ async function main() {
     });
     if (busiest) await page.getByRole('button', { name: busiest, exact: true }).click();
     await settle(page);
-    await shot(page, 'month', 1200);
+    await shot(page, 'month', 1800);
     await page.getByRole('tab', { name: /This week/ }).click();
 
     // Every look, as stills and as one looping carousel.
@@ -222,7 +224,7 @@ async function main() {
         [id, mode],
       );
       await settle(page);
-      frames.push(await shot(page, `look-${id}`, 960));
+      frames.push(await shot(page, `look-${id}`, 2400));
     }
     carousel(frames, join(OUT, 'looks.webp'));
   } finally {
