@@ -1,9 +1,19 @@
 import { X } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
 import { useDialog } from '../ui/useDialog';
 
 // Both are modal: focus moves in and stays in, Escape closes only the topmost one, and focus
 // returns to the opener on close (see src/ui/useDialog.ts).
+//
+// The backdrop is a mouse convenience only (a press on it closes, like Escape), so it is
+// role="presentation": nothing for assistive tech to announce or operate. It can't be
+// aria-hidden, since the dialog sits inside it. Only a press on the backdrop itself counts, not
+// one that bubbles up from the panel.
+
+/** Calls `onClose` for a press on the element itself, not on anything inside it. */
+const onBackdrop = (onClose: () => void) => (e: MouseEvent) => {
+  if (e.target === e.currentTarget) onClose();
+};
 
 export function Modal({
   title,
@@ -26,7 +36,8 @@ export function Modal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-fade-in"
-      onMouseDown={onClose}
+      role="presentation"
+      onMouseDown={onBackdrop(onClose)}
     >
       <div
         ref={ref}
@@ -36,7 +47,6 @@ export function Modal({
         aria-describedby={describedBy}
         tabIndex={-1}
         className={`card max-h-[85vh] w-full overflow-hidden shadow-2xl outline-none animate-pop-in ${wide ? 'max-w-3xl' : 'max-w-md'}`}
-        onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <h2 className="font-semibold">{title}</h2>
@@ -71,7 +81,8 @@ export function Drawer({
   return (
     <div
       className="fixed inset-0 z-40 flex justify-end bg-black/20 animate-fade-in"
-      onMouseDown={onClose}
+      role="presentation"
+      onMouseDown={onBackdrop(onClose)}
     >
       <aside
         ref={ref}
@@ -80,7 +91,6 @@ export function Drawer({
         aria-label={label ?? title}
         tabIndex={-1}
         className={`flex h-full w-full ${wide ? 'max-w-2xl' : 'max-w-sm'} flex-col border-l border-border bg-surface shadow-2xl outline-none animate-slide-in-right`}
-        onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <h2 className="truncate font-semibold">{title}</h2>
