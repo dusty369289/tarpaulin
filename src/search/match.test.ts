@@ -88,17 +88,52 @@ describe('rank', () => {
     expect(titles(rank(items, 'problem', now)).at(-1)).toBe('Reading: problems of philosophy');
   });
 
+  it('"ps": problem sets by title, then the course, then its work matched only by course', () => {
+    const ps = { context: ['Probability & Statistics', 'STAT 2040'] };
+    const items: Searchable[] = [
+      { title: 'Week 8 discussion post', ...ps, due: at('2026-10-22T23:59:00') },
+      { title: 'Week 9 discussion post', ...ps, due: at('2026-10-29T23:59:00') },
+      { title: 'Probability & Statistics', keywords: ['STAT 2040'], secondary: true },
+      { title: 'Problem set 6', ...ps, due: at('2026-11-03T23:59:00') },
+      { title: 'Problem set 5: dynamic programming', due: at('2026-11-05T23:59:00') },
+      { title: 'Problem set 4: graph search', due: at('2026-10-22T23:59:00') },
+    ];
+    const ranked = rank(items, 'ps', now);
+    expect(titles(ranked)).toEqual([
+      'Problem set 4: graph search',
+      'Problem set 6',
+      'Problem set 5: dynamic programming',
+      'Probability & Statistics',
+      'Week 8 discussion post',
+      'Week 9 discussion post',
+    ]);
+    expect(ranked.map((r) => r.band)).toEqual([0, 0, 0, 1, 2, 2]);
+  });
+
+  it('a course match through the context still narrows with a second word', () => {
+    const ml = { context: ['Machine Learning', 'CS 229'] };
+    const items: Searchable[] = [
+      { title: 'Quiz 3', keywords: ['Quiz'], ...ml },
+      { title: 'Quiz 3', keywords: ['Quiz'], context: ['Modern History'] },
+      { title: 'Homework 2', keywords: ['Assignment'], ...ml },
+    ];
+    const ranked = rank(items, 'ml quiz', now);
+    expect(ranked).toHaveLength(1);
+    expect(ranked[0].band).toBe(0);
+  });
+
   it('puts a course abbreviation ahead of initials that skip words', () => {
     const items: Searchable[] = [
-      { title: 'MATH 2940 lecture', keywords: ['Probability & Statistics'] },
-      { title: 'Homework 2', keywords: ['Machine Learning', 'CS 229'] },
-      { title: 'Machine Learning', keywords: ['CS 229'] },
+      { title: 'MATH 2940 lecture', context: ['Probability & Statistics'] },
+      { title: 'Homework 2', context: ['Machine Learning', 'CS 229'] },
+      { title: 'Machine Learning', keywords: ['CS 229'], secondary: true },
       { title: 'Small talk' },
     ];
+    // The weak title match (initials skipping a word) and the course share band 1.
     expect(titles(rank(items, 'ml', now)).slice(0, 3)).toEqual([
       'Machine Learning',
-      'Homework 2',
       'MATH 2940 lecture',
+      'Homework 2',
     ]);
   });
 });

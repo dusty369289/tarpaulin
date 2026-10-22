@@ -51,15 +51,17 @@ export function buildSections(
     return out;
   }
 
-  const groups = new Map<GroupId, { best: number; entries: SearchEntry[] }>();
-  for (const { item, score } of rank(entries, query, now)) {
-    const g = groups.get(item.group) ?? { best: score, entries: [] };
+  // Ranked best first, so a group's first entry is its best.
+  const groups = new Map<GroupId, { band: number; best: number; entries: SearchEntry[] }>();
+  for (const { item, score, band } of rank(entries, query, now)) {
+    const g = groups.get(item.group) ?? { band, best: score, entries: [] };
     if (g.entries.length < PER_GROUP) g.entries.push(item);
     groups.set(item.group, g);
   }
   return [...groups]
     .sort(
-      ([a, ga], [b, gb]) => gb.best - ga.best || GROUP_ORDER.indexOf(a) - GROUP_ORDER.indexOf(b),
+      ([a, ga], [b, gb]) =>
+        ga.band - gb.band || gb.best - ga.best || GROUP_ORDER.indexOf(a) - GROUP_ORDER.indexOf(b),
     )
     .map(([id, g]) => ({ id, label: GROUP_LABELS[id], entries: g.entries }));
 }
