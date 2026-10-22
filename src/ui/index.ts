@@ -14,7 +14,15 @@ export {
 } from './ConfirmDialog';
 export { FoldedList } from './FoldedList';
 export { Kbd } from './Kbd';
-export { Row, Section, SettingsFilter, useNoRows, useSettingsFilter } from './layout';
+export {
+  Row,
+  Section,
+  SelectRow,
+  SettingsFilter,
+  SwitchRow,
+  useNoRows,
+  useSettingsFilter,
+} from './layout';
 export { Radio, RadioGroup } from './RadioGroup';
 export { SearchInput } from './SearchInput';
 export { Segmented, type SegmentedOption } from './Segmented';

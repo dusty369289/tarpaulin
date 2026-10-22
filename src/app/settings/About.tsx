@@ -1,7 +1,7 @@
 import { Loader2, RefreshCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useCanvas } from '../../canvas/CanvasProvider';
-import { Row, Section, Switch, useSettingsFilter } from '../../ui';
+import { Row, Section, SwitchRow, useSettingsFilter } from '../../ui';
 import { useSettings } from '../settingsStore';
 import { ReleaseNotes } from '../UpdateBanner';
 import { appVersion, useUpdater } from '../updater';
@@ -37,18 +37,13 @@ function UpdatesSection() {
       </Row>
       {state.status !== 'unsupported' && (
         <>
-          <Row
+          <SwitchRow
             label="Check for updates automatically"
             help="Once a day, from GitHub Releases."
             keywords="auto update"
-          >
-            <Switch
-              hideLabel
-              label="Check for updates automatically"
-              checked={autoCheck}
-              onChange={(on) => update({ autoCheckUpdates: on })}
-            />
-          </Row>
+            checked={autoCheck}
+            onChange={(on) => update({ autoCheckUpdates: on })}
+          />
           <Row
             label={
               offered

@@ -1,6 +1,6 @@
 import { useCatalog } from '../../canvas/hooks';
-import { FoldedList, Row, Section } from '../../ui';
-import { useSettings, type Settings } from '../settingsStore';
+import { FoldedList, Row, Section, SelectRow } from '../../ui';
+import { useSettings } from '../settingsStore';
 
 export function CoursesSettings() {
   const catalog = useCatalog();
@@ -13,7 +13,7 @@ export function CoursesSettings() {
   const term = catalog.currentTerm;
   return (
     <Section>
-      <Row
+      <SelectRow
         label="Show courses from"
         help={
           term
@@ -21,17 +21,13 @@ export function CoursesSettings() {
             : 'Hide single courses below.'
         }
         keywords="term"
-      >
-        <select
-          className="input w-auto"
-          aria-label="Show courses from"
-          value={courseScope}
-          onChange={(e) => update({ courseScope: e.target.value as Settings['courseScope'] })}
-        >
-          <option value="all">All courses</option>
-          <option value="current">Current term only</option>
-        </select>
-      </Row>
+        value={courseScope}
+        options={[
+          ['all', 'All courses'],
+          ['current', 'Current term only'],
+        ]}
+        onChange={(courseScope) => update({ courseScope })}
+      />
       <Row
         stacked
         label="Your courses"

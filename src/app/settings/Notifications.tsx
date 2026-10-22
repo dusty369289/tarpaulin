@@ -1,7 +1,7 @@
 import { BellRing } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { LEAD_OPTIONS, type NotificationPrefs } from '../../notifications/prefs';
-import { Row, Section, Switch } from '../../ui';
+import { Row, Section, SwitchRow } from '../../ui';
 import {
   notificationPermission,
   requestNotificationPermission,
@@ -58,18 +58,13 @@ export function NotificationsSettings() {
   return (
     <>
       <Section>
-        <Row
+        <SwitchRow
           label="Desktop notifications"
           help="Reminders and news from Canvas while Tarpaulin is open (it can stay minimised)."
           keywords="alerts"
-        >
-          <Switch
-            hideLabel
-            label="Desktop notifications"
-            checked={prefs.enabled}
-            onChange={(enabled) => set({ enabled })}
-          />
-        </Row>
+          checked={prefs.enabled}
+          onChange={(enabled) => set({ enabled })}
+        />
         {permission !== 'granted' && permission !== 'unsupported' && prefs.enabled && (
           <Row
             label={permission === 'denied' ? 'Notifications are blocked' : 'Allow notifications'}
@@ -108,70 +103,55 @@ export function NotificationsSettings() {
         </Row>
       </Section>
       <Section title="What to tell you about">
-        <Row
+        <SwitchRow
           label="Deadline reminders"
           help="For work you haven’t handed in yet."
           keywords="due remind before"
           below={leads}
-        >
-          <Switch
-            hideLabel
-            label="Deadline reminders"
-            checked={prefs.deadlines}
-            disabled={off}
-            onChange={(deadlines) => set({ deadlines })}
-          />
-        </Row>
-        <Row label="New announcements" keywords="news">
-          <Switch
-            hideLabel
-            label="New announcements"
-            checked={prefs.announcements}
-            disabled={off}
-            onChange={(announcements) => set({ announcements })}
-          />
-        </Row>
-        <Row label="Grades" help="Newly graded work and changes to course grades." keywords="marks">
-          <Switch
-            hideLabel
-            label="Grades"
-            checked={prefs.grades}
-            disabled={off}
-            onChange={(grades) => set({ grades })}
-          />
-        </Row>
-        <Row
+          checked={prefs.deadlines}
+          disabled={off}
+          onChange={(deadlines) => set({ deadlines })}
+        />
+        <SwitchRow
+          label="New announcements"
+          keywords="news"
+          checked={prefs.announcements}
+          disabled={off}
+          onChange={(announcements) => set({ announcements })}
+        />
+        <SwitchRow
+          label="Grades"
+          help="Newly graded work and changes to course grades."
+          keywords="marks"
+          checked={prefs.grades}
+          disabled={off}
+          onChange={(grades) => set({ grades })}
+        />
+        <SwitchRow
           label="Remind me on days I planned work"
           help="On the do-date in My plan, at 09:00 or the time you set."
           keywords="plan do date"
-        >
-          <Switch
-            hideLabel
-            label="Remind me on days I planned work"
-            checked={prefs.planned}
-            disabled={off}
-            onChange={(planned) => set({ planned })}
-          />
-        </Row>
-        <Row
+          checked={prefs.planned}
+          disabled={off}
+          onChange={(planned) => set({ planned })}
+        />
+        <SwitchRow
           label="Weekly preview"
           help="The evening before each week starts, a summary of what's due in it."
           keywords="week summary busy"
-        >
-          <Switch
-            hideLabel
-            label="Weekly preview"
-            checked={prefs.weekly}
-            disabled={off}
-            onChange={(weekly) => set({ weekly })}
-          />
-        </Row>
+          checked={prefs.weekly}
+          disabled={off}
+          onChange={(weekly) => set({ weekly })}
+        />
       </Section>
       <Section title="Quiet time">
-        <Row
+        <SwitchRow
           label="Quiet hours"
           help="Held back until quiet hours end."
           keywords="do not disturb night time"
+          checked={prefs.quietHours.enabled}
+          disabled={off}
+          onChange={(enabled) => set({ quietHours: { ...prefs.quietHours, enabled } })}
         >
           {prefs.quietHours.enabled && (
             <>
@@ -200,14 +180,7 @@ export function NotificationsSettings() {
               />
             </>
           )}
-          <Switch
-            hideLabel
-            label="Quiet hours"
-            checked={prefs.quietHours.enabled}
-            disabled={off}
-            onChange={(enabled) => set({ quietHours: { ...prefs.quietHours, enabled } })}
-          />
-        </Row>
+        </SwitchRow>
       </Section>
     </>
   );

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Row, Section, Switch } from '../../ui';
+import { Section, SwitchRow } from '../../ui';
 import { autostartEnabled, autostartSupported, setAutostart } from '../desktop';
 import { useSettings } from '../settingsStore';
 
@@ -16,7 +16,7 @@ export function StartupSettings() {
 
   return (
     <Section>
-      <Row
+      <SwitchRow
         label="Keep running in the tray when closed"
         keywords="system tray background close"
         help={
@@ -24,16 +24,11 @@ export function StartupSettings() {
             ? 'Closing the window keeps reminders coming. Quit from the tray icon.'
             : 'Available in the desktop app.'
         }
-      >
-        <Switch
-          hideLabel
-          label="Keep running in the tray when closed"
-          checked={closeToTray}
-          disabled={!supported}
-          onChange={(on) => update({ closeToTray: on })}
-        />
-      </Row>
-      <Row
+        checked={closeToTray}
+        disabled={!supported}
+        onChange={(on) => update({ closeToTray: on })}
+      />
+      <SwitchRow
         label="Open Tarpaulin when I log in"
         keywords="autostart startup login"
         help={
@@ -41,19 +36,14 @@ export function StartupSettings() {
             ? 'So reminders arrive without opening it yourself.'
             : 'Available in the desktop app.'
         }
-      >
-        <Switch
-          hideLabel
-          label="Open Tarpaulin when I log in"
-          checked={enabled}
-          disabled={!supported}
-          onChange={(on) => {
-            setError(null);
-            void setAutostart(on).then(setEnabled, (e) => setError(String(e)));
-          }}
-        />
-      </Row>
-      <Row
+        checked={enabled}
+        disabled={!supported}
+        onChange={(on) => {
+          setError(null);
+          void setAutostart(on).then(setEnabled, (e) => setError(String(e)));
+        }}
+      />
+      <SwitchRow
         label="Start in the background"
         keywords="minimised minimized startup"
         help={
@@ -61,15 +51,10 @@ export function StartupSettings() {
             ? 'When opened at login: straight to the tray.'
             : 'When opened at login: minimised.'
         }
-      >
-        <Switch
-          hideLabel
-          label="Start in the background"
-          checked={startMinimized}
-          disabled={!supported || !enabled}
-          onChange={(on) => update({ startMinimized: on })}
-        />
-      </Row>
+        checked={startMinimized}
+        disabled={!supported || !enabled}
+        onChange={(on) => update({ startMinimized: on })}
+      />
       {error && (
         <p role="alert" className="px-4 py-3 text-xs text-danger">
           Couldn’t change this: {error}

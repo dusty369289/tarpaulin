@@ -1,7 +1,7 @@
 import { useShallow } from 'zustand/react/shallow';
 import { useProfile } from '../../canvas/hooks';
-import { Row, Section } from '../../ui';
-import { useSettings, type Settings } from '../settingsStore';
+import { Section, SelectRow } from '../../ui';
+import { useSettings } from '../settingsStore';
 
 const readableZone = (zone: string) => zone.replace(/_/g, ' ');
 
@@ -14,30 +14,28 @@ export function CalendarSettings() {
   const deviceZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   return (
     <Section>
-      <Row label="Week starts on" keywords="monday sunday calendar">
-        <select
-          className="input w-auto"
-          aria-label="Week starts on"
-          value={s.weekStartsOn}
-          onChange={(e) => update({ weekStartsOn: e.target.value as Settings['weekStartsOn'] })}
-        >
-          <option value="monday">Monday</option>
-          <option value="sunday">Sunday</option>
-        </select>
-      </Row>
-      <Row label="Clock" keywords="12-hour 24-hour time format">
-        <select
-          className="input w-auto"
-          aria-label="Clock"
-          value={s.clock}
-          onChange={(e) => update({ clock: e.target.value as Settings['clock'] })}
-        >
-          <option value="auto">System default</option>
-          <option value="12h">12-hour</option>
-          <option value="24h">24-hour</option>
-        </select>
-      </Row>
-      <Row
+      <SelectRow
+        label="Week starts on"
+        keywords="monday sunday calendar"
+        value={s.weekStartsOn}
+        options={[
+          ['monday', 'Monday'],
+          ['sunday', 'Sunday'],
+        ]}
+        onChange={(weekStartsOn) => update({ weekStartsOn })}
+      />
+      <SelectRow
+        label="Clock"
+        keywords="12-hour 24-hour time format"
+        value={s.clock}
+        options={[
+          ['auto', 'System default'],
+          ['12h', '12-hour'],
+          ['24h', '24-hour'],
+        ]}
+        onChange={(clock) => update({ clock })}
+      />
+      <SelectRow
         label="Show times in"
         help={
           canvasZone
@@ -45,18 +43,14 @@ export function CalendarSettings() {
             : 'Your Canvas account doesn’t say which time zone it uses, so times follow this computer.'
         }
         keywords="time zone timezone"
-      >
-        <select
-          className="input w-auto"
-          aria-label="Show times in"
-          value={canvasZone ? s.timesIn : 'device'}
-          disabled={!canvasZone}
-          onChange={(e) => update({ timesIn: e.target.value as Settings['timesIn'] })}
-        >
-          <option value="device">This computer’s time zone</option>
-          <option value="canvas">Canvas’s time zone</option>
-        </select>
-      </Row>
+        value={canvasZone ? s.timesIn : 'device'}
+        disabled={!canvasZone}
+        options={[
+          ['device', 'This computer’s time zone'],
+          ['canvas', 'Canvas’s time zone'],
+        ]}
+        onChange={(timesIn) => update({ timesIn })}
+      />
     </Section>
   );
 }

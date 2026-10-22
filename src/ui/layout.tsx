@@ -8,6 +8,7 @@ import {
   type RefObject,
 } from 'react';
 import { foldedIncludesAll } from '../lib/text';
+import { Switch } from './Switch';
 
 // The settings layout: rows grouped in cards. A row is its label and help on the left and its
 // control on the right, on one line; in a narrow column the control wraps below the label.
@@ -136,5 +137,77 @@ export function Row({
       )}
       {below}
     </div>
+  );
+}
+
+/** What a `SwitchRow` or `SelectRow` passes on to its `Row`. */
+interface RowText {
+  label: string;
+  help?: string;
+  /** Extra words search should find this row by. */
+  keywords?: string;
+  below?: ReactNode;
+}
+
+/**
+ * A setting that is on or off: a `Row` whose switch is named by the row's label. `children` are
+ * extra controls before the switch (quiet hours' times).
+ */
+export function SwitchRow({
+  checked,
+  onChange,
+  disabled,
+  children,
+  ...row
+}: RowText & {
+  checked: boolean;
+  onChange: (on: boolean) => void;
+  disabled?: boolean;
+  children?: ReactNode;
+}) {
+  return (
+    <Row {...row}>
+      {children}
+      <Switch
+        hideLabel
+        label={row.label}
+        checked={checked}
+        disabled={disabled}
+        onChange={onChange}
+      />
+    </Row>
+  );
+}
+
+/** A setting picked from a list: a `Row` whose drop-down is named by the row's label. */
+export function SelectRow<T extends string>({
+  value,
+  options,
+  onChange,
+  disabled,
+  ...row
+}: RowText & {
+  value: T;
+  /** Each choice's value and name, in order. */
+  options: ReadonlyArray<readonly [T, string]>;
+  onChange: (value: T) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Row {...row}>
+      <select
+        className="input w-auto"
+        aria-label={row.label}
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value as T)}
+      >
+        {options.map(([v, name]) => (
+          <option key={v} value={v}>
+            {name}
+          </option>
+        ))}
+      </select>
+    </Row>
   );
 }

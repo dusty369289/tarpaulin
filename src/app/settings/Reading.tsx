@@ -1,5 +1,5 @@
-import { Row, Section, Switch } from '../../ui';
-import { useSettings, type Settings } from '../settingsStore';
+import { Section, SelectRow, SwitchRow } from '../../ui';
+import { useSettings } from '../settingsStore';
 
 export function ReadingSettings() {
   const openItemsIn = useSettings((s) => s.openItemsIn);
@@ -7,33 +7,24 @@ export function ReadingSettings() {
   const update = useSettings((s) => s.update);
   return (
     <Section>
-      <Row
+      <SelectRow
         label="Clicking an assignment or announcement"
         help="Tarpaulin keeps a read-only copy; submitting and replying happen in Canvas."
         keywords="open reader browser"
-      >
-        <select
-          className="input w-auto"
-          aria-label="Clicking an assignment or announcement"
-          value={openItemsIn}
-          onChange={(e) => update({ openItemsIn: e.target.value as Settings['openItemsIn'] })}
-        >
-          <option value="app">Read it in Tarpaulin</option>
-          <option value="canvas">Open it in Canvas</option>
-        </select>
-      </Row>
-      <Row
+        value={openItemsIn}
+        options={[
+          ['app', 'Read it in Tarpaulin'],
+          ['canvas', 'Open it in Canvas'],
+        ]}
+        onChange={(openItemsIn) => update({ openItemsIn })}
+      />
+      <SwitchRow
         label="Load images from other sites"
         help="Images in Canvas content that are hosted elsewhere can tell that site you opened it. Off shows a placeholder to click instead."
         keywords="privacy remote pictures"
-      >
-        <Switch
-          hideLabel
-          label="Load images from other sites"
-          checked={loadRemoteImages}
-          onChange={(on) => update({ loadRemoteImages: on })}
-        />
-      </Row>
+        checked={loadRemoteImages}
+        onChange={(on) => update({ loadRemoteImages: on })}
+      />
     </Section>
   );
 }

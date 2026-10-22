@@ -3,7 +3,15 @@ import { useId, useState, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useDashboard } from '../../dashboard/store';
 import { BackgroundPicker, LookPicker, SkinPicker } from '../../theme/pickers';
-import { Row, Section, Segmented, Switch, useSettingsFilter, type SegmentedOption } from '../../ui';
+import {
+  Row,
+  SelectRow,
+  Section,
+  Segmented,
+  SwitchRow,
+  useSettingsFilter,
+  type SegmentedOption,
+} from '../../ui';
 import { useSettings, type Settings } from '../settingsStore';
 
 /** Light, Dark, Match system, High contrast, as one segmented control. */
@@ -124,20 +132,19 @@ export function AppearanceSettings() {
             className="h-8 w-12 cursor-pointer rounded border border-border bg-transparent"
           />
         </Row>
-        <Row label="Font" keywords="typeface">
-          <select
-            className="input w-auto"
-            aria-label="Font"
-            value={s.font}
-            onChange={(e) => update({ font: e.target.value as Settings['font'] })}
-          >
-            <option value="system">System</option>
-            <option value="rounded">Rounded</option>
-            <option value="serif">Serif</option>
-            <option value="mono">Monospace</option>
-            <option value="readable">Extra readable</option>
-          </select>
-        </Row>
+        <SelectRow
+          label="Font"
+          keywords="typeface"
+          value={s.font}
+          options={[
+            ['system', 'System'],
+            ['rounded', 'Rounded'],
+            ['serif', 'Serif'],
+            ['mono', 'Monospace'],
+            ['readable', 'Extra readable'],
+          ]}
+          onChange={(font) => update({ font })}
+        />
         <Row label="Text size" keywords="font zoom scale">
           <input
             type="range"
@@ -179,33 +186,24 @@ export function AppearanceSettings() {
           </Row>
         </Section>
         <Section title="Top bar">
-          <Row
+          <SelectRow
             label="Top bar style"
             help="Frosted glass that the page shows through, or a plain strip."
             keywords="header"
-          >
-            <select
-              className="input w-auto"
-              aria-label="Top bar style"
-              value={s.barStyle}
-              onChange={(e) => update({ barStyle: e.target.value as Settings['barStyle'] })}
-            >
-              <option value="frosted">Frosted</option>
-              <option value="basic">Basic</option>
-            </select>
-          </Row>
-          <Row
+            value={s.barStyle}
+            options={[
+              ['frosted', 'Frosted'],
+              ['basic', 'Basic'],
+            ]}
+            onChange={(barStyle) => update({ barStyle })}
+          />
+          <SwitchRow
             label="Fold away the top bar"
             help="Gives the page the full window. Point at the top edge or press Tab to bring it back. Always shown on touch screens."
             keywords="header hide"
-          >
-            <Switch
-              hideLabel
-              label="Fold away the top bar"
-              checked={s.barFoldAway}
-              onChange={(on) => update({ barFoldAway: on })}
-            />
-          </Row>
+            checked={s.barFoldAway}
+            onChange={(on) => update({ barFoldAway: on })}
+          />
         </Section>
       </MoreStyling>
     </>
