@@ -253,14 +253,18 @@ export const Calendar = defineWidget({
 
     // How busy each day is: unfinished work only, each item weighed against its course's typical
     // points (src/lib/load.ts). The shared planner window gives every course a fair baseline
-    // even in a quiet week; it's the request every planner widget already shares.
+    // even in a quiet week; it's the request every planner widget already shares. Only today
+    // and later are weighed: what's left on a past day is overdue (Due soon's job), not a crunch
+    // to plan around, and "this week" means what's still ahead in it.
     const showLoad = settings.showLoad && settings.showWork && view !== 'agenda';
     const wide = useUpcoming(SHARED_PLANNER_WINDOW.daysAhead, SHARED_PLANNER_WINDOW.daysBack);
+    const todayMs = startOfDay(nowInZone()).getTime();
     const load = useMemo<LoadByDay | null>(() => {
       if (!showLoad) return null;
       const visible = deadlines.data.inCourses(courseIds).dated();
-      return loadByDay(visible, [...wide.data.inCourses(courseIds), ...visible]);
-    }, [showLoad, deadlines.data, wide.data, courseIds]);
+      const ahead = visible.filter((d) => d.date!.getTime() >= todayMs);
+      return loadByDay(ahead, [...wide.data.inCourses(courseIds), ...visible]);
+    }, [showLoad, deadlines.data, wide.data, courseIds, todayMs]);
     const loadOn = (d: Date) => (load ? dayLoad(load, d) : null);
     // The week summed up: the visible week, or in the month view the current one (if shown).
     const thisWeek = startOfWeek(nowInZone(), { weekStartsOn });
@@ -268,6 +272,18 @@ export const Calendar = defineWidget({
       view === 'week' ? start : thisWeek >= start && thisWeek <= end ? thisWeek : null;
     const week = load && summaryWeek ? weekLoad(load, summaryWeek) : null;
     const summary = week && summariseWeek(week, view === 'month');
+    // Its own line under the week view's header (that view scrolls); in the month view it sits
+    // in the header row, so the grid keeps its height.
+    const summaryLine =
+      summary && week ? (
+        <p
+          className={`cal-summary flex min-w-0 flex-1 items-center gap-1.5 text-xs ${view === 'month' ? 'ml-1' : ''} ${week.level === 'light' ? 'text-muted' : ''}`}
+          title={summary}
+        >
+          <span aria-hidden className="cal-load-dot" data-load={week.level} />
+          <span className="truncate">{summary}</span>
+        </p>
+      ) : null;
 
     // Entries are already in time order.
     const onDay = (d: Date) => entries.filter((e) => onDate(e, d));
@@ -336,7 +352,14 @@ export const Calendar = defineWidget({
           <button type="button" className="btn-icon" aria-label="Next" onClick={() => step(1)}>
             <ChevronRight className="h-4 w-4" />
           </button>
-          <span className="flex-1 truncate font-semibold">{title}</span>
+          {view === 'month' && summaryLine ? (
+            <>
+              <span className="shrink-0 font-semibold">{title}</span>
+              {summaryLine}
+            </>
+          ) : (
+            <span className="flex-1 truncate font-semibold">{title}</span>
+          )}
           <button
             type="button"
             className="btn btn-ghost px-2 py-0.5 text-xs"
@@ -349,15 +372,7 @@ export const Calendar = defineWidget({
             Today
           </button>
         </div>
-        {summary && week && (
-          <p
-            className={`cal-summary flex min-w-0 items-center gap-1.5 text-xs ${week.level === 'light' ? 'text-muted' : ''}`}
-            data-load={week.level}
-          >
-            <span aria-hidden className="cal-load-dot" data-load={week.level} />
-            <span className="truncate">{summary}</span>
-          </p>
-        )}
+        {view === 'week' && summaryLine}
         {/* A failing events request shouldn't hide the deadlines, so it gets its own hint. */}
         {settings.showEvents && events.query.isError && !events.query.data && (
           <p className="text-xs text-danger" role="alert">
@@ -376,8 +391,7 @@ export const Calendar = defineWidget({
               const picked = selected ? onDay(selected) : [];
               // How many 16px event chips fit under the day number in a cell of this widget size.
               const widgetPx = size.h * 36 + (size.h - 1) * 12;
-              const cellPx =
-                (widgetPx - 112 - (selected ? 90 : 0) - (summary ? 20 : 0)) / (days.length / 7);
+              const cellPx = (widgetPx - 112 - (selected ? 90 : 0)) / (days.length / 7);
               const chipSlots =
                 size.w >= 6 ? Math.max(0, Math.min(3, Math.floor((cellPx - 20) / 17))) : 0;
               // What's coming up from today (or the start of the month) for the side list.

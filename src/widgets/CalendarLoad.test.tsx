@@ -54,8 +54,10 @@ function planned(
 }
 
 const PLANNER = [
-  // Monday: one thing (light).
+  // Monday: unfinished, but in the past, so overdue rather than load.
   planned(19),
+  // Wednesday (today): one thing (light).
+  planned(21),
   // Thursday: three things, 120 points (busy). The planner's copy of a lecture doesn't count.
   planned(22, { points: 40 }),
   planned(22, { points: 40 }),
@@ -110,9 +112,9 @@ describe('Calendar load (month view)', () => {
     expect(thu).toHaveAttribute('data-load', 'busy');
     expect(thu.querySelector('.cal-load')).toHaveAttribute('data-load', 'busy');
 
-    const mon = screen.getByRole('button', { name: /^Monday 19 October/ });
-    expect(mon).toHaveAccessibleName('Monday 19 October, 1 item, light: 1 due, 10 points');
-    expect(mon.querySelector('.cal-load')).toHaveAttribute('data-load', 'light');
+    const wed = screen.getByRole('button', { name: /^Wednesday 21 October/ });
+    expect(wed).toHaveAccessibleName('Wednesday 21 October, 1 item, light: 1 due, 10 points');
+    expect(wed.querySelector('.cal-load')).toHaveAttribute('data-load', 'light');
   });
 
   it('leaves days with nothing due (or only finished work) unshaded', async () => {
@@ -123,6 +125,9 @@ describe('Calendar load (month view)', () => {
     expect(fri.querySelector('.cal-load')).toBeNull();
     const tue = screen.getByRole('button', { name: /^Tuesday 20 October/ });
     expect(tue.querySelector('.cal-load')).toBeNull();
+    // A past day's unfinished work is overdue, not load.
+    const mon = screen.getByRole('button', { name: 'Monday 19 October, 1 item' });
+    expect(mon.querySelector('.cal-load')).toBeNull();
   });
 
   it('sums up the current week in the header', async () => {
@@ -146,7 +151,7 @@ describe('Calendar load (week view)', () => {
   });
 
   it('keeps a light week quiet', async () => {
-    show({ view: 'week' }, [planned(20), planned(23, { points: null })]);
+    show({ view: 'week' }, [planned(19), planned(22), planned(23, { points: null })]);
     const line = await screen.findByText('Light week · 2 due');
     expect(line.closest('p')).toHaveClass('text-muted');
   });
