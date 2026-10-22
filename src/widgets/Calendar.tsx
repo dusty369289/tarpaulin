@@ -17,6 +17,7 @@ import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { z } from 'zod';
 import { useSettings } from '../app/settingsStore';
+import { planKeyForPlannerItem, plansOn, useAccountPlans } from '../planner';
 import { fromDeadline, fromEvent, type ReaderItem } from '../reader/items';
 import { useOpenItem } from '../reader/ReaderProvider';
 import {
@@ -26,6 +27,7 @@ import {
   useEvents,
   useUpcoming,
 } from '../canvas/hooks';
+import type { Deadline } from '../canvas/models';
 import { nowInZone, useTimeFormat } from '../lib/dates';
 import {
   dayLoad,
@@ -61,7 +63,10 @@ const schema = z.object({
 });
 export type CalendarSettings = z.infer<typeof schema>;
 
-/** One thing on the calendar: a planner deadline or a Canvas calendar event. */
+/** A do-date's dot when its work isn't loaded (so its course colour isn't known). */
+const PLAN_FALLBACK_COLOR = '#8b93a5';
+
+/** One thing on the calendar: a planner deadline, a Canvas calendar event or a do-date. */
 export interface CalendarEntry {
   key: string;
   title: string;
@@ -70,7 +75,8 @@ export interface CalendarEntry {
   end: Date | null;
   allDay: boolean;
   color: string;
-  kind: 'work' | 'event' | 'announcement';
+  /** `plan`: a do-date from My plan (src/planner), not a Canvas deadline. */
+  kind: 'work' | 'event' | 'announcement' | 'plan';
   done: boolean;
   url: string | null;
   /** What the reader opens; null opens Canvas. */
@@ -86,6 +92,7 @@ export function onDate(e: CalendarEntry, d: Date): boolean {
 
 /** The time column: start time on the first day, then "All day", and "–17:00" on the last. */
 function timeLabel(e: CalendarEntry, day: Date | null, timeFmt: string): string {
+  if (e.kind === 'plan' && e.allDay) return 'Planned';
   if (e.allDay) return 'All day';
   if (!day || isSameDay(e.start, day)) return format(e.start, timeFmt);
   if (e.end && e.end <= endOfDay(day)) return `–${format(e.end, timeFmt)}`;
@@ -199,6 +206,9 @@ export const Calendar = defineWidget({
     const deadlines = useDeadlines(start, end);
     const events = useEvents(settings.showEvents ? courseIds : [], start, end);
 
+    const wide = useUpcoming(SHARED_PLANNER_WINDOW.daysAhead, SHARED_PLANNER_WINDOW.daysBack);
+    const plans = useAccountPlans();
+
     const entries = useMemo(() => {
       const out: CalendarEntry[] = [];
       // Calendar events come from /calendar_events (with times), so skip their planner copies.
@@ -237,12 +247,43 @@ export const Calendar = defineWidget({
           });
         }
       }
-      // Do-dates: when the planner exposes `plansOn(day)` (personal "do it on" dates), they can
-      // join here as their own `kind` and be listed beside the due work. They're plans, not
-      // deadlines, so they stay out of the load below.
+      // Do-dates from My plan, beside the due work, in the work's course colour. They're plans,
+      // not deadlines, so they stay out of the load below. The shared planner window finds the
+      // work even when it's due outside the visible range.
+      if (settings.showWork) {
+        const work = new Map<string, Deadline>();
+        for (const d of [...wide.data, ...deadlines.data]) {
+          const key = planKeyForPlannerItem(d);
+          if (key) work.set(key, d);
+        }
+        const courses = new Set(courseIds);
+        for (let day = startOfDay(start); day <= end; day = addDays(day, 1)) {
+          for (const p of plansOn(plans, day)) {
+            if (p.plan.status === 'done' || !courses.has(p.courseId)) continue;
+            const d = work.get(p.key);
+            if (settings.hideCompleted && d?.isDone) continue;
+            out.push({
+              key: `plan:${p.key}`,
+              title: `Plan: ${d?.title ?? p.plan.title}`,
+              start: p.at,
+              end: null,
+              allDay: !p.hasTime,
+              color: d?.color ?? PLAN_FALLBACK_COLOR,
+              kind: 'plan',
+              done: false,
+              url: d?.url ?? null,
+              item: d ? fromDeadline(d) : null,
+            });
+          }
+        }
+      }
       return out.sort((a, b) => a.start.getTime() - b.start.getTime());
     }, [
       deadlines.data,
+      wide.data,
+      plans,
+      start,
+      end,
       events.data,
       courseIds,
       settings.showAnnouncements,
@@ -257,7 +298,6 @@ export const Calendar = defineWidget({
     // and later are weighed: what's left on a past day is overdue (Due soon's job), not a crunch
     // to plan around, and "this week" means what's still ahead in it.
     const showLoad = settings.showLoad && settings.showWork && view !== 'agenda';
-    const wide = useUpcoming(SHARED_PLANNER_WINDOW.daysAhead, SHARED_PLANNER_WINDOW.daysBack);
     const todayMs = startOfDay(nowInZone()).getTime();
     const load = useMemo<LoadByDay | null>(() => {
       if (!showLoad) return null;
