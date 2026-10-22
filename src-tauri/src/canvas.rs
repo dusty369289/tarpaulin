@@ -48,6 +48,10 @@ pub enum CanvasError {
     RateLimited { status: u16 },
     #[error("network error: {0}")]
     Network(String),
+    /// The OS keychain (Keychain, Credential Manager, Secret Service) refused or is locked.
+    /// Kept apart from `Network` so a locked keychain doesn't read as "offline".
+    #[error("keychain error: {0}")]
+    Keychain(String),
     #[error("unexpected response: {0}")]
     Decode(String),
 }
@@ -476,6 +480,7 @@ mod tests {
             "Canvas returned 503: x"
         );
         assert_eq!(CanvasError::Network("timed out".into()).to_string(), "network error: timed out");
+        assert_eq!(CanvasError::Keychain("locked".into()).to_string(), "keychain error: locked");
     }
 
     #[tokio::test]
