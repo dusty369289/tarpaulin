@@ -268,9 +268,9 @@ re-sweeps only that style, while changing a widget re-sweeps all of them. Passes
 and `--modes=dark` to sweep one mode. The underlying `test:widgets` takes `--modes=light,dark`
 (and `--skins=…`), or exact `--pairs=postit:dark,card:dark`; with `--shots`, galleries land in
 `screenshots/lab/<scenario>/<style>/<mode>/`. Each style is also checked for text contrast
-against the background it actually renders on, and for text under 11px; those findings are
-printed (and shown as warnings on CI) but don't fail the sweep yet (`test:widgets
---contrast=strict` makes them failures).
+against the background it actually renders on (WCAG AA, 4.5:1), and for text under 11px
+(unless its letters are as tall as 11px Inter's, as with the pixel fonts); any finding fails the
+sweep. `test:widgets --contrast` only reports them.
 
 To render the product demo (captioned, human-paced, on the invented `showcase` term):
 
