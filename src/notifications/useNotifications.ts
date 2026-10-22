@@ -2,7 +2,8 @@ import { addDays, startOfDay } from 'date-fns';
 import { useEffect, useMemo, useRef } from 'react';
 import { showNotification } from '../app/desktop';
 import { useSettings } from '../app/settingsStore';
-import { useAnnouncements, useCatalog, useDeadlines, useNow } from '../canvas/hooks';
+import { useCanvas } from '../canvas/CanvasProvider';
+import { useAnnouncements, useCatalog, useDeadlines, useNow, useProfile } from '../canvas/hooks';
 import { useTimeFormat } from '../lib/dates';
 import { EMPTY_STATE, planNotifications, type NotifyInput, type NotifyState } from './rules';
 
@@ -11,23 +12,33 @@ import { EMPTY_STATE, planNotifications, type NotifyInput, type NotifyState } fr
 // cached queries the widgets use (the shared planner window, the announcements widget's default
 // range), so it adds no Canvas requests of its own.
 
-const STORAGE_KEY = 'tarpaulin.notifications';
+// What's been shown is kept per Canvas account, so signing in to another account doesn't count
+// all of its recent announcements as new (each account gets its own quiet first look).
+const STORAGE_PREFIX = 'tarpaulin.notifications';
+/** Before accounts had their own state: adopted by the first account that runs. */
+const LEGACY_KEY = STORAGE_PREFIX;
+export const notifyStorageKey = (baseUrl: string, userId: string) =>
+  `${STORAGE_PREFIX}:${baseUrl}|${userId}`;
 /** Longest reminder lead is a week; graded work is looked at back to the planner window start. */
 const AHEAD_DAYS = 8;
 const BACK_DAYS = 30;
 const ANNOUNCEMENT_DAYS = 14;
 
-function load(): NotifyState {
+function load(key: string): NotifyState {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    let raw = localStorage.getItem(key);
+    if (raw === null && (raw = localStorage.getItem(LEGACY_KEY)) !== null) {
+      localStorage.setItem(key, raw);
+      localStorage.removeItem(LEGACY_KEY);
+    }
     return raw ? { ...EMPTY_STATE, ...(JSON.parse(raw) as NotifyState) } : EMPTY_STATE;
   } catch {
     return EMPTY_STATE;
   }
 }
-function save(state: NotifyState) {
+function save(key: string, state: NotifyState) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(key, JSON.stringify(state));
   } catch {
     /* storage unavailable: reminders may repeat after a restart, nothing worse */
   }
@@ -42,7 +53,13 @@ export function useNotifications() {
   const courseIds = useMemo(() => catalog.resolveCourseIds([]), [catalog]);
   const deadlines = useDeadlines(addDays(today, -BACK_DAYS), addDays(today, AHEAD_DAYS));
   const announcements = useAnnouncements(courseIds, ANNOUNCEMENT_DAYS);
-  const state = useRef<NotifyState | null>(null);
+  const baseUrl = useCanvas().client?.baseUrl;
+  const profile = useProfile();
+  // Nothing runs until the account is known, so its state is the one read and written. (If the
+  // profile can't load, the Canvas address alone has to do.)
+  const userId = profile.data?.id ?? (profile.isError ? '' : null);
+  const key = baseUrl && userId !== null ? notifyStorageKey(baseUrl, userId) : null;
+  const state = useRef<{ key: string; value: NotifyState } | null>(null);
 
   const input = useMemo<NotifyInput>(() => {
     // Only hand over data that has loaded, so a half-loaded first look never becomes the
@@ -84,12 +101,13 @@ export function useNotifications() {
   }, [deadlines, announcements, catalog, courseIds]);
 
   useEffect(() => {
-    state.current ??= load();
-    const { notes, state: next } = planNotifications(input, prefs, state.current, now, timeFmt);
-    state.current = next;
-    save(next);
-    for (const n of notes) void showNotification(n.title, n.body).catch(() => {});
-  }, [input, prefs, now, timeFmt]);
+    if (!key) return;
+    if (state.current?.key !== key) state.current = { key, value: load(key) };
+    const planned = planNotifications(input, prefs, state.current.value, now, timeFmt);
+    state.current.value = planned.state;
+    save(key, planned.state);
+    for (const n of planned.notes) void showNotification(n.title, n.body).catch(() => {});
+  }, [key, input, prefs, now, timeFmt]);
 }
 
 /** Mount point: renders nothing. */
