@@ -225,11 +225,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-      # Not enforced yet: the Rust code has never been through rustfmt, and reformatting it now
-      # would collide with the Rust changes in flight. Lists the files that need it; once one
-      # `cargo fmt` commit has landed, drop continue-on-error so this blocks.
-      - name: rustfmt (advisory)
-        continue-on-error: true
+      # Lists the files that need formatting as annotations, then fails.
+      - name: rustfmt
         working-directory: src-tauri
         run: |
           if ! cargo fmt --check >/dev/null; then

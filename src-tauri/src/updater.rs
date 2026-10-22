@@ -45,8 +45,16 @@ pub fn app_version(app: AppHandle) -> String {
 
 /// Checks the release manifest; remembers the update so `install_update` can apply it.
 #[tauri::command]
-pub async fn check_update(app: AppHandle, pending: State<'_, PendingUpdate>) -> Result<Option<UpdateInfo>, String> {
-    let update = app.updater().map_err(|e| e.to_string())?.check().await.map_err(|e| e.to_string())?;
+pub async fn check_update(
+    app: AppHandle,
+    pending: State<'_, PendingUpdate>,
+) -> Result<Option<UpdateInfo>, String> {
+    let update = app
+        .updater()
+        .map_err(|e| e.to_string())?
+        .check()
+        .await
+        .map_err(|e| e.to_string())?;
     let info = update.as_ref().map(|u| UpdateInfo {
         version: u.version.clone(),
         current_version: u.current_version.clone(),
@@ -64,7 +72,12 @@ pub async fn install_update(
     pending: State<'_, PendingUpdate>,
     on_event: Channel<DownloadEvent>,
 ) -> Result<(), String> {
-    let update = pending.0.lock().unwrap().take().ok_or("no update to install; check first")?;
+    let update = pending
+        .0
+        .lock()
+        .unwrap()
+        .take()
+        .ok_or("no update to install; check first")?;
     let mut started = false;
     update
         .download_and_install(

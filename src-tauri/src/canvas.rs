@@ -74,10 +74,16 @@ pub fn normalize_base_url(input: &str) -> Result<Url, CanvasError> {
     match url.scheme() {
         "https" => {}
         "http" if loopback => {}
-        other => return Err(CanvasError::InvalidBaseUrl(format!("scheme {other} is not allowed"))),
+        other => {
+            return Err(CanvasError::InvalidBaseUrl(format!(
+                "scheme {other} is not allowed"
+            )))
+        }
     }
     if !url.username().is_empty() || url.password().is_some() {
-        return Err(CanvasError::InvalidBaseUrl("credentials in URL are not allowed".into()));
+        return Err(CanvasError::InvalidBaseUrl(
+            "credentials in URL are not allowed".into(),
+        ));
     }
     let mut origin = Url::parse(&format!("{}://{}", url.scheme(), host))
         .map_err(|e| CanvasError::InvalidBaseUrl(e.to_string()))?;
@@ -108,9 +114,12 @@ pub fn validate_api_path(path: &str) -> Result<(), CanvasError> {
 
 pub fn build_url(base: &Url, path: &str, query: &[(String, String)]) -> Result<Url, CanvasError> {
     validate_api_path(path)?;
-    let mut url = base.join(path).map_err(|e| CanvasError::ForbiddenPath(e.to_string()))?;
+    let mut url = base
+        .join(path)
+        .map_err(|e| CanvasError::ForbiddenPath(e.to_string()))?;
     if !query.is_empty() {
-        url.query_pairs_mut().extend_pairs(query.iter().map(|(k, v)| (k.as_str(), v.as_str())));
+        url.query_pairs_mut()
+            .extend_pairs(query.iter().map(|(k, v)| (k.as_str(), v.as_str())));
     }
     Ok(url)
 }
@@ -169,7 +178,9 @@ pub fn retry_delay(
     jitter: f64,
 ) -> Duration {
     let wait = retry_after.unwrap_or_else(|| {
-        let full = policy.base.saturating_mul(1 << retry.saturating_sub(1).min(16));
+        let full = policy
+            .base
+            .saturating_mul(1 << retry.saturating_sub(1).min(16));
         full.mul_f64(0.5 + 0.5 * jitter.clamp(0.0, 1.0))
     });
     wait.min(policy.max_wait)
@@ -206,7 +217,10 @@ async fn get_page(
             if is_credential_rejection(&body) {
                 return Err(CanvasError::Unauthorized);
             }
-            return Err(CanvasError::Http { status: 401, body: body.chars().take(300).collect() });
+            return Err(CanvasError::Http {
+                status: 401,
+                body: body.chars().take(300).collect(),
+            });
         }
         let next = header(&response, "link").and_then(parse_next_link);
         if status.is_success() {
@@ -216,7 +230,8 @@ async fn get_page(
                 .map_err(|e| CanvasError::Decode(e.to_string()))?;
             return Ok((body, next));
         }
-        let remaining = header(&response, "x-rate-limit-remaining").and_then(|v| v.trim().parse().ok());
+        let remaining =
+            header(&response, "x-rate-limit-remaining").and_then(|v| v.trim().parse().ok());
         let retry_after = header(&response, "retry-after")
             .and_then(|v| v.trim().parse::<u64>().ok())
             .map(Duration::from_secs);
@@ -228,7 +243,9 @@ async fn get_page(
             });
         }
         if attempt >= policy.attempts {
-            return Err(CanvasError::RateLimited { status: status.as_u16() });
+            return Err(CanvasError::RateLimited {
+                status: status.as_u16(),
+            });
         }
         tokio::time::sleep(retry_delay(policy, attempt, retry_after, jitter())).await;
         attempt += 1;
@@ -283,7 +300,9 @@ async fn get_all_with(
 /// means the credentials are expired or revoked. Mirrors `isCredentialRejection` in
 /// src/canvas/token.ts.
 pub fn is_credential_rejection(body: &str) -> bool {
-    !body.to_ascii_lowercase().contains("user not authorized to perform that action")
+    !body
+        .to_ascii_lowercase()
+        .contains("user not authorized to perform that action")
 }
 
 /// What the frontend may know about the connected token's expiry (see src/canvas/token.ts).
@@ -315,14 +334,20 @@ pub fn read_token_expiry(body: &Value, hint: &str) -> TokenExpiry {
     let Some(visible) = body.get("visible_token").and_then(Value::as_str) else {
         return TokenExpiry::Unknown;
     };
-    let shown = visible.trim_end_matches("...").rsplit('~').next().unwrap_or_default();
+    let shown = visible
+        .trim_end_matches("...")
+        .rsplit('~')
+        .next()
+        .unwrap_or_default();
     if shown != hint {
         return TokenExpiry::Unknown;
     }
     match body.get("expires_at") {
         Some(Value::Null) => TokenExpiry::Never,
         Some(Value::String(at)) if at.len() >= 10 && at.as_bytes()[0].is_ascii_digit() => {
-            TokenExpiry::Expires { expires_at: at.clone() }
+            TokenExpiry::Expires {
+                expires_at: at.clone(),
+            }
         }
         _ => TokenExpiry::Unknown,
     }
@@ -334,7 +359,9 @@ mod tests {
 
     #[test]
     fn tells_rejected_credentials_from_permission_errors() {
-        assert!(is_credential_rejection(r#"{"errors":[{"message":"Invalid access token."}]}"#));
+        assert!(is_credential_rejection(
+            r#"{"errors":[{"message":"Invalid access token."}]}"#
+        ));
         assert!(is_credential_rejection(
             r#"{"status":"unauthenticated","errors":[{"message":"user authorization required"}]}"#
         ));
@@ -354,23 +381,34 @@ mod tests {
 
     #[test]
     fn reads_token_expiry() {
-        let body = |visible: &str, expires: Value| {
-            serde_json::json!({ "visible_token": visible, "expires_at": expires })
-        };
+        let body = |visible: &str, expires: Value| serde_json::json!({ "visible_token": visible, "expires_at": expires });
         assert_eq!(
             read_token_expiry(&body("7~AbCde...", "2030-01-02T03:04:05Z".into()), "AbCde"),
-            TokenExpiry::Expires { expires_at: "2030-01-02T03:04:05Z".into() }
+            TokenExpiry::Expires {
+                expires_at: "2030-01-02T03:04:05Z".into()
+            }
         );
-        assert_eq!(read_token_expiry(&body("7~AbCde...", Value::Null), "AbCde"), TokenExpiry::Never);
-        assert_eq!(read_token_expiry(&body("7~Other...", Value::Null), "AbCde"), TokenExpiry::Unknown);
+        assert_eq!(
+            read_token_expiry(&body("7~AbCde...", Value::Null), "AbCde"),
+            TokenExpiry::Never
+        );
+        assert_eq!(
+            read_token_expiry(&body("7~Other...", Value::Null), "AbCde"),
+            TokenExpiry::Unknown
+        );
         assert_eq!(
             read_token_expiry(&serde_json::json!({ "visible_token": "AbCde..." }), "AbCde"),
             TokenExpiry::Unknown
         );
-        assert_eq!(read_token_expiry(&serde_json::json!([]), "AbCde"), TokenExpiry::Unknown);
         assert_eq!(
-            serde_json::to_value(TokenExpiry::Expires { expires_at: "2030-01-02T03:04:05Z".into() })
-                .unwrap(),
+            read_token_expiry(&serde_json::json!([]), "AbCde"),
+            TokenExpiry::Unknown
+        );
+        assert_eq!(
+            serde_json::to_value(TokenExpiry::Expires {
+                expires_at: "2030-01-02T03:04:05Z".into()
+            })
+            .unwrap(),
             serde_json::json!({ "status": "expires", "expiresAt": "2030-01-02T03:04:05Z" })
         );
         assert_eq!(
@@ -447,23 +485,48 @@ mod tests {
 
     #[test]
     fn recognises_throttling() {
-        assert!(is_throttled(403, None, "403 Forbidden (Rate Limit Exceeded)"));
-        assert!(is_throttled(403, None, r#"{"errors":[{"message":"Rate Limit Exceeded"}]}"#));
+        assert!(is_throttled(
+            403,
+            None,
+            "403 Forbidden (Rate Limit Exceeded)"
+        ));
+        assert!(is_throttled(
+            403,
+            None,
+            r#"{"errors":[{"message":"Rate Limit Exceeded"}]}"#
+        ));
         assert!(is_throttled(403, Some(0.0), ""));
         assert!(is_throttled(429, None, ""));
-        assert!(!is_throttled(403, Some(650.0), r#"{"errors":[{"message":"forbidden"}]}"#));
-        assert!(!is_throttled(403, None, "user not authorized to perform that action"));
+        assert!(!is_throttled(
+            403,
+            Some(650.0),
+            r#"{"errors":[{"message":"forbidden"}]}"#
+        ));
+        assert!(!is_throttled(
+            403,
+            None,
+            "user not authorized to perform that action"
+        ));
         assert!(!is_throttled(503, Some(0.0), "Rate Limit Exceeded"));
     }
 
     #[test]
     fn backs_off_exponentially_with_jitter() {
         assert_eq!(retry_delay(&RETRY, 1, None, 1.0), Duration::from_secs(1));
-        assert_eq!(retry_delay(&RETRY, 1, None, 0.0), Duration::from_millis(500));
+        assert_eq!(
+            retry_delay(&RETRY, 1, None, 0.0),
+            Duration::from_millis(500)
+        );
         assert_eq!(retry_delay(&RETRY, 2, None, 1.0), Duration::from_secs(2));
         assert_eq!(retry_delay(&RETRY, 9, None, 1.0), RETRY.max_wait);
-        assert_eq!(retry_delay(&RETRY, 1, Some(Duration::from_secs(3)), 0.0), Duration::from_secs(3));
-        assert_eq!(retry_delay(&RETRY, 1, Some(Duration::from_secs(600)), 0.0), RETRY.max_wait);
+        assert_eq!(
+            retry_delay(&RETRY, 1, Some(Duration::from_secs(3)), 0.0),
+            Duration::from_secs(3)
+        );
+        assert_eq!(
+            retry_delay(&RETRY, 1, Some(Duration::from_secs(600)), 0.0),
+            RETRY.max_wait
+        );
         assert!((0.0..=1.0).contains(&jitter()));
     }
 
@@ -474,27 +537,46 @@ mod tests {
             CanvasError::RateLimited { status: 403 }.to_string(),
             "Canvas rate limit exceeded (403); try again in a moment"
         );
-        assert_eq!(CanvasError::Unauthorized.to_string(), "Canvas rejected the credentials (401)");
         assert_eq!(
-            CanvasError::Http { status: 503, body: "x".into() }.to_string(),
+            CanvasError::Unauthorized.to_string(),
+            "Canvas rejected the credentials (401)"
+        );
+        assert_eq!(
+            CanvasError::Http {
+                status: 503,
+                body: "x".into()
+            }
+            .to_string(),
             "Canvas returned 503: x"
         );
-        assert_eq!(CanvasError::Network("timed out".into()).to_string(), "network error: timed out");
-        assert_eq!(CanvasError::Keychain("locked".into()).to_string(), "keychain error: locked");
+        assert_eq!(
+            CanvasError::Network("timed out".into()).to_string(),
+            "network error: timed out"
+        );
+        assert_eq!(
+            CanvasError::Keychain("locked".into()).to_string(),
+            "keychain error: locked"
+        );
     }
 
     #[tokio::test]
     async fn retries_throttled_requests() {
         let throttled = r#"{"errors":[{"message":"Rate Limit Exceeded"}]}"#;
         let (port, server) = serve(vec![
-            response("403 Forbidden", "X-Rate-Limit-Remaining: 0.0\r\n", throttled),
+            response(
+                "403 Forbidden",
+                "X-Rate-Limit-Remaining: 0.0\r\n",
+                throttled,
+            ),
             response("429 Too Many Requests", "Retry-After: 0\r\n", ""),
             response("200 OK", "", r#"[{"id":1}]"#),
         ])
         .await;
         let base = normalize_base_url(&format!("http://127.0.0.1:{port}")).unwrap();
         let http = reqwest::Client::new();
-        let value = get_all_with(&http, &base, "t", "/api/v1/items", &[], &FAST).await.unwrap();
+        let value = get_all_with(&http, &base, "t", "/api/v1/items", &[], &FAST)
+            .await
+            .unwrap();
         assert_eq!(value, serde_json::json!([{"id":1}]));
         assert_eq!(server.await.unwrap().len(), 3);
     }
@@ -502,9 +584,12 @@ mod tests {
     #[tokio::test]
     async fn gives_up_after_the_last_attempt() {
         let throttled = "403 Forbidden (Rate Limit Exceeded)";
-        let (port, server) =
-            serve((0..FAST.attempts).map(|_| response("403 Forbidden", "", throttled)).collect())
-                .await;
+        let (port, server) = serve(
+            (0..FAST.attempts)
+                .map(|_| response("403 Forbidden", "", throttled))
+                .collect(),
+        )
+        .await;
         let base = normalize_base_url(&format!("http://127.0.0.1:{port}")).unwrap();
         let http = reqwest::Client::new();
         assert_eq!(
@@ -517,8 +602,12 @@ mod tests {
     #[tokio::test]
     async fn does_not_retry_permission_errors() {
         let body = r#"{"status":"unauthorized","errors":[{"message":"forbidden"}]}"#;
-        let (port, server) =
-            serve(vec![response("403 Forbidden", "X-Rate-Limit-Remaining: 640.5\r\n", body)]).await;
+        let (port, server) = serve(vec![response(
+            "403 Forbidden",
+            "X-Rate-Limit-Remaining: 640.5\r\n",
+            body,
+        )])
+        .await;
         let base = normalize_base_url(&format!("http://127.0.0.1:{port}")).unwrap();
         let http = reqwest::Client::new();
         assert!(matches!(
@@ -545,21 +634,30 @@ mod tests {
         let (port, server) = serve(vec![resp]).await;
         let base = normalize_base_url(&format!("http://127.0.0.1:{port}")).unwrap();
         let http = reqwest::Client::new();
-        let value = get_all(&http, &base, "t", "/api/v1/items", &[]).await.unwrap();
+        let value = get_all(&http, &base, "t", "/api/v1/items", &[])
+            .await
+            .unwrap();
         assert_eq!(value, serde_json::json!([{"id":1}]));
         let request = &server.await.unwrap()[0];
-        let accept = request.lines().find(|l| l.starts_with("accept-encoding:")).unwrap();
+        let accept = request
+            .lines()
+            .find(|l| l.starts_with("accept-encoding:"))
+            .unwrap();
         assert!(accept.contains("gzip") && accept.contains("br"), "{accept}");
     }
 
     #[test]
     fn normalizes_base_urls() {
         assert_eq!(
-            normalize_base_url("canvas.example.edu/courses").unwrap().as_str(),
+            normalize_base_url("canvas.example.edu/courses")
+                .unwrap()
+                .as_str(),
             "https://canvas.example.edu/"
         );
         assert_eq!(
-            normalize_base_url(" https://canvas.example.edu:8443/x ").unwrap().as_str(),
+            normalize_base_url(" https://canvas.example.edu:8443/x ")
+                .unwrap()
+                .as_str(),
             "https://canvas.example.edu:8443/"
         );
         assert!(normalize_base_url("http://canvas.example.edu").is_err());
@@ -660,7 +758,9 @@ mod tests {
         });
         let base = normalize_base_url(&format!("http://127.0.0.1:{port}")).unwrap();
         let http = reqwest::Client::new();
-        let value = get_all(&http, &base, "secret", "/api/v1/items", &[]).await.unwrap();
+        let value = get_all(&http, &base, "secret", "/api/v1/items", &[])
+            .await
+            .unwrap();
         assert_eq!(value, serde_json::json!([{"id":1},{"id":2},{"id":3}]));
     }
 }

@@ -74,7 +74,12 @@ pub struct ConnectionInfo {
 
 impl ConnectionInfo {
     pub fn disconnected() -> Self {
-        Self { connected: false, base_url: None, method: None, user_name: None }
+        Self {
+            connected: false,
+            base_url: None,
+            method: None,
+            user_name: None,
+        }
     }
 
     pub fn from_credentials(creds: &Credentials, user_name: Option<String>) -> Self {
@@ -111,7 +116,9 @@ impl SecretStore for KeyringStore {
     }
 
     fn save(&self, secret: &str) -> Result<(), String> {
-        Self::entry()?.set_password(secret).map_err(|e| e.to_string())
+        Self::entry()?
+            .set_password(secret)
+            .map_err(|e| e.to_string())
     }
 
     fn clear(&self) -> Result<(), String> {
@@ -130,7 +137,10 @@ pub struct CredentialVault {
 
 impl CredentialVault {
     pub fn new(store: Box<dyn SecretStore>) -> Self {
-        Self { store, cache: Mutex::new(None) }
+        Self {
+            store,
+            cache: Mutex::new(None),
+        }
     }
 
     pub fn get(&self) -> Result<Option<Credentials>, String> {
@@ -161,7 +171,10 @@ impl CredentialVault {
 }
 
 pub fn now_secs() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or(Duration::ZERO).as_secs()
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or(Duration::ZERO)
+        .as_secs()
 }
 
 pub fn redirect_uri(port: u16) -> String {
@@ -182,16 +195,22 @@ pub fn authorize_url(base: &Url, client_id: &str, redirect_uri: &str, state: &st
 pub fn parse_callback(callback: &str, expected_state: &str) -> Result<String, String> {
     let url = Url::parse(callback).map_err(|e| format!("bad callback URL: {e}"))?;
     let param = |name: &str| {
-        url.query_pairs().find(|(k, _)| k == name).map(|(_, v)| v.into_owned())
+        url.query_pairs()
+            .find(|(k, _)| k == name)
+            .map(|(_, v)| v.into_owned())
     };
     if let Some(err) = param("error") {
         let desc = param("error_description").unwrap_or_default();
-        return Err(format!("Canvas denied access: {err} {desc}").trim().to_string());
+        return Err(format!("Canvas denied access: {err} {desc}")
+            .trim()
+            .to_string());
     }
     if param("state").as_deref() != Some(expected_state) {
         return Err("OAuth state mismatch; try connecting again".into());
     }
-    param("code").filter(|c| !c.is_empty()).ok_or_else(|| "no authorization code returned".into())
+    param("code")
+        .filter(|c| !c.is_empty())
+        .ok_or_else(|| "no authorization code returned".into())
 }
 
 #[derive(Debug, Deserialize)]
@@ -216,9 +235,15 @@ async fn post_token(
     let status = response.status();
     if !status.is_success() {
         let body = response.text().await.unwrap_or_default();
-        return Err(CanvasError::Http { status: status.as_u16(), body: body.chars().take(300).collect() });
+        return Err(CanvasError::Http {
+            status: status.as_u16(),
+            body: body.chars().take(300).collect(),
+        });
     }
-    response.json().await.map_err(|e| CanvasError::Decode(e.to_string()))
+    response
+        .json()
+        .await
+        .map_err(|e| CanvasError::Decode(e.to_string()))
 }
 
 pub async fn exchange_code(
@@ -253,8 +278,17 @@ pub async fn exchange_code(
 
 /// Swaps the refresh token for a new access token. Canvas doesn't rotate refresh tokens, so the
 /// old one is kept when the response omits it.
-pub async fn refresh(http: &reqwest::Client, creds: &Credentials) -> Result<Credentials, CanvasError> {
-    let Credentials::Oauth { base_url, client_id, client_secret, refresh_token: Some(refresh_token), .. } = creds
+pub async fn refresh(
+    http: &reqwest::Client,
+    creds: &Credentials,
+) -> Result<Credentials, CanvasError> {
+    let Credentials::Oauth {
+        base_url,
+        client_id,
+        client_secret,
+        refresh_token: Some(refresh_token),
+        ..
+    } = creds
     else {
         return Err(CanvasError::Unauthorized);
     };
@@ -317,9 +351,18 @@ mod tests {
         let mem = std::sync::Arc::new(MemoryStore::default());
         let vault = CredentialVault::new(Box::new(mem.clone()));
         assert_eq!(vault.get().unwrap(), None);
-        let creds = Credentials::Token { base_url: "https://c.edu/".into(), token: "t".into() };
+        let creds = Credentials::Token {
+            base_url: "https://c.edu/".into(),
+            token: "t".into(),
+        };
         vault.set(creds.clone()).unwrap();
-        assert!(mem.0.lock().unwrap().as_ref().unwrap().contains("\"method\":\"token\""));
+        assert!(mem
+            .0
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .contains("\"method\":\"token\""));
         let fresh = CredentialVault::new(Box::new(mem.clone()));
         assert_eq!(fresh.get().unwrap(), Some(creds));
         fresh.clear().unwrap();
@@ -340,7 +383,10 @@ mod tests {
         assert!(oauth(Some(1_000)).needs_refresh(950));
         assert!(!oauth(Some(1_000)).needs_refresh(100));
         assert!(!oauth(None).needs_refresh(u64::MAX - 100));
-        let token = Credentials::Token { base_url: "https://c.edu/".into(), token: "t".into() };
+        let token = Credentials::Token {
+            base_url: "https://c.edu/".into(),
+            token: "t".into(),
+        };
         assert!(!token.needs_refresh(u64::MAX - 100));
     }
 
@@ -360,7 +406,9 @@ mod tests {
         assert_eq!(parse_callback(ok, "xyz").unwrap(), "abc");
         assert!(parse_callback(ok, "other").unwrap_err().contains("state"));
         let denied = "http://127.0.0.1:43821/oauth/callback?error=access_denied&state=xyz";
-        assert!(parse_callback(denied, "xyz").unwrap_err().contains("access_denied"));
+        assert!(parse_callback(denied, "xyz")
+            .unwrap_err()
+            .contains("access_denied"));
         let empty = "http://127.0.0.1:43821/oauth/callback?code=&state=xyz";
         assert!(parse_callback(empty, "xyz").is_err());
     }
@@ -382,21 +430,39 @@ mod tests {
             sock.write_all(resp.as_bytes()).await.unwrap();
             req
         });
-        (normalize_base_url(&format!("http://127.0.0.1:{port}")).unwrap(), handle)
+        (
+            normalize_base_url(&format!("http://127.0.0.1:{port}")).unwrap(),
+            handle,
+        )
     }
 
     #[tokio::test]
     async fn exchanges_code_for_tokens() {
-        let (base, req) = token_server(r#"{"access_token":"a1","refresh_token":"r1","expires_in":3600}"#).await;
+        let (base, req) =
+            token_server(r#"{"access_token":"a1","refresh_token":"r1","expires_in":3600}"#).await;
         let http = reqwest::Client::new();
-        let creds = exchange_code(&http, &base, "cid", "csecret", &redirect_uri(43821), "the-code").await.unwrap();
+        let creds = exchange_code(
+            &http,
+            &base,
+            "cid",
+            "csecret",
+            &redirect_uri(43821),
+            "the-code",
+        )
+        .await
+        .unwrap();
         let req = req.await.unwrap();
         assert!(req.starts_with("POST /login/oauth2/token"));
         assert!(req.contains("grant_type=authorization_code"));
         assert!(req.contains("code=the-code"));
         assert!(req.contains("redirect_uri=http%3A%2F%2F127.0.0.1%3A43821%2Foauth%2Fcallback"));
         match creds {
-            Credentials::Oauth { access_token, refresh_token, expires_at, .. } => {
+            Credentials::Oauth {
+                access_token,
+                refresh_token,
+                expires_at,
+                ..
+            } => {
                 assert_eq!(access_token, "a1");
                 assert_eq!(refresh_token.as_deref(), Some("r1"));
                 assert!(expires_at.unwrap() > now_secs());
@@ -420,13 +486,21 @@ mod tests {
         let fresh = refresh(&http, &stale).await.unwrap();
         assert!(req.await.unwrap().contains("grant_type=refresh_token"));
         assert_eq!(fresh.access_token(), "a2");
-        assert!(matches!(fresh, Credentials::Oauth { refresh_token: Some(ref r), .. } if r == "r1"));
+        assert!(
+            matches!(fresh, Credentials::Oauth { refresh_token: Some(ref r), .. } if r == "r1")
+        );
     }
 
     #[tokio::test]
     async fn token_credentials_cannot_refresh() {
         let http = reqwest::Client::new();
-        let token = Credentials::Token { base_url: "https://c.edu/".into(), token: "t".into() };
-        assert_eq!(refresh(&http, &token).await.unwrap_err(), CanvasError::Unauthorized);
+        let token = Credentials::Token {
+            base_url: "https://c.edu/".into(),
+            token: "t".into(),
+        };
+        assert_eq!(
+            refresh(&http, &token).await.unwrap_err(),
+            CanvasError::Unauthorized
+        );
     }
 }

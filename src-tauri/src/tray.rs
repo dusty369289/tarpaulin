@@ -38,7 +38,13 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "Open Tarpaulin", true, None::<&str>)?;
     let refresh = MenuItem::with_id(app, "refresh", "Refresh", true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)?;
-    let updates = MenuItem::with_id(app, "check-updates", "Check for updates…", true, None::<&str>)?;
+    let updates = MenuItem::with_id(
+        app,
+        "check-updates",
+        "Check for updates…",
+        true,
+        None::<&str>,
+    )?;
     let quit = MenuItem::with_id(app, "quit", "Quit Tarpaulin", true, None::<&str>)?;
     let menu = Menu::with_items(
         app,
@@ -68,7 +74,12 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
-            if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
                 show_main(tray.app_handle());
             }
         });
