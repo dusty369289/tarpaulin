@@ -16,6 +16,8 @@ export interface ReaderItem {
   url: string | null;
   /** Known up front; the fetched detail (if any) is merged over it. */
   inline?: Partial<ItemDetail>;
+  /** Announcements open as discussions, but there's nothing to plan (see src/planner). */
+  noPlan?: boolean;
 }
 
 const fetchable = (courseId: string | null): courseId is string => Boolean(courseId);
@@ -38,7 +40,7 @@ export function fromDeadline(d: Deadline): ReaderItem | null {
     case 'discussion_topic':
       return { ...base, kind: 'discussion', id: d.data.id };
     case 'announcement':
-      return { ...base, kind: 'discussion', id: d.data.id };
+      return { ...base, kind: 'discussion', id: d.data.id, noPlan: true };
     default:
       // Pages, planner notes, peer reviews and events from the planner open in Canvas.
       return null;

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { SettingsSchema, type Settings } from '../app/settingsStore';
 import { newId } from '../lib/id';
+import { parsePlans, usePlans, type PlansByAccount } from '../planner/store';
 import { getWidget } from '../widgets/registry';
 import { DASHBOARD_VERSION, migrateDashboard } from './store';
 import type { Page } from './types';
@@ -37,12 +38,16 @@ const ExportFileSchema = z.object({
   exportedAt: z.string(),
   pages: z.array(z.unknown()).min(1),
   settings: z.record(z.unknown()).optional(),
+  /** My plan, by account scope (`<baseUrl>|<userId>`) then item. Checked by parsePlans. */
+  plans: z.unknown().optional(),
 });
 
 export interface ExportOptions {
   includeSettings?: boolean;
-  /** Notes and checklist contents. */
+  /** Notes and checklist contents, and My plan. */
   includeLocalData?: boolean;
+  /** The plans to include with local data; the saved ones when left out. */
+  plans?: PlansByAccount;
 }
 
 export function exportDashboard(
@@ -64,6 +69,11 @@ export function exportDashboard(
       ),
     })),
     ...(opts.includeSettings && settings ? { settings: SettingsSchema.parse(settings) } : {}),
+    // Every account's plans, each under its own scope, so importing never shows one account's
+    // plans under another.
+    ...(opts.includeLocalData
+      ? { plans: parsePlans(opts.plans ?? usePlans.getState().plans) }
+      : {}),
   };
   return JSON.stringify(out, null, 2);
 }
@@ -71,7 +81,16 @@ export function exportDashboard(
 export interface ImportResult {
   pages: Page[];
   settings: Partial<Settings> | null;
+  /** My plan from the file (by account scope), or null when it has none. Apply with
+   *  applyImportedPlans once the import is confirmed. */
+  plans: PlansByAccount | null;
   warnings: string[];
+}
+
+/** Adds the file's plans to this device's: each stays under the account it was made in, and
+ *  where both have a plan for one item the more recently changed is kept. */
+export function applyImportedPlans(plans: PlansByAccount | null) {
+  if (plans) usePlans.getState().importPlans(plans);
 }
 
 export class ImportError extends Error {}
@@ -131,5 +150,10 @@ export function importDashboard(json: string): ImportResult {
     if (parsed.success) settings = parsed.data;
     else warnings.push('Appearance settings in the file were invalid and were ignored.');
   }
-  return { pages, settings, warnings };
+  let plans: PlansByAccount | null = null;
+  if (file.data.plans !== undefined) {
+    plans = parsePlans(file.data.plans);
+    if (!Object.keys(plans).length) plans = null;
+  }
+  return { pages, settings, plans, warnings };
 }

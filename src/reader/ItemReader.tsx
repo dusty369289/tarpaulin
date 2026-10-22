@@ -21,6 +21,8 @@ import { useResource } from '../canvas/hooks';
 import * as R from '../canvas/resources';
 import type { ItemDetail } from '../canvas/types';
 import { toDate, useTimeFormat } from '../lib/dates';
+import { planKeyForReaderItem } from '../planner/keys';
+import { PlanPanel } from '../planner/PlanPanel';
 import { Badge, CourseDot, ErrorState, LoadingState } from '../widgets/shared/ui';
 import type { ReaderItem } from './items';
 
@@ -117,6 +119,7 @@ export function ItemReader({ item, onClose }: { item: ReaderItem; onClose: () =>
   };
   const title = detail.title || item.title;
   const types = (detail.submissionTypes ?? []).map((t) => SUBMISSION_TYPES[t] ?? t);
+  const planKey = planKeyForReaderItem(item);
 
   return (
     <Drawer
@@ -173,6 +176,14 @@ export function ItemReader({ item, onClose }: { item: ReaderItem; onClose: () =>
             {detail.author && <Fact icon={User}>{detail.author}</Fact>}
           </ul>
         </header>
+        {planKey && (
+          <PlanPanel
+            planKey={planKey}
+            title={title}
+            courseName={item.courseName}
+            dueAt={detail.dueAt ?? item.inline?.dueAt ?? null}
+          />
+        )}
         <hr className="border-border" />
         {query?.isLoading ? (
           <LoadingState />
