@@ -12,18 +12,10 @@ import {
   weekLoad,
   type LoadSource,
 } from './load';
+import { loadSource } from '../test/fixtures';
 
-let n = 0;
-const item = (date: string | null, over: Partial<LoadSource> = {}): LoadSource => ({
-  key: `assignment:${++n}`,
-  type: 'assignment',
-  courseId: 'c1',
-  date: date ? new Date(`${date}T23:59:00`) : null,
-  points: 10,
-  isWork: true,
-  isDone: false,
-  ...over,
-});
+const item = (date: string | null, over: Partial<LoadSource> = {}): LoadSource =>
+  loadSource({ date: date ? new Date(`${date}T23:59:00`) : null, ...over });
 const day = (d: string) => new Date(`${d}T00:00:00`);
 
 describe('what counts', () => {

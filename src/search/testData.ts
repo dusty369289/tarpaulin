@@ -1,4 +1,5 @@
 import type { FixtureBundle } from '../canvas/transport';
+import { plannerItem } from '../test/fixtures';
 
 // Invented data only: two courses and a few pieces of work, with the clock frozen.
 export const NOW = new Date('2026-10-22T12:00:00');
@@ -24,16 +25,7 @@ const planner = (
   due: string,
   type = 'assignment',
   submitted = false,
-) => ({
-  plannable_id: id,
-  plannable_type: type,
-  plannable_date: due,
-  course_id: courseId,
-  context_name: '',
-  html_url: `/courses/${courseId}/assignments/${id}`,
-  plannable: { title, due_at: due, points_possible: 10 },
-  submissions: { submitted, missing: false, late: false, graded: false, excused: false },
-});
+) => plannerItem(new Date(due), { id, courseId, title, type, submitted, contextName: '' });
 
 export const bundle: FixtureBundle = {
   meta: { recordedAt: NOW.toISOString(), baseUrl: 'https://canvas.example.edu' },

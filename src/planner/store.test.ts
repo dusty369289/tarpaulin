@@ -12,14 +12,13 @@ import {
   prunePlans,
   PRUNE_AFTER_MS,
   usePlans,
-  type Plan,
 } from './store';
+import { plan } from '../test/fixtures';
 
 const A = accountScope('https://a.example.edu', '1');
 const B = accountScope('https://b.example.edu', '1');
 const PS4 = planItemKey('assignment', '10', '400');
 const QUIZ = planItemKey('quiz', '10', '400');
-const plan = (p: Partial<Plan>): Plan => ({ ...EMPTY_PLAN, updatedAt: Date.now(), ...p });
 
 beforeEach(() => usePlans.setState({ plans: {} }));
 

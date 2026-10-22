@@ -3,12 +3,12 @@ import { addDays, format } from 'date-fns';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ItemReader } from '../reader/ItemReader';
 import type { ReaderItem } from '../reader/items';
-import { fixtureBundle, recordedAt, renderWithCanvas } from '../test/render';
 import { accountScope } from '../canvas/account';
+import { FIXTURE_ACCOUNT as ACCOUNT } from '../test/fixtures';
+import { recordedAt, renderWithCanvas } from '../test/render';
 import { planItemKey } from './keys';
 import { usePlans } from './store';
 
-const ACCOUNT = accountScope(fixtureBundle.meta.baseUrl, '1001');
 const KEY = planItemKey('assignment', '1032', '1099');
 const ITEM: ReaderItem = {
   kind: 'assignment',

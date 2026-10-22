@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { accountScope } from '../canvas/account';
 import { planItemKey } from '../planner/keys';
-import { EMPTY_PLAN, usePlans, type Plan } from '../planner/store';
+import { usePlans } from '../planner/store';
+import { plan } from '../test/fixtures';
 import { applyImportedPlans, exportDashboard, importDashboard } from './exportImport';
 import { buildPage, PRESETS } from './presets';
 
@@ -10,7 +11,6 @@ const B = accountScope('https://b.example.edu', '7');
 const PS4 = planItemKey('assignment', '10', '400');
 const QUIZ = planItemKey('quiz', '10', '1');
 const pages = [buildPage(PRESETS[0])];
-const plan = (p: Partial<Plan>): Plan => ({ ...EMPTY_PLAN, updatedAt: Date.now(), ...p });
 
 beforeEach(() => usePlans.setState({ plans: {} }));
 

@@ -1,29 +1,19 @@
-import { act } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS, parseSettings, useSettings } from '../../app/settingsStore';
-import { accountScope } from '../../canvas/account';
-import { FixtureTransport, type FixtureBundle } from '../../canvas/transport';
+import { FixtureTransport } from '../../canvas/transport';
 import type { LoadSource } from '../../lib/load';
-import { fixtureBundle, renderWithCanvas } from '../../test/render';
+import { shown } from '../../test/desktopMock';
+import { bundleWith, FIXTURE_ACCOUNT, loadSource, plannerItem } from '../../test/fixtures';
+import { runNotifications } from '../../test/notifications';
 import { DEFAULT_NOTIFICATION_PREFS, type NotificationPrefs } from '../prefs';
-import { NotificationRunner } from '../useNotifications';
 import { weeklyStorageKey } from '../useWeeklyPreview';
 import { decideWeeklyPreview, previewWeek, type WeeklyState } from './weekly';
 
 // Weeks start on Monday unless a test says otherwise. Sunday 25 October 2026 is the evening
 // before the week of Monday 26 October.
 const at = (day: number, h: number, m = 0) => new Date(2026, 9, day, h, m);
-let n = 0;
-const due = (day: number, over: Partial<LoadSource> = {}): LoadSource => ({
-  key: `assignment:${++n}`,
-  type: 'assignment',
-  courseId: 'c1',
-  date: at(day, 23, 59),
-  points: 10,
-  isWork: true,
-  isDone: false,
-  ...over,
-});
+const due = (day: number, over: Partial<LoadSource> = {}): LoadSource =>
+  loadSource({ date: at(day, 23, 59), ...over });
 // Next week: Tue ×2, Thu ×3, Fri ×2. This week's and the week after's don't count.
 const NEXT_WEEK = [
   due(27),
@@ -164,52 +154,18 @@ describe('weekly and planned notification switches', () => {
 // ---------------------------------------------------------------------------------------------
 // The runner, against the recorded account with a made-up planner.
 
-const shown = vi.hoisted(() => [] as { title: string; body: string }[]);
-vi.mock('../../app/desktop', () => ({
-  showNotification: async (title: string, body: string) => void shown.push({ title, body }),
-}));
+vi.mock('../../app/desktop', () => import('../../test/desktopMock'));
 const previews = () => shown.filter((s) => / week: /.test(s.title));
-const KEY = weeklyStorageKey(accountScope(fixtureBundle.meta.baseUrl, '1001'));
+const KEY = weeklyStorageKey(FIXTURE_ACCOUNT);
+const dueOn = (day: number) => plannerItem(at(day, 12), { id: 7000 + day * 10 + ++n });
+let n = 0;
 
-function plannerItem(day: number) {
-  const id = 7000 + ++n;
-  const when = at(day, 12).toISOString();
-  return {
-    context_type: 'Course',
-    course_id: 1031,
-    plannable_id: id,
-    planner_override: null,
-    plannable_type: 'assignment',
-    new_activity: false,
-    submissions: {
-      submitted: false,
-      excused: false,
-      graded: false,
-      late: false,
-      missing: false,
-      needs_grading: false,
-      has_feedback: false,
-      redo_request: false,
-    },
-    plannable_date: when,
-    plannable: { id, title: `Item ${id}`, points_possible: 10, due_at: when },
-    html_url: `/courses/1031/assignments/${id}`,
-    context_name: 'Course B1',
-  };
-}
-
-async function run() {
-  const bundle: FixtureBundle = {
-    ...fixtureBundle,
-    responses: {
-      ...fixtureBundle.responses,
-      '/api/v1/planner/items': [plannerItem(27), plannerItem(29), plannerItem(29)],
-    },
-  };
-  const view = renderWithCanvas(<NotificationRunner />, new FixtureTransport(bundle));
-  for (let i = 0; i < 20; i++) await act(() => new Promise((r) => setTimeout(r, 20)));
-  view.unmount();
-}
+const run = () =>
+  runNotifications(
+    new FixtureTransport(
+      bundleWith({ '/api/v1/planner/items': [dueOn(27), dueOn(29), dueOn(29)] }),
+    ),
+  );
 
 describe('weekly preview runner', () => {
   beforeEach(() => {
