@@ -1,8 +1,8 @@
-import { isValid, parseISO } from 'date-fns';
 import { z } from 'zod';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { isAccountScope } from '../canvas/account';
+import { DayKeySchema, TimeOfDaySchema } from '../lib/days';
 import { isRecord } from '../lib/storage';
 import { parsePlanItemKey } from './keys';
 
@@ -23,13 +23,6 @@ export const PRUNE_AFTER_MS = 60 * 24 * 60 * 60_000;
 /** How often "still in Canvas" is written back for one plan. */
 const SEEN_EVERY_MS = 24 * 60 * 60_000;
 
-const DAY = /^\d{4}-\d{2}-\d{2}$/;
-const day = z
-  .string()
-  .regex(DAY)
-  .refine((s) => isValid(parseISO(s)));
-const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
-
 export const StepSchema = z.object({
   id: z.string().min(1).max(64),
   text: z.string().max(500),
@@ -39,9 +32,9 @@ export type PlanStep = z.infer<typeof StepSchema>;
 
 export const DoDateSchema = z.object({
   /** yyyy-MM-dd, on the wall clock times are shown in. */
-  day,
+  day: DayKeySchema,
   /** HH:mm, or null for "some time that day". */
-  time: time.nullable().default(null),
+  time: TimeOfDaySchema.nullable().default(null),
 });
 export type DoDate = z.infer<typeof DoDateSchema>;
 

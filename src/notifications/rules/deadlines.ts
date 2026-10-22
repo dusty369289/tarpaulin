@@ -1,4 +1,5 @@
-import { addDays, format, isSameDay } from 'date-fns';
+import { differenceInCalendarDays, format } from 'date-fns';
+import { formatDayTime } from '../../lib/dates';
 import { isMuted, pruneShown, summarise, type Note } from '../core';
 import type { NotificationPrefs } from '../prefs';
 
@@ -75,11 +76,13 @@ export function formatRemaining(ms: number): string {
   return `${d} days`;
 }
 
+/** "today 14:00", "tomorrow 09:00", else "Fri 23 Oct 17:00". Relative to the rule's `now`, not
+ *  the wall clock. */
 function whenLabel(due: Date, now: Date, timeFmt: string) {
-  if (isSameDay(due, now)) return `today ${format(due, timeFmt)}`;
-  // Relative to the planner's `now`, not the wall clock, like `today` above.
-  if (isSameDay(due, addDays(now, 1))) return `tomorrow ${format(due, timeFmt)}`;
-  return format(due, `EEE d MMM ${timeFmt}`);
+  const days = differenceInCalendarDays(due, now);
+  return days === 0 || days === 1
+    ? formatDayTime(due, now, timeFmt, { lower: true })
+    : format(due, `EEE d MMM ${timeFmt}`);
 }
 
 export function decideNotifications(

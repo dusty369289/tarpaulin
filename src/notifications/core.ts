@@ -1,3 +1,4 @@
+import { minutesOf } from '../lib/days';
 import type { NotificationPrefs } from './prefs';
 
 // What every notification rule (rules/*.ts) shares: the note they produce, the summary that
@@ -15,11 +16,6 @@ export const MAX_PER_KIND = 3;
 /** `notes`, or one summary of them when there are more than MAX_PER_KIND. */
 export function summarise(notes: Note[], summary: (n: number) => Note): Note[] {
   return notes.length > MAX_PER_KIND ? [summary(notes.length)] : notes;
-}
-
-function minutesOf(hhmm: string) {
-  const [h, m] = hhmm.split(':').map(Number);
-  return h * 60 + m;
 }
 
 export function inQuietHours(prefs: NotificationPrefs, now: Date): boolean {

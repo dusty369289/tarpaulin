@@ -1,4 +1,4 @@
-import { differenceInCalendarDays, format, isSameYear, parse } from 'date-fns';
+import { atTime, dayKey, formatDay, formatDayTime } from '../lib/dates';
 import { parsePlanItemKey, type PlanItemType } from './keys';
 import type { AccountPlans, DoDate, Plan, PlanStatus } from './store';
 
@@ -17,29 +17,17 @@ export const nextStatus = (s: PlanStatus): PlanStatus =>
 /** When reminders and the calendar place a do-date without a time. */
 export const DEFAULT_DO_TIME = '09:00';
 
-/** yyyy-MM-dd of a local date. */
-export const dayKey = (d: Date) => format(d, 'yyyy-MM-dd');
-
 /** The do-date as a Date: that day at its time, or at the start of the day without one. */
 export function doDateAt(doDate: DoDate, fallbackTime = '00:00'): Date {
-  return parse(`${doDate.day} ${doDate.time ?? fallbackTime}`, 'yyyy-MM-dd HH:mm', new Date());
+  return atTime(doDate.day, doDate.time ?? fallbackTime);
 }
 
 /** "Today", "Tomorrow", "Tue", "12 Nov", "12 Nov 2027"; with ", 14:00" when a time is set. */
 export function formatDoDate(doDate: DoDate, now: Date, timeFmt = 'HH:mm'): string {
   const at = doDateAt(doDate);
-  const days = differenceInCalendarDays(at, now);
-  const name =
-    days === 0
-      ? 'Today'
-      : days === 1
-        ? 'Tomorrow'
-        : days === -1
-          ? 'Yesterday'
-          : days > 1 && days < 7
-            ? format(at, 'EEE')
-            : format(at, isSameYear(at, now) ? 'd MMM' : 'd MMM yyyy');
-  return doDate.time ? `${name} ${format(doDateAt(doDate), timeFmt)}` : name;
+  return doDate.time
+    ? formatDayTime(at, now, timeFmt, { timeBeyondWeek: true })
+    : formatDay(at, now);
 }
 
 export interface PlanSummary {

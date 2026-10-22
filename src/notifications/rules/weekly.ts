@@ -1,4 +1,5 @@
 import { addDays, addHours, format, startOfWeek } from 'date-fns';
+import { dayKey } from '../../lib/days';
 import { loadByDay, weekLoad, type LoadSource } from '../../lib/load';
 import { isMuted, type Note } from '../core';
 import type { NotificationPrefs } from '../prefs';
@@ -51,7 +52,7 @@ export function decideWeeklyPreview(
   const state: WeeklyState = prev ?? { lastWeek: null };
   const start = previewWeek(now, weekStartsOn);
   if (!start) return { notes: [], state };
-  const week = format(start, 'yyyy-MM-dd');
+  const week = dayKey(start);
   if (state.lastWeek === week) return { notes: [], state };
   // A new account's first look: this week's preview counts as seen.
   if (prev === null) return { notes: [], state: { lastWeek: week } };

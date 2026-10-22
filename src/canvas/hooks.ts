@@ -1,5 +1,5 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
-import { addDays, formatISO, parseISO, startOfDay } from 'date-fns';
+import { addDays, parseISO, startOfDay } from 'date-fns';
 import {
   createContext,
   createElement,
@@ -12,7 +12,7 @@ import {
 } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useSettings } from '../app/settingsStore';
-import { inZone, nowInZone, setDisplayZone, useDisplayZone } from '../lib/dates';
+import { dayKey as day, inZone, nowInZone, setDisplayZone, useDisplayZone } from '../lib/dates';
 import { useCanvas } from './CanvasProvider';
 import {
   Catalog,
@@ -23,8 +23,6 @@ import {
 } from './models';
 import type { Resource } from './resource';
 import * as R from './resources';
-
-const day = (d: Date) => formatISO(d, { representation: 'date' });
 
 /** Loads any Resource, keyed by account so switching accounts never shows stale data. */
 export function useResource<T>(resource: Resource<T>): UseQueryResult<T> {

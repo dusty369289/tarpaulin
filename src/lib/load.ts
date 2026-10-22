@@ -1,4 +1,5 @@
 import { addDays, format, startOfDay } from 'date-fns';
+import { dayKey } from './days';
 
 // How much work is due on a day or in a week, as one small, explainable number.
 //
@@ -105,8 +106,6 @@ export function weekLevel(score: number, heaviestDay: LoadLevel = 'none'): LoadL
   if (score >= WEEK_LEVELS.busy || heaviestDay === 'heavy') return 'busy';
   return 'light';
 }
-
-const dayKey = (d: Date) => format(d, 'yyyy-MM-dd');
 
 /** The load of every day that has something due, by `yyyy-MM-dd`. */
 export type LoadByDay = Map<string, DayLoad>;

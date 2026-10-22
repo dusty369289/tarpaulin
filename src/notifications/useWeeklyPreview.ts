@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useSettings } from '../app/settingsStore';
 import { useCatalog } from '../canvas/hooks';
+import { useWeekStartsOn } from '../lib/dates';
 import type { LoadSource } from '../lib/load';
 import { isRecord } from '../lib/storage';
 import type { NotificationPrefs } from './prefs';
@@ -34,7 +35,7 @@ const RULE: Rule<Input, WeeklyState | null> = {
 
 export function useWeeklyPreview() {
   const prefs = useSettings((s) => s.notifications);
-  const weekStartsOn = useSettings((s): 0 | 1 => (s.weekStartsOn === 'monday' ? 1 : 0));
+  const weekStartsOn = useWeekStartsOn();
   const catalog = useCatalog();
   const { now, deadlines } = useNotifyDeadlines();
   const courseIds = useMemo(() => catalog.resolveCourseIds([]), [catalog]);

@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
-import { DEFAULT_DO_TIME, dayKey, doDateAt } from '../../planner/selectors';
+import { dayKey } from '../../lib/days';
+import { DEFAULT_DO_TIME, doDateAt } from '../../planner/selectors';
 import type { DoDate } from '../../planner/store';
 import { isMuted, pruneShown, summarise, type Note } from '../core';
 import type { NotificationPrefs } from '../prefs';

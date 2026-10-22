@@ -1,6 +1,18 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { format } from 'date-fns';
-import { formatDue, inZone, nowInZone, setDisplayZone, toDate, updatedAgo } from './dates';
+import {
+  atTime,
+  dayKey,
+  formatDay,
+  formatDayTime,
+  formatDue,
+  inZone,
+  minutesOf,
+  nowInZone,
+  setDisplayZone,
+  toDate,
+  updatedAgo,
+} from './dates';
 
 afterEach(() => setDisplayZone(null));
 
@@ -61,4 +73,31 @@ describe('updatedAgo', () => {
     [26 * 3600_000, '1 day ago'],
     [5 * 86400_000, '5 days ago'],
   ])('%i ms → %s', (ms, text) => expect(updatedAgo(now - ms, now)).toBe(text));
+});
+
+describe('day names', () => {
+  const now = new Date(2026, 9, 22, 12); // Thursday
+  const day = (d: number, h = 14) => new Date(2026, 9, d, h);
+
+  it('names nearby days and dates the rest', () => {
+    expect(formatDay(day(22), now)).toBe('Today');
+    expect(formatDay(day(23), now, { lower: true })).toBe('tomorrow');
+    expect(formatDay(day(21), now)).toBe('Yesterday');
+    expect(formatDay(day(26), now, { lower: true })).toBe('Mon');
+    expect(formatDay(day(29), now)).toBe('29 Oct');
+    expect(formatDay(new Date(2027, 0, 5), now)).toBe('5 Jan 2027');
+  });
+
+  it('adds the time to named days, and to dated ones when asked', () => {
+    expect(formatDayTime(day(23), now, 'HH:mm', { lower: true })).toBe('tomorrow 14:00');
+    expect(formatDayTime(day(29), now)).toBe('29 Oct');
+    expect(formatDayTime(day(29), now, 'HH:mm', { timeBeyondWeek: true })).toBe('29 Oct 14:00');
+    expect(formatDue(day(19), now)).toBe('19 Oct');
+  });
+
+  it('reads and writes day keys and times of day', () => {
+    expect(dayKey(day(3))).toBe('2026-10-03');
+    expect(minutesOf('09:30')).toBe(570);
+    expect(atTime('2026-10-03', '09:30')).toEqual(new Date(2026, 9, 3, 9, 30));
+  });
 });

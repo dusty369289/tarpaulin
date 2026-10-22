@@ -16,8 +16,9 @@ import {
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { z } from 'zod';
-import { useSettings } from '../app/settingsStore';
-import { planKeyForPlannerItem, plansOn, useAccountPlans } from '../planner';
+import { useAccountPlans } from '../planner/hooks';
+import { planKeyForPlannerItem } from '../planner/keys';
+import { plansOn } from '../planner/selectors';
 import { fromDeadline, fromEvent, type ReaderItem } from '../reader/items';
 import { useOpenItem } from '../reader/ReaderProvider';
 import {
@@ -28,7 +29,7 @@ import {
   useUpcoming,
 } from '../canvas/hooks';
 import type { Deadline } from '../canvas/models';
-import { nowInZone, useTimeFormat } from '../lib/dates';
+import { dayKey, nowInZone, useTimeFormat, useWeekStartsOn } from '../lib/dates';
 import {
   dayLoad,
   describeLoad,
@@ -193,7 +194,7 @@ export const Calendar = defineWidget({
   minSize: { w: 3, h: 5 },
   settingsSchema: schema,
   Component: function CalendarWidget({ settings, size }) {
-    const weekStartsOn = useSettings((s) => (s.weekStartsOn === 'monday' ? 1 : 0));
+    const weekStartsOn = useWeekStartsOn();
     const [cursor, setCursor] = useState(() => nowInZone());
     const [selected, setSelected] = useState<Date | null>(null);
     const courseIds = useCourseIds(settings.courseIds);
@@ -364,9 +365,7 @@ export const Calendar = defineWidget({
     useEffect(() => {
       if (!refocus.current || !focusDay) return;
       refocus.current = false;
-      gridRef.current
-        ?.querySelector<HTMLElement>(`[data-day="${format(focusDay, 'yyyy-MM-dd')}"]`)
-        ?.focus();
+      gridRef.current?.querySelector<HTMLElement>(`[data-day="${dayKey(focusDay)}"]`)?.focus();
     });
     const onGridKey = (ev: KeyboardEvent) => {
       const move = DAY_KEYS[ev.key];
@@ -463,7 +462,7 @@ export const Calendar = defineWidget({
                             <button
                               type="button"
                               key={d.toISOString()}
-                              data-day={format(d, 'yyyy-MM-dd')}
+                              data-day={dayKey(d)}
                               tabIndex={isSameDay(d, tabDay) ? 0 : -1}
                               onFocus={() => setFocusDay(d)}
                               onKeyDown={onGridKey}

@@ -36,7 +36,7 @@ import type {
   PlannerItemData,
   TodoData,
 } from '../canvas/types';
-import { formatDue, relative, toDate, useTimeFormat } from '../lib/dates';
+import { formatDayTime, relative, toDate, useTimeFormat } from '../lib/dates';
 import {
   fromAnnouncement,
   fromDeadline,
@@ -123,11 +123,11 @@ const STATUS_LABEL: Partial<Record<ReturnType<Deadline['status']>, string>> = {
   overdue: 'Overdue',
 };
 
-/** "Due tomorrow 23:59", "Due Fri 12:00", "Due 12 Nov". */
-export function dueText(date: Date, now: Date, timeFmt: string, prefix = 'Due'): string {
-  const s = formatDue(date, now, timeFmt);
-  const lower = /^(Today|Tomorrow|Yesterday) /.test(s) ? s[0].toLowerCase() + s.slice(1) : s;
-  return prefix ? `${prefix} ${lower}` : s;
+/** "Due tomorrow 23:59", "Due Fri 12:00", "Due 12 Nov"; without a prefix, "Tomorrow 23:59". */
+function dueText(date: Date, now: Date, timeFmt: string, prefix = 'Due'): string {
+  return prefix
+    ? `${prefix} ${formatDayTime(date, now, timeFmt, { lower: true })}`
+    : formatDayTime(date, now, timeFmt);
 }
 
 const joinDetail = (...parts: Array<string | null | undefined | false>) =>

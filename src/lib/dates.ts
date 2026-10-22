@@ -8,6 +8,9 @@ import {
 } from 'date-fns';
 import { useSyncExternalStore } from 'react';
 import { useSettings } from '../app/settingsStore';
+import { DAY_KEY_RE } from './days';
+
+export * from './days';
 
 // Times show in the computer's time zone unless the user picks Canvas's (settings `timesIn`).
 // Then every Canvas time and every "now" is moved to a Date whose local fields read the wall
@@ -68,7 +71,7 @@ export function toDate(iso: string | null | undefined): Date | null {
   if (!iso) return null;
   const d = parseISO(iso);
   if (!isValid(d)) return null;
-  return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? d : zoned(d);
+  return DAY_KEY_RE.test(iso) ? d : zoned(d);
 }
 
 export function systemUses24h(): boolean {
@@ -87,16 +90,44 @@ export function useTimeFormat(): string {
   return use24 ? 'HH:mm' : 'h:mm a';
 }
 
-/** "Today 14:00", "Tomorrow 09:00", "Fri 12:00", "12 Nov", "12 Nov 2027". */
-export function formatDue(date: Date, now: Date, timeFmt = 'HH:mm'): string {
+/** The first day of the week from Settings › Week starts on, for date-fns. */
+export const useWeekStartsOn = () =>
+  useSettings((s): 0 | 1 => (s.weekStartsOn === 'monday' ? 1 : 0));
+
+/** Yesterday to six days ahead are named; other days are dated. */
+const isNamedDay = (days: number) => days >= -1 && days < 7;
+
+/**
+ * The day of `date` seen from `now`: "Today", "Tomorrow", "Yesterday", "Fri" (within the week
+ * ahead), else "12 Nov" or "12 Nov 2027". `lower` writes the first three in lower case, for use
+ * mid-sentence ("Due tomorrow").
+ */
+export function formatDay(date: Date, now: Date, { lower = false }: { lower?: boolean } = {}) {
   const days = differenceInCalendarDays(date, now);
-  const time = format(date, timeFmt);
-  if (days === 0) return `Today ${time}`;
-  if (days === 1) return `Tomorrow ${time}`;
-  if (days === -1) return `Yesterday ${time}`;
-  if (days > 1 && days < 7) return `${format(date, 'EEE')} ${time}`;
+  const near = days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : days === -1 ? 'Yesterday' : null;
+  if (near) return lower ? near.toLowerCase() : near;
+  if (isNamedDay(days)) return format(date, 'EEE');
   return format(date, isSameYear(date, now) ? 'd MMM' : 'd MMM yyyy');
 }
+
+/**
+ * formatDay plus the time: "Today 14:00", "Fri 12:00". A dated day ("12 Nov") leaves the time
+ * out unless `timeBeyondWeek`.
+ */
+export function formatDayTime(
+  date: Date,
+  now: Date,
+  timeFmt = 'HH:mm',
+  opts: { lower?: boolean; timeBeyondWeek?: boolean } = {},
+): string {
+  const name = formatDay(date, now, opts);
+  const withTime = opts.timeBeyondWeek || isNamedDay(differenceInCalendarDays(date, now));
+  return withTime ? `${name} ${format(date, timeFmt)}` : name;
+}
+
+/** When work is due: "Today 14:00", "Tomorrow 09:00", "Fri 12:00", "12 Nov", "12 Nov 2027". */
+export const formatDue = (date: Date, now: Date, timeFmt = 'HH:mm'): string =>
+  formatDayTime(date, now, timeFmt);
 
 export function relative(date: Date, now: Date): string {
   const s = formatDistanceStrict(date, now, { roundingMethod: 'floor' });

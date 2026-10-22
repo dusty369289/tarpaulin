@@ -2,11 +2,11 @@ import { addDays, subDays } from 'date-fns';
 import { ChevronDown, Plus, X } from 'lucide-react';
 import { useId, useState } from 'react';
 import { useNow } from '../canvas/hooks';
-import { toDate, useTimeFormat } from '../lib/dates';
+import { dayKey, toDate, useTimeFormat } from '../lib/dates';
 import { Radio, RadioGroup } from '../ui/RadioGroup';
 import { usePlanEditor } from './hooks';
 import { PlanStatusIcon } from './PlanStatusIcon';
-import { dayKey, planSummary, STATUS_LABEL } from './selectors';
+import { planSummary, STATUS_LABEL } from './selectors';
 import { PLAN_STATUSES } from './store';
 
 /**
