@@ -51,8 +51,8 @@ const ROOTS = [
 ];
 // Not followed into: main.tsx also imports the whole app (App.tsx), which the lab never shows.
 const LEAVES = new Set(['src/main.tsx']);
-// Inputs that aren't imported by the page: the lab driver, the mock data, the CSS build and the
-// installed packages.
+// Inputs that aren't imported by the page: the lab driver, the mock data, the CSS build (with
+// Vite's font-subsetting plugin) and the installed packages.
 const EXTRA = [
   'scripts/widget-lab.ts',
   'scripts/browser.ts',
@@ -60,6 +60,7 @@ const EXTRA = [
   'mock-canvas',
   'tailwind.config.ts',
   'postcss.config.js',
+  'vite.config.ts',
   'index.html',
   'pnpm-lock.yaml',
 ];
