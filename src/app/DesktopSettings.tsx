@@ -17,6 +17,7 @@ export function NotificationsSettings() {
   const prefs = useSettings((s) => s.notifications);
   const update = useSettings((s) => s.update);
   const weeklyPreview = useSettings((s) => s.weeklyPreview);
+  const planReminders = useSettings((s) => s.planReminders);
   const [permission, setPermission] = useState<NotificationPermission>('prompt');
   const [tested, setTested] = useState(false);
   useEffect(() => {
@@ -142,6 +143,19 @@ export function NotificationsSettings() {
             checked={prefs.grades}
             disabled={off}
             onChange={(grades) => set({ grades })}
+          />
+        </Row>
+        <Row
+          label="Remind me on days I planned work"
+          help="On the do-date in My plan, at 09:00 or the time you set."
+          keywords="plan do date"
+        >
+          <Switch
+            hideLabel
+            label="Remind me on days I planned work"
+            checked={planReminders}
+            disabled={off}
+            onChange={(on) => update({ planReminders: on })}
           />
         </Row>
         <Row

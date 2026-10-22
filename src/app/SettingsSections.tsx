@@ -25,10 +25,11 @@ import { useShallow } from 'zustand/react/shallow';
 import { useCanvas } from '../canvas/CanvasProvider';
 import { useCatalog, useProfile } from '../canvas/hooks';
 import {
-  exportDashboard,
+  applyImportedPlans,
   importDashboard,
   ImportError,
   type ImportResult,
+  exportDashboard,
 } from '../dashboard/exportImport';
 import { buildPage, PRESETS, presetById } from '../dashboard/presets';
 import { useDashboard } from '../dashboard/store';
@@ -650,6 +651,7 @@ function DataSettings() {
     if (mode === 'replace') replacePages(result.pages);
     else appendPages(result.pages);
     if (result.settings) update(result.settings);
+    applyImportedPlans(result.plans);
     setMessage({ tone: 'ok', text: `Imported ${pages}. ${result.warnings.join(' ')}`.trim() });
   };
 
@@ -740,7 +742,7 @@ function DataSettings() {
                 onChange={setIncludeSettings}
               />
               <Switch
-                label="Include notes and checklists"
+                label="Include notes, checklists and plans"
                 checked={includeData}
                 onChange={setIncludeData}
               />

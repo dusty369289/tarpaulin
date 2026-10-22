@@ -109,7 +109,9 @@ describe('SettingsPage', () => {
   it('exports with switches for what to include', async () => {
     await show('Data & backup');
     expect(screen.getByRole('switch', { name: 'Include settings' })).toBeChecked();
-    expect(screen.getByRole('switch', { name: 'Include notes and checklists' })).not.toBeChecked();
+    expect(
+      screen.getByRole('switch', { name: 'Include notes, checklists and plans' }),
+    ).not.toBeChecked();
   });
 });
 
@@ -273,6 +275,14 @@ describe('SettingsPage layout', () => {
 });
 
 describe('SettingsPage notifications', () => {
+  it('turns the do-date reminders off', async () => {
+    await show('Notifications');
+    const plan = screen.getByRole('switch', { name: 'Remind me on days I planned work' });
+    expect(plan).toBeChecked();
+    fireEvent.click(plan);
+    expect(useSettings.getState().planReminders).toBe(false);
+  });
+
   it('turns the weekly preview off and on', async () => {
     await show('Notifications');
     const weekly = screen.getByRole('switch', { name: 'Weekly preview' });
