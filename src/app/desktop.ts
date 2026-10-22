@@ -69,9 +69,6 @@ export async function startDesktopShell(startMinimized: boolean): Promise<void> 
   }
 }
 
-/** The name App.tsx still uses for `startDesktopShell`. */
-export const backgroundIfLaunchedAtLogin = startDesktopShell;
-
 /** Tells the desktop shell whether closing the window should hide it to the tray. */
 export async function setCloseToTray(enabled: boolean): Promise<void> {
   if (isTauri()) await invoke('set_close_to_tray', { enabled });

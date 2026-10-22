@@ -70,6 +70,12 @@ describe('DevProxyTransport', () => {
     expect(canvasErrorKind(e)).toBe('server');
   });
 
+  it('treats a failed status request as an error, not as "not connected"', async () => {
+    stubFetch(async () => new Response('<html>Bad gateway</html>', { status: 502 }));
+    const e = await new DevProxyTransport().status().catch((x: unknown) => x);
+    expect(canvasErrorKind(e)).toBe('server');
+  });
+
   it('lets a dropped connection through as offline', async () => {
     stubFetch(async () => Promise.reject(new TypeError('Failed to fetch')));
     const e = await new DevProxyTransport().get('/api/v1/courses').catch((x: unknown) => x);

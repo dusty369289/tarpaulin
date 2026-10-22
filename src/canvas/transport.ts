@@ -86,8 +86,8 @@ export class DevProxyTransport implements Transport {
     return this.read(res);
   }
   async status(): Promise<ConnectionInfo> {
-    const res = await fetch(`${this.prefix}/status`);
-    return (await res.json()) as ConnectionInfo;
+    // A failed status request (the proxy down, a 5xx) is an error, not an answer of "not connected".
+    return (await this.read(await fetch(`${this.prefix}/status`))) as ConnectionInfo;
   }
   async tokenExpiry() {
     return (await this.read(await fetch(`${this.prefix}/token-expiry`))) as TokenExpiry;
