@@ -74,6 +74,83 @@ export class CanvasHttpError extends Error {
   }
 }
 
+/** Still throttled after every retry. The text matches CanvasError::RateLimited in canvas.rs. */
+export class CanvasRateLimitError extends CanvasHttpError {
+  constructor(status: number) {
+    super(status, '');
+    this.message = `Canvas rate limit exceeded (${status}); try again in a moment`;
+  }
+}
+
+/** How hard to try again when Canvas throttles us (mirrors `RetryPolicy` in canvas.rs). */
+export interface RetryPolicy {
+  /** Tries per page, the first included. */
+  attempts: number;
+  /** Wait before the first retry, doubled for each one after. */
+  baseMs: number;
+  /** Longest wait, even when Canvas sends a longer Retry-After. */
+  maxWaitMs: number;
+}
+
+export const RETRY: RetryPolicy = { attempts: 3, baseMs: 1000, maxWaitMs: 10_000 };
+
+/** A 403 from a bucket this close to empty is throttling, whatever the body says. */
+const LOW_REMAINING = 10;
+
+/**
+ * Canvas throttles with 403 "Rate Limit Exceeded" (and an empty `X-Rate-Limit-Remaining`
+ * bucket); proxies in front of it may answer 429. A 403 for anything else is a permission error.
+ */
+export function isThrottled(status: number, remaining: number | null, body: string): boolean {
+  if (status === 429) return true;
+  if (status !== 403) return false;
+  return /rate limit/i.test(body) || (remaining !== null && remaining <= LOW_REMAINING);
+}
+
+/** Retry-After if Canvas sent one, else exponential backoff; jitter (0..1) spreads retries out. */
+export function retryDelay(
+  policy: RetryPolicy,
+  retry: number,
+  retryAfterMs: number | null,
+  jitter = Math.random(),
+): number {
+  const backoff = policy.baseMs * 2 ** Math.min(retry - 1, 16) * (0.5 + 0.5 * jitter);
+  return Math.min(retryAfterMs ?? backoff, policy.maxWaitMs);
+}
+
+const numberHeader = (res: Response, name: string): number | null => {
+  const raw = res.headers.get(name);
+  const n = raw === null || raw.trim() === '' ? NaN : Number(raw);
+  return Number.isFinite(n) ? n : null;
+};
+
+export interface FetchOptions {
+  retry?: RetryPolicy;
+  /** Tests pass a fake clock. */
+  sleep?: (ms: number) => Promise<void>;
+}
+
+const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** One GET, tried again while Canvas throttles it. */
+async function getPage(
+  url: string,
+  init: RequestInit,
+  fetchImpl: typeof fetch,
+  { retry = RETRY, sleep = wait }: FetchOptions,
+): Promise<Response> {
+  for (let attempt = 1; ; attempt++) {
+    const res = await fetchImpl(url, init);
+    if (res.ok) return res;
+    const body = await res.text();
+    if (!isThrottled(res.status, numberHeader(res, 'x-rate-limit-remaining'), body))
+      throw new CanvasHttpError(res.status, body);
+    if (attempt >= retry.attempts) throw new CanvasRateLimitError(res.status);
+    const after = numberHeader(res, 'retry-after');
+    await sleep(retryDelay(retry, attempt, after === null ? null : after * 1000));
+  }
+}
+
 /** GETs a Canvas API path and, for array responses, follows `Link: rel="next"` through every page. */
 export async function fetchAllPages(
   baseUrl: string,
@@ -81,6 +158,7 @@ export async function fetchAllPages(
   path: string,
   pairs: QueryPairs,
   fetchImpl: typeof fetch = fetch,
+  options: FetchOptions = {},
 ): Promise<unknown> {
   assertApiPath(path);
   const origin = normalizeBaseUrl(baseUrl);
@@ -90,8 +168,7 @@ export async function fetchAllPages(
 
   let collected: unknown[] | null = null;
   for (let page = 0; url && page < MAX_PAGES; page++) {
-    const res = await fetchImpl(url, { method: 'GET', headers });
-    if (!res.ok) throw new CanvasHttpError(res.status, await res.text());
+    const res = await getPage(url, { method: 'GET', headers }, fetchImpl, options);
     const body: unknown = await res.json();
     if (!Array.isArray(body)) return collected ?? body;
     collected = [...(collected ?? []), ...(body as unknown[])];

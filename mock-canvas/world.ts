@@ -1098,13 +1098,15 @@ function showcase(w: WorldBuilder) {
     .personalEvent('Fall break', w.on(monday + 14, 0), w.on(monday + 16, 0), { allDay: true });
 }
 
-export type ScenarioName = 'realistic' | 'dense' | 'edge' | 'empty' | 'flaky' | 'showcase';
+export type ScenarioName =
+  'realistic' | 'dense' | 'edge' | 'empty' | 'flaky' | 'throttled' | 'showcase';
 export const SCENARIOS: ScenarioName[] = [
   'realistic',
   'dense',
   'edge',
   'empty',
   'flaky',
+  'throttled',
   'showcase',
 ];
 
@@ -1128,6 +1130,18 @@ export function buildWorld(name: ScenarioName, now = new Date()): World {
           (n) => (n % 5 === 0 ? 403 : null),
           'Rate Limit Exceeded',
         );
+      break;
+    case 'throttled':
+      // The realistic world behind a busy rate limiter: every fourth request to an endpoint is
+      // throttled, the way Canvas does (403 "Rate Limit Exceeded") or a proxy might (429). The
+      // client's retries should hide all of it.
+      history(w, 3, 8);
+      currentTerm(w, 8, 'normal');
+      w.fail(
+        /^\/api\/v1\/planner\/items$/,
+        (n) => (n % 4 === 1 ? 429 : null),
+        'Too Many Requests',
+      ).fail(/^\/api\/v1\//, (n) => (n % 4 === 1 ? 403 : null), 'Rate Limit Exceeded');
       break;
     case 'dense':
       history(w, 1, 6);

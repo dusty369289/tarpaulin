@@ -1,5 +1,4 @@
 import type { z } from 'zod';
-import { htmlToText } from './client';
 import { listResource, objectResource, type Urls } from './resource';
 import {
   RawAnnouncement,
@@ -35,6 +34,24 @@ const courseIdFromContext = (code: string | null | undefined) =>
   code?.startsWith('course_') ? code.slice('course_'.length) : null;
 
 const HEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** One path segment. Ids are digits in practice; anything else must not change the path. */
+const seg = (id: string) => encodeURIComponent(id);
+
+const HOUR = 3_600_000;
+/** Freshness hints (see `Resource.staleTime`). Lists of work and news use the user's interval. */
+export const STALE = { rarely: 12 * HOUR, hourly: HOUR } as const;
+
+/** A time zone name `Intl` understands, in its canonical spelling, or null. */
+export function validTimeZone(zone: string | null | undefined): string | null {
+  if (!zone) return null;
+  try {
+    return new Intl.DateTimeFormat('en-US', { timeZone: zone }).resolvedOptions().timeZone;
+  } catch {
+    return null;
+  }
+}
 
 const PLANNER_TYPES: PlannerItemType[] = [
   'assignment',
@@ -51,12 +68,13 @@ export const Profile = objectResource({
   key: ['profile'],
   path: '/api/v1/users/self/profile',
   schema: RawProfile,
+  staleTime: STALE.rarely,
   map: (raw): UserProfile => ({
     id: raw.id,
     name: raw.name ?? '',
     shortName: raw.short_name ?? raw.name ?? '',
     avatarUrl: raw.avatar_url ?? null,
-    timeZone: raw.time_zone ?? null,
+    timeZone: validTimeZone(raw.time_zone),
   }),
 });
 
@@ -70,6 +88,8 @@ export const Courses = listResource({
   },
   schema: RawCourse,
   label: 'course',
+  // Grades shown come from Enrollments first, which keeps the user's interval.
+  staleTime: STALE.hourly,
   map: (c, urls): CourseData | null => {
     if (c.workflow_state === 'deleted') return null;
     const student = c.enrollments?.find((e) => e.type === 'student') ?? c.enrollments?.[0];
@@ -102,6 +122,7 @@ export const CourseColors = objectResource({
   key: ['colors'],
   path: '/api/v1/users/self/colors',
   schema: RawColors,
+  staleTime: STALE.rarely,
   map: (raw) => {
     const out: Record<string, string> = {};
     for (const [code, color] of Object.entries(raw.custom_colors ?? {})) {
@@ -182,7 +203,7 @@ function mapAssignment(
 export const Assignments = (courseId: string) =>
   listResource({
     key: ['assignments', courseId],
-    path: `/api/v1/courses/${encodeURIComponent(courseId)}/assignments`,
+    path: `/api/v1/courses/${seg(courseId)}/assignments`,
     query: { include: ['submission'], order_by: 'due_at', per_page: 100 },
     schema: RawAssignment,
     label: 'assignment',
@@ -208,7 +229,6 @@ export const Announcements = (courseIds: string[], startDate: string, endDate: s
       id: a.id,
       courseId: courseIdFromContext(a.context_code),
       title: a.title || 'Announcement',
-      message: htmlToText(a.message),
       html: capHtml(a.message),
       postedAt: a.posted_at ?? a.delayed_post_at ?? null,
       author: a.author?.display_name ?? a.user_name ?? '',
@@ -236,6 +256,8 @@ export const CalendarEvents = (contextCodes: string[], startDate: string, endDat
       startAt: e.start_at ?? null,
       endAt: e.end_at ?? null,
       allDay: e.all_day ?? false,
+      allDayDate:
+        e.all_day && e.all_day_date && DAY_RE.test(e.all_day_date) ? e.all_day_date : null,
       location: e.location_name || null,
       courseId: courseIdFromContext(e.context_code),
       contextName: e.context_name ?? '',
@@ -251,6 +273,7 @@ export const Enrollments = listResource({
   query: { state: ['active'], type: ['StudentEnrollment'], per_page: 100 },
   schema: RawEnrollment,
   label: 'enrollment',
+  // No staleTime: course grades (and "your grade changed" notifications) come from here.
   map: (e, urls): EnrollmentData => ({
     id: e.id,
     courseId: e.course_id,
@@ -324,7 +347,7 @@ const blankDetail = {
 export const AssignmentDetail = (courseId: string, id: string) =>
   objectResource({
     key: ['assignment', courseId, id],
-    path: `/api/v1/courses/${courseId}/assignments/${id}`,
+    path: `/api/v1/courses/${seg(courseId)}/assignments/${seg(id)}`,
     query: { include: ['submission'] },
     schema: RawAssignment,
     map: (a, urls): ItemDetail => {
@@ -359,7 +382,7 @@ export const AssignmentDetail = (courseId: string, id: string) =>
 export const QuizDetail = (courseId: string, id: string) =>
   objectResource({
     key: ['quiz', courseId, id],
-    path: `/api/v1/courses/${courseId}/quizzes/${id}`,
+    path: `/api/v1/courses/${seg(courseId)}/quizzes/${seg(id)}`,
     schema: RawQuiz,
     map: (q, urls): ItemDetail => ({
       ...blankDetail,
@@ -380,7 +403,7 @@ export const QuizDetail = (courseId: string, id: string) =>
 export const DiscussionDetail = (courseId: string, id: string) =>
   objectResource({
     key: ['discussion', courseId, id],
-    path: `/api/v1/courses/${courseId}/discussion_topics/${id}`,
+    path: `/api/v1/courses/${seg(courseId)}/discussion_topics/${seg(id)}`,
     schema: RawDiscussionTopic,
     map: (d, urls): ItemDetail => ({
       ...blankDetail,
@@ -401,7 +424,7 @@ export const DiscussionDetail = (courseId: string, id: string) =>
 export const FileUrl = (fileId: string) =>
   objectResource({
     key: ['file-url', fileId],
-    path: `/api/v1/files/${fileId}`,
+    path: `/api/v1/files/${seg(fileId)}`,
     schema: RawFile,
     map: (f) => ({
       url: f.url ?? null,

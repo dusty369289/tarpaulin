@@ -1,12 +1,35 @@
 //! Read-only Canvas HTTP. Every request is a GET under `/api/v1/` on the configured base URL,
 //! and paginated array responses are followed through their `Link: rel="next"` headers.
 
+use std::time::Duration;
+
 use serde::Serialize;
 use serde_json::Value;
 use url::Url;
 
 /// Upper bound on pages followed for one request, so a misbehaving server can't loop us forever.
 pub const MAX_PAGES: usize = 50;
+
+/// How hard to try again when Canvas throttles us. Canvas meters each token with a leaky bucket
+/// (`X-Rate-Limit-Remaining`) that refills within seconds, so a short, jittered wait is enough.
+#[derive(Debug, Clone, Copy)]
+pub struct RetryPolicy {
+    /// Tries per page, the first included.
+    pub attempts: u32,
+    /// Wait before the first retry; doubled for each one after.
+    pub base: Duration,
+    /// Longest wait, even when Canvas sends a longer `Retry-After`.
+    pub max_wait: Duration,
+}
+
+pub const RETRY: RetryPolicy = RetryPolicy {
+    attempts: 3,
+    base: Duration::from_millis(1000),
+    max_wait: Duration::from_secs(10),
+};
+
+/// A 403 from a bucket this close to empty is throttling, whatever the body says.
+const LOW_REMAINING: f64 = 10.0;
 
 #[derive(Debug, thiserror::Error, PartialEq)]
 pub enum CanvasError {
@@ -20,6 +43,9 @@ pub enum CanvasError {
     Unauthorized,
     #[error("Canvas returned {status}: {body}")]
     Http { status: u16, body: String },
+    /// Still throttled after every retry. src/canvas/errors.ts matches "rate limit" in this text.
+    #[error("Canvas rate limit exceeded ({status}); try again in a moment")]
+    RateLimited { status: u16 },
     #[error("network error: {0}")]
     Network(String),
     #[error("unexpected response: {0}")]
@@ -116,44 +142,93 @@ pub fn is_allowed_next(base: &Url, next: &str) -> Option<Url> {
     }
 }
 
-/// Performs one GET and returns its JSON body and next-page link.
+/// Canvas throttles with 403 "Rate Limit Exceeded" (and an empty `X-Rate-Limit-Remaining`
+/// bucket); proxies in front of it may answer 429. A 403 for anything else is a permission error.
+pub fn is_throttled(status: u16, remaining: Option<f64>, body: &str) -> bool {
+    match status {
+        429 => true,
+        403 => {
+            body.to_ascii_lowercase().contains("rate limit")
+                || remaining.is_some_and(|r| r <= LOW_REMAINING)
+        }
+        _ => false,
+    }
+}
+
+/// How long to wait before retry number `retry` (1-based): `Retry-After` if Canvas sent one,
+/// otherwise exponential backoff. `jitter` (0..1) spreads out the widgets that were throttled
+/// together, so they don't all come back at the same instant.
+pub fn retry_delay(
+    policy: &RetryPolicy,
+    retry: u32,
+    retry_after: Option<Duration>,
+    jitter: f64,
+) -> Duration {
+    let wait = retry_after.unwrap_or_else(|| {
+        let full = policy.base.saturating_mul(1 << retry.saturating_sub(1).min(16));
+        full.mul_f64(0.5 + 0.5 * jitter.clamp(0.0, 1.0))
+    });
+    wait.min(policy.max_wait)
+}
+
+fn jitter() -> f64 {
+    f64::from(uuid::Uuid::new_v4().as_u128() as u16) / f64::from(u16::MAX)
+}
+
+fn header<'a>(response: &'a reqwest::Response, name: &str) -> Option<&'a str> {
+    response.headers().get(name).and_then(|v| v.to_str().ok())
+}
+
+/// Performs one GET and returns its JSON body and next-page link. Throttled requests are tried
+/// again after a pause, up to `policy.attempts` times in all.
 async fn get_page(
     http: &reqwest::Client,
     url: Url,
     token: &str,
+    policy: &RetryPolicy,
 ) -> Result<(Value, Option<String>), CanvasError> {
-    let response = http
-        .get(url)
-        .bearer_auth(token)
-        .header("Accept", "application/json")
-        .send()
-        .await
-        .map_err(|e| CanvasError::Network(e.to_string()))?;
-    let status = response.status();
-    if status == reqwest::StatusCode::UNAUTHORIZED {
-        let body = response.text().await.unwrap_or_default();
-        if is_credential_rejection(&body) {
-            return Err(CanvasError::Unauthorized);
+    let mut attempt = 1;
+    loop {
+        let response = http
+            .get(url.clone())
+            .bearer_auth(token)
+            .header("Accept", "application/json")
+            .send()
+            .await
+            .map_err(|e| CanvasError::Network(e.to_string()))?;
+        let status = response.status();
+        if status == reqwest::StatusCode::UNAUTHORIZED {
+            let body = response.text().await.unwrap_or_default();
+            if is_credential_rejection(&body) {
+                return Err(CanvasError::Unauthorized);
+            }
+            return Err(CanvasError::Http { status: 401, body: body.chars().take(300).collect() });
         }
-        return Err(CanvasError::Http { status: 401, body: body.chars().take(300).collect() });
-    }
-    let next = response
-        .headers()
-        .get("link")
-        .and_then(|v| v.to_str().ok())
-        .and_then(parse_next_link);
-    if !status.is_success() {
+        let next = header(&response, "link").and_then(parse_next_link);
+        if status.is_success() {
+            let body = response
+                .json::<Value>()
+                .await
+                .map_err(|e| CanvasError::Decode(e.to_string()))?;
+            return Ok((body, next));
+        }
+        let remaining = header(&response, "x-rate-limit-remaining").and_then(|v| v.trim().parse().ok());
+        let retry_after = header(&response, "retry-after")
+            .and_then(|v| v.trim().parse::<u64>().ok())
+            .map(Duration::from_secs);
         let body = response.text().await.unwrap_or_default();
-        return Err(CanvasError::Http {
-            status: status.as_u16(),
-            body: body.chars().take(300).collect(),
-        });
+        if !is_throttled(status.as_u16(), remaining, &body) {
+            return Err(CanvasError::Http {
+                status: status.as_u16(),
+                body: body.chars().take(300).collect(),
+            });
+        }
+        if attempt >= policy.attempts {
+            return Err(CanvasError::RateLimited { status: status.as_u16() });
+        }
+        tokio::time::sleep(retry_delay(policy, attempt, retry_after, jitter())).await;
+        attempt += 1;
     }
-    let body = response
-        .json::<Value>()
-        .await
-        .map_err(|e| CanvasError::Decode(e.to_string()))?;
-    Ok((body, next))
 }
 
 /// GETs `path` and, for array responses, concatenates every page.
@@ -164,8 +239,19 @@ pub async fn get_all(
     path: &str,
     query: &[(String, String)],
 ) -> Result<Value, CanvasError> {
+    get_all_with(http, base, token, path, query, &RETRY).await
+}
+
+async fn get_all_with(
+    http: &reqwest::Client,
+    base: &Url,
+    token: &str,
+    path: &str,
+    query: &[(String, String)],
+    policy: &RetryPolicy,
+) -> Result<Value, CanvasError> {
     let url = build_url(base, path, query)?;
-    let (first, mut next) = get_page(http, url, token).await?;
+    let (first, mut next) = get_page(http, url, token, policy).await?;
     let Value::Array(mut items) = first else {
         return Ok(first);
     };
@@ -177,7 +263,7 @@ pub async fn get_all(
         let Some(url) = is_allowed_next(base, &link) else {
             break;
         };
-        let (page, following) = get_page(http, url, token).await?;
+        let (page, following) = get_page(http, url, token, policy).await?;
         match page {
             Value::Array(more) => items.extend(more),
             _ => break,
@@ -320,6 +406,145 @@ mod tests {
             get_all(&http, &base, "t", "/api/v1/courses/1", &[]).await,
             Err(CanvasError::Http { status: 401, .. })
         ));
+    }
+
+    /// Answers one connection per canned response and hands back the requests it read.
+    async fn serve(responses: Vec<Vec<u8>>) -> (u16, tokio::task::JoinHandle<Vec<String>>) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let task = tokio::spawn(async move {
+            let mut seen = Vec::new();
+            for resp in responses {
+                let (mut sock, _) = listener.accept().await.unwrap();
+                let mut buf = [0u8; 4096];
+                let n = sock.read(&mut buf).await.unwrap();
+                seen.push(String::from_utf8_lossy(&buf[..n]).to_lowercase());
+                sock.write_all(&resp).await.unwrap();
+            }
+            seen
+        });
+        (port, task)
+    }
+
+    fn response(status: &str, headers: &str, body: &str) -> Vec<u8> {
+        format!(
+            "HTTP/1.1 {status}\r\nContent-Type: application/json\r\n{headers}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        )
+        .into_bytes()
+    }
+
+    const FAST: RetryPolicy = RetryPolicy {
+        attempts: 3,
+        base: Duration::from_millis(1),
+        max_wait: Duration::from_millis(5),
+    };
+
+    #[test]
+    fn recognises_throttling() {
+        assert!(is_throttled(403, None, "403 Forbidden (Rate Limit Exceeded)"));
+        assert!(is_throttled(403, None, r#"{"errors":[{"message":"Rate Limit Exceeded"}]}"#));
+        assert!(is_throttled(403, Some(0.0), ""));
+        assert!(is_throttled(429, None, ""));
+        assert!(!is_throttled(403, Some(650.0), r#"{"errors":[{"message":"forbidden"}]}"#));
+        assert!(!is_throttled(403, None, "user not authorized to perform that action"));
+        assert!(!is_throttled(503, Some(0.0), "Rate Limit Exceeded"));
+    }
+
+    #[test]
+    fn backs_off_exponentially_with_jitter() {
+        assert_eq!(retry_delay(&RETRY, 1, None, 1.0), Duration::from_secs(1));
+        assert_eq!(retry_delay(&RETRY, 1, None, 0.0), Duration::from_millis(500));
+        assert_eq!(retry_delay(&RETRY, 2, None, 1.0), Duration::from_secs(2));
+        assert_eq!(retry_delay(&RETRY, 9, None, 1.0), RETRY.max_wait);
+        assert_eq!(retry_delay(&RETRY, 1, Some(Duration::from_secs(3)), 0.0), Duration::from_secs(3));
+        assert_eq!(retry_delay(&RETRY, 1, Some(Duration::from_secs(600)), 0.0), RETRY.max_wait);
+        assert!((0.0..=1.0).contains(&jitter()));
+    }
+
+    /// The frontend tells error kinds apart by this text (src/canvas/errors.ts).
+    #[test]
+    fn error_messages_stay_stable() {
+        assert_eq!(
+            CanvasError::RateLimited { status: 403 }.to_string(),
+            "Canvas rate limit exceeded (403); try again in a moment"
+        );
+        assert_eq!(CanvasError::Unauthorized.to_string(), "Canvas rejected the credentials (401)");
+        assert_eq!(
+            CanvasError::Http { status: 503, body: "x".into() }.to_string(),
+            "Canvas returned 503: x"
+        );
+        assert_eq!(CanvasError::Network("timed out".into()).to_string(), "network error: timed out");
+    }
+
+    #[tokio::test]
+    async fn retries_throttled_requests() {
+        let throttled = r#"{"errors":[{"message":"Rate Limit Exceeded"}]}"#;
+        let (port, server) = serve(vec![
+            response("403 Forbidden", "X-Rate-Limit-Remaining: 0.0\r\n", throttled),
+            response("429 Too Many Requests", "Retry-After: 0\r\n", ""),
+            response("200 OK", "", r#"[{"id":1}]"#),
+        ])
+        .await;
+        let base = normalize_base_url(&format!("http://127.0.0.1:{port}")).unwrap();
+        let http = reqwest::Client::new();
+        let value = get_all_with(&http, &base, "t", "/api/v1/items", &[], &FAST).await.unwrap();
+        assert_eq!(value, serde_json::json!([{"id":1}]));
+        assert_eq!(server.await.unwrap().len(), 3);
+    }
+
+    #[tokio::test]
+    async fn gives_up_after_the_last_attempt() {
+        let throttled = "403 Forbidden (Rate Limit Exceeded)";
+        let (port, server) =
+            serve((0..FAST.attempts).map(|_| response("403 Forbidden", "", throttled)).collect())
+                .await;
+        let base = normalize_base_url(&format!("http://127.0.0.1:{port}")).unwrap();
+        let http = reqwest::Client::new();
+        assert_eq!(
+            get_all_with(&http, &base, "t", "/api/v1/items", &[], &FAST).await,
+            Err(CanvasError::RateLimited { status: 403 })
+        );
+        assert_eq!(server.await.unwrap().len(), FAST.attempts as usize);
+    }
+
+    #[tokio::test]
+    async fn does_not_retry_permission_errors() {
+        let body = r#"{"status":"unauthorized","errors":[{"message":"forbidden"}]}"#;
+        let (port, server) =
+            serve(vec![response("403 Forbidden", "X-Rate-Limit-Remaining: 640.5\r\n", body)]).await;
+        let base = normalize_base_url(&format!("http://127.0.0.1:{port}")).unwrap();
+        let http = reqwest::Client::new();
+        assert!(matches!(
+            get_all_with(&http, &base, "t", "/api/v1/items", &[], &FAST).await,
+            Err(CanvasError::Http { status: 403, .. })
+        ));
+        assert_eq!(server.await.unwrap().len(), 1);
+    }
+
+    /// Canvas compresses JSON when asked; reqwest asks and decodes it (the gzip/brotli features).
+    #[tokio::test]
+    async fn accepts_compressed_responses() {
+        // gzip of `[{"id":1}]`.
+        let gz: [u8; 30] = [
+            31, 139, 8, 0, 0, 0, 0, 0, 2, 255, 139, 174, 86, 202, 76, 81, 178, 50, 172, 141, 5, 0,
+            100, 168, 229, 104, 10, 0, 0, 0,
+        ];
+        let mut resp = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Encoding: gzip\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            gz.len()
+        )
+        .into_bytes();
+        resp.extend_from_slice(&gz);
+        let (port, server) = serve(vec![resp]).await;
+        let base = normalize_base_url(&format!("http://127.0.0.1:{port}")).unwrap();
+        let http = reqwest::Client::new();
+        let value = get_all(&http, &base, "t", "/api/v1/items", &[]).await.unwrap();
+        assert_eq!(value, serde_json::json!([{"id":1}]));
+        let request = &server.await.unwrap()[0];
+        let accept = request.lines().find(|l| l.starts_with("accept-encoding:")).unwrap();
+        assert!(accept.contains("gzip") && accept.contains("br"), "{accept}");
     }
 
     #[test]
