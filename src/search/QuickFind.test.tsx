@@ -96,7 +96,7 @@ describe('Quick find', () => {
       ),
     );
     expect(screen.queryByText('Problem set 3')).toBeNull();
-    expect(screen.getByRole('group', { name: 'Due soon' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Work' })).toBeInTheDocument();
 
     // A course code finds the course (by its nickname) and its work.
     type('cs229');
