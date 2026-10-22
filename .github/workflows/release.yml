@@ -172,6 +172,10 @@ jobs:
     name: Publish the release
     needs: [check, build]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      # To start readme-assets.yml once the release is out.
+      actions: write
     env:
       GH_TOKEN: ${{ github.token }}
       RELEASE_ID: ${{ needs.check.outputs.release-id }}
@@ -194,7 +198,44 @@ jobs:
           gh api -X POST -H 'Content-Type: application/json' --input latest.json \
             "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?name=latest.json" \
             --jq .browser_download_url
+      # Copies of the installers under names without the version, so download links such as
+      # releases/latest/download/Tarpaulin-windows-x64-setup.exe (the README's) always work.
+      - name: Upload stable download names
+        run: |
+          alias_for() {
+            case "$1" in
+              *_x64-setup.exe) echo Tarpaulin-windows-x64-setup.exe ;;
+              *_arm64-setup.exe) echo Tarpaulin-windows-arm64-setup.exe ;;
+              *_x64_en-US.msi) echo Tarpaulin-windows-x64.msi ;;
+              *_aarch64.dmg) echo Tarpaulin-macos-apple-silicon.dmg ;;
+              *_x64.dmg) echo Tarpaulin-macos-intel.dmg ;;
+              *_amd64.AppImage) echo Tarpaulin-linux-x64.AppImage ;;
+              *_aarch64.AppImage) echo Tarpaulin-linux-arm64.AppImage ;;
+              *_amd64.deb) echo Tarpaulin-linux-x64.deb ;;
+              *_arm64.deb) echo Tarpaulin-linux-arm64.deb ;;
+              *.x86_64.rpm) echo Tarpaulin-linux-x64.rpm ;;
+              *.aarch64.rpm) echo Tarpaulin-linux-arm64.rpm ;;
+            esac
+          }
+          assets=$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?per_page=100")
+          mkdir -p stable
+          jq -r '.[] | "\(.id) \(.name)"' <<< "$assets" | while read -r id name; do
+            alias=$(alias_for "$name")
+            [ -n "$alias" ] || continue
+            # A re-run replaces the copy it uploaded before.
+            old=$(jq -r --arg n "$alias" '.[] | select(.name == $n) | .id' <<< "$assets")
+            [ -z "$old" ] || gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$old"
+            gh api -H 'Accept: application/octet-stream' \
+              "repos/$GITHUB_REPOSITORY/releases/assets/$id" > "stable/$alias"
+            gh api -X POST -H 'Content-Type: application/octet-stream' --input "stable/$alias" \
+              "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?name=$alias" \
+              --jq .name
+          done
       - name: Publish
         run: |
           gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
             -F draft=false -f make_latest=true --jq .html_url
+      # A release published with the workflow's token starts no workflows by itself.
+      - name: Refresh the README's pictures and facts
+        continue-on-error: true
+        run: gh workflow run readme-assets.yml --ref main
