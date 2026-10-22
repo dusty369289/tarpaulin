@@ -1,5 +1,5 @@
 // Writes the updater's latest.json for a draft release from the files already on it, once every
-// platform has built. Each build used to add its own platform to latest.json by downloading it
+// platform has built and its files carry their release names (scripts/release-files.ts). Each build used to add its own platform to latest.json by downloading it
 // and uploading it again, and builds that finished together raced: one dropped another's entry,
 // or failed replacing an asset another had just replaced. Built once here, it can't race.
 //
@@ -8,6 +8,8 @@
 // Keys and defaults match tauri-action's, so installed apps read it the same way: each bundle
 // has its own key (windows-x86_64-msi, linux-aarch64-deb, …), and the plain <os>-<arch> key is
 // the bundle an install updates from (the MSI over NSIS on Windows x64, the AppImage on Linux).
+
+import { findAsset } from './release-files.ts';
 
 export interface Asset {
   name: string;
@@ -22,19 +24,20 @@ export interface Manifest {
   platforms: Record<string, { signature: string; url: string }>;
 }
 
-// [file pattern, its own key, whether it is the platform's default]. Earlier defaults win.
-const BUNDLES: [RegExp, string, boolean][] = [
-  [/_aarch64\.app\.tar\.gz$/, 'darwin-aarch64-app', true],
-  [/_x64\.app\.tar\.gz$/, 'darwin-x86_64-app', true],
-  [/_x64_[a-z]{2}-[A-Z]{2}\.msi$/, 'windows-x86_64-msi', true],
-  [/_x64-setup\.exe$/, 'windows-x86_64-nsis', true],
-  [/_arm64-setup\.exe$/, 'windows-aarch64-nsis', true],
-  [/_amd64\.AppImage$/, 'linux-x86_64-appimage', true],
-  [/_aarch64\.AppImage$/, 'linux-aarch64-appimage', true],
-  [/_amd64\.deb$/, 'linux-x86_64-deb', false],
-  [/_arm64\.deb$/, 'linux-aarch64-deb', false],
-  [/\.x86_64\.rpm$/, 'linux-x86_64-rpm', false],
-  [/\.aarch64\.rpm$/, 'linux-aarch64-rpm', false],
+// [release file (see release-files.ts), its own key, whether it is the platform's default].
+// Earlier defaults win.
+const BUNDLES: [suffix: string, key: string, isDefault: boolean][] = [
+  ['macos-apple-silicon.app.tar.gz', 'darwin-aarch64-app', true],
+  ['macos-intel.app.tar.gz', 'darwin-x86_64-app', true],
+  ['windows-x64.msi', 'windows-x86_64-msi', true],
+  ['windows-x64-setup.exe', 'windows-x86_64-nsis', true],
+  ['windows-arm64-setup.exe', 'windows-aarch64-nsis', true],
+  ['linux-x64.AppImage', 'linux-x86_64-appimage', true],
+  ['linux-arm64.AppImage', 'linux-aarch64-appimage', true],
+  ['linux-x64.deb', 'linux-x86_64-deb', false],
+  ['linux-arm64.deb', 'linux-aarch64-deb', false],
+  ['linux-x64.rpm', 'linux-x86_64-rpm', false],
+  ['linux-arm64.rpm', 'linux-aarch64-rpm', false],
 ];
 
 export const PLATFORMS = [
@@ -54,8 +57,8 @@ export function buildManifest(opts: {
   assets: Asset[];
 }): Manifest {
   const platforms: Manifest['platforms'] = {};
-  for (const [pattern, key, isDefault] of BUNDLES) {
-    const asset = opts.assets.find((a) => pattern.test(a.name));
+  for (const [suffix, key, isDefault] of BUNDLES) {
+    const asset = findAsset(opts.assets, suffix);
     if (!asset) continue;
     const entry = {
       signature: asset.signature,

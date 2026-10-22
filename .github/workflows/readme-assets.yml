@@ -2,7 +2,9 @@ name: README assets
 
 # Renders the README's screenshots, looks carousel and facts (scripts/readme-assets.ts) and
 # force-pushes them to the `readme-assets` branch, which README.md's images point at. That branch
-# holds only the latest render, so main never takes a commit for it.
+# holds only the latest render, so main never takes a commit for it. It also publishes the
+# download pages (scripts/download-pages.ts) to GitHub Pages: the README's download links go
+# through them to the latest release's files, whose names carry the version.
 on:
   push:
     branches: [main]
@@ -16,6 +18,8 @@ on:
       - 'tailwind.config.ts'
       - 'scripts/readme-assets.ts'
       - 'scripts/browser.ts'
+      - 'scripts/download-pages.ts'
+      - 'scripts/release-files.ts'
       - '.github/workflows/readme-assets.yml'
   # A change to the renderer itself is rendered on its pull request too, without being pushed.
   pull_request:
@@ -64,3 +68,28 @@ jobs:
             commit -qm "README assets for ${GITHUB_SHA::7}"
           git push -qf "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" \
             readme-assets
+
+  pages:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}download/
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Build the download pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/download-pages.ts .cache/pages
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .cache/pages
+      - id: deploy
+        uses: actions/deploy-pages@v4

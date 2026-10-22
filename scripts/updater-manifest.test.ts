@@ -1,19 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { buildManifest, PLATFORMS } from './updater-manifest';
 
-// The files a full v0.1.1 release carried, each with a .sig beside it.
+// The files a full v0.1.1 release carried, under their release names, each with a .sig beside it.
 const NAMES = [
-  'Tarpaulin-0.1.1-1.aarch64.rpm',
-  'Tarpaulin-0.1.1-1.x86_64.rpm',
-  'Tarpaulin_0.1.1_aarch64.AppImage',
-  'Tarpaulin_0.1.1_amd64.AppImage',
-  'Tarpaulin_0.1.1_amd64.deb',
-  'Tarpaulin_0.1.1_arm64-setup.exe',
-  'Tarpaulin_0.1.1_arm64.deb',
-  'Tarpaulin_0.1.1_x64-setup.exe',
-  'Tarpaulin_0.1.1_x64_en-US.msi',
-  'Tarpaulin_aarch64.app.tar.gz',
-  'Tarpaulin_x64.app.tar.gz',
+  'Tarpaulin-0.1.1-linux-arm64.rpm',
+  'Tarpaulin-0.1.1-linux-x64.rpm',
+  'Tarpaulin-0.1.1-linux-arm64.AppImage',
+  'Tarpaulin-0.1.1-linux-x64.AppImage',
+  'Tarpaulin-0.1.1-linux-x64.deb',
+  'Tarpaulin-0.1.1-windows-arm64-setup.exe',
+  'Tarpaulin-0.1.1-linux-arm64.deb',
+  'Tarpaulin-0.1.1-windows-x64-setup.exe',
+  'Tarpaulin-0.1.1-windows-x64.msi',
+  'Tarpaulin-0.1.1-macos-apple-silicon.app.tar.gz',
+  'Tarpaulin-0.1.1-macos-intel.app.tar.gz',
 ];
 const assets = NAMES.map((name) => ({ name, signature: `sig of ${name}` }));
 const build = (list = assets) =>
@@ -44,14 +44,18 @@ describe('updater manifest', () => {
   it('defaults to what tauri-action picks: the MSI on Windows x64, the AppImage on Linux', () => {
     const m = build();
     expect(m.platforms['windows-x86_64'].url).toBe(
-      'https://github.com/o/r/releases/download/v0.1.1/Tarpaulin_0.1.1_x64_en-US.msi',
+      'https://github.com/o/r/releases/download/v0.1.1/Tarpaulin-0.1.1-windows-x64.msi',
     );
-    expect(m.platforms['linux-aarch64'].signature).toBe('sig of Tarpaulin_0.1.1_aarch64.AppImage');
-    expect(m.platforms['darwin-x86_64'].url).toMatch(/\/Tarpaulin_x64\.app\.tar\.gz$/);
+    expect(m.platforms['linux-aarch64'].signature).toBe(
+      'sig of Tarpaulin-0.1.1-linux-arm64.AppImage',
+    );
+    expect(m.platforms['darwin-x86_64'].url).toMatch(
+      /\/Tarpaulin-0\.1\.1-macos-intel\.app\.tar\.gz$/,
+    );
   });
 
   it('names a platform whose bundle is missing', () => {
-    expect(() => build(assets.filter((a) => !a.name.endsWith('arm64-setup.exe')))).toThrow(
+    expect(() => build(assets.filter((a) => !a.name.endsWith('windows-arm64-setup.exe')))).toThrow(
       'no updater bundle for windows-aarch64',
     );
   });
