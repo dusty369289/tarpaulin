@@ -1,13 +1,13 @@
 import { act, fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { renderWithCanvas } from '../test/render';
+import { renderWithCanvas } from '../../test/render';
 import { SettingsPage } from './SettingsPage';
-import { DEFAULT_SETTINGS, useSettings } from './settingsStore';
+import { DEFAULT_SETTINGS, useSettings } from '../settingsStore';
 
 // An update is available, with Markdown release notes.
-vi.mock('./updater', async (original) => ({
-  ...(await original<typeof import('./updater')>()),
+vi.mock('../updater', async (original) => ({
+  ...(await original<typeof import('../updater')>()),
   appVersion: () => Promise.resolve('0.2.0'),
   useUpdater: () => ({
     state: {

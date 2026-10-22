@@ -19,6 +19,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useEffect, useMemo, useReducer } from 'react';
+import type { SettingsCategory } from '../app/settingsNav';
 import { useSettings } from '../app/settingsStore';
 import { useCanvas } from '../canvas/CanvasProvider';
 import {
@@ -95,8 +96,8 @@ export interface SearchEntry extends Searchable {
 }
 
 export interface EntryActions {
-  /** Shows Settings; `section` is for the category deep links to come (see settingsEntries). */
-  onOpenSettings: (section?: string) => void;
+  /** Shows Settings, on `section` if given (see settingsEntries). */
+  onOpenSettings: (section?: SettingsCategory) => void;
   /** Brings the dashboard back if Settings is showing. */
   onShowDashboard: () => void;
 }

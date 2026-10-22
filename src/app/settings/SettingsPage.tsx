@@ -1,15 +1,15 @@
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
-import { SearchInput, SettingsFilter, useNoRows, useSettingsFilter } from '../ui';
-import { isModShortcut, isTyping } from '../ui/keys';
-import { CATEGORIES, type CategoryInfo } from './SettingsSections';
+import { SearchInput, SettingsFilter, useNoRows, useSettingsFilter } from '../../ui';
+import { isModShortcut, isTyping } from '../../ui/keys';
+import { CATEGORIES, type CategoryInfo } from './categories';
 import {
   categoryFromHash,
   lastCategory,
   rememberCategory,
   settingsHash,
   type SettingsCategory,
-} from './settingsNav';
+} from '../settingsNav';
 
 // Settings, the way desktop apps lay it out: categories down the left (a row of chips in a
 // narrow window), the chosen one on the right. Typing in the search box swaps the category for

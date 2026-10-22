@@ -1,12 +1,12 @@
 import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { exportDashboard } from '../dashboard/exportImport';
-import { useDashboard } from '../dashboard/store';
-import { renderWithCanvas } from '../test/render';
-import { openSettings } from './settingsNav';
+import { exportDashboard } from '../../dashboard/exportImport';
+import { useDashboard } from '../../dashboard/store';
+import { renderWithCanvas } from '../../test/render';
+import { openSettings } from '../settingsNav';
 import { SettingsPage } from './SettingsPage';
-import { DEFAULT_SETTINGS, useSettings } from './settingsStore';
+import { DEFAULT_SETTINGS, useSettings } from '../settingsStore';
 
 beforeAll(() => {
   Element.prototype.checkVisibility ??= () => true;

@@ -1,14 +1,14 @@
 import { act, fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { renderWithCanvas } from '../test/render';
-import { saveExport } from './desktop';
+import { renderWithCanvas } from '../../test/render';
+import { saveExport } from '../desktop';
 import { SettingsPage } from './SettingsPage';
-import { DEFAULT_SETTINGS, useSettings } from './settingsStore';
+import { DEFAULT_SETTINGS, useSettings } from '../settingsStore';
 
 // Export from the desktop app: the native save dialog, not a web download.
-vi.mock('./desktop', async (original) => ({
-  ...(await original<typeof import('./desktop')>()),
+vi.mock('../desktop', async (original) => ({
+  ...(await original<typeof import('../desktop')>()),
   nativeSaveSupported: () => true,
   saveExport: vi.fn(),
 }));
