@@ -1,4 +1,4 @@
-import { format, isSameDay, isTomorrow } from 'date-fns';
+import { addDays, format, isSameDay } from 'date-fns';
 import type { NotificationPrefs } from './prefs';
 
 // Decides which notifications to show, as a pure function of what Canvas says now, the user's
@@ -97,7 +97,8 @@ export function formatRemaining(ms: number): string {
 
 function whenLabel(due: Date, now: Date, timeFmt: string) {
   if (isSameDay(due, now)) return `today ${format(due, timeFmt)}`;
-  if (isTomorrow(due)) return `tomorrow ${format(due, timeFmt)}`;
+  // Relative to the planner's `now`, not the wall clock, like `today` above.
+  if (isSameDay(due, addDays(now, 1))) return `tomorrow ${format(due, timeFmt)}`;
   return format(due, `EEE d MMM ${timeFmt}`);
 }
 
