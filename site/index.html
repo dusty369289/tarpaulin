@@ -90,6 +90,9 @@
       }
       img {
         max-width: 100%;
+        /* The width/height attributes reserve the space; without this the height stays at the
+           attribute's value while the width shrinks, squashing the picture. */
+        height: auto;
         display: block;
       }
       a {
