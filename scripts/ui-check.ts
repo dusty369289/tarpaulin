@@ -872,7 +872,7 @@ await step('reader: hostile Canvas HTML stays inert (edge data)', async () => {
     'dialogs: the reader takes focus, keeps Tab inside, one Escape per dialog',
     async () => {
       const reader = await openInReader('due-soon', ['assignment']);
-      const title = (await reader.locator('h3').innerText()).trim();
+      const title = (await reader.locator('header h3').first().innerText()).trim();
       const drawer = page.getByRole('dialog', { name: `Assignment: ${title}` });
       assert(await drawer.isVisible(), `reader is not labelled "Assignment: ${title}"`);
       assert((await focusIn('[role="dialog"]')).inside, 'focus did not move into the reader');
@@ -897,6 +897,7 @@ await step('reader: hostile Canvas HTML stays inert (edge data)', async () => {
         const f = await focusIn('[aria-label="Open this link?"]');
         assert(f.inside, `Tab ${i + 1} left the link prompt for ${f.where}`);
       }
+      await settled();
       await shot('30-dialog-stacked');
       await page.keyboard.press('Escape');
       await settled();
@@ -967,6 +968,7 @@ await step('reader: hostile Canvas HTML stays inert (edge data)', async () => {
         JSON.stringify({
           format: 'tarpaulin-dashboard',
           version: 2,
+          exportedAt: new Date().toISOString(),
           pages: (await stored()).pages.slice(0, 1),
         }),
       ),
