@@ -9,7 +9,9 @@
 //
 // Optional inputs: TEST_COUNT (the number of unit tests, from vitest's JSON report) and GH_TOKEN
 // (to read the latest release's installer sizes). Missing ones are left out of the facts.
-import { execFileSync } from 'node:child_process';
+// The stills are encoded to WebP in the browser; only the animated looks carousel (looks.webp)
+// needs ffmpeg, and is skipped without it.
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Page } from 'playwright';
@@ -82,16 +84,31 @@ async function settle(page: Page) {
 async function shot(page: Page, name: string, width: number, quality = 90) {
   const png = join(RAW, `${name}.png`);
   await page.screenshot({ path: png });
-  ffmpeg([
-    '-i',
-    png,
-    '-vf',
-    `scale=${width}:-1:flags=lanczos`,
-    '-quality',
-    String(quality),
-    join(OUT, `${name}.webp`),
-  ]);
+  await toWebp(png, join(OUT, `${name}.webp`), width, quality);
   return png;
+}
+
+let encoder: Page;
+/** Scales a PNG and encodes it as WebP in the browser, so the stills need nothing installed. */
+async function toWebp(png: string, out: string, width: number, quality: number) {
+  const src = `data:image/png;base64,${readFileSync(png).toString('base64')}`;
+  const webp = await encoder.evaluate(
+    async ([src, width, quality]) => {
+      const img = new Image();
+      img.src = src;
+      await img.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = Math.round((img.naturalHeight * width) / img.naturalWidth);
+      const ctx = canvas.getContext('2d')!;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL('image/webp', quality);
+    },
+    [src, width, quality / 100] as const,
+  );
+  if (!webp.startsWith('data:image/webp')) throw new Error('this browser cannot encode WebP');
+  writeFileSync(out, Buffer.from(webp.slice(webp.indexOf(',') + 1), 'base64'));
 }
 
 function count(file: string, pattern: RegExp): number {
@@ -155,6 +172,7 @@ async function main() {
       colorScheme: 'light',
     });
     const page = await context.newPage();
+    encoder = await browser.newPage();
     const setMode = (mode: Mode) =>
       page.evaluate((m) => (window as unknown as DemoWindow).__tarpaulinDemo.setMode(m), mode);
 
@@ -226,7 +244,10 @@ async function main() {
       await settle(page);
       frames.push(await shot(page, `look-${id}`, 2400));
     }
-    carousel(frames, join(OUT, 'looks.webp'));
+    // The README's animated looks carousel is the one picture that needs ffmpeg. Pull requests
+    // skip installing it (readme-assets.yml), so they skip the carousel too.
+    if (spawnSync('ffmpeg', ['-version']).status === 0) carousel(frames, join(OUT, 'looks.webp'));
+    else console.log('ffmpeg is not installed: skipping the looks carousel (looks.webp)');
   } finally {
     await browser.close();
     await stack.close();
