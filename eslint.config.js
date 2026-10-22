@@ -27,11 +27,4 @@ export default tseslint.config(
     plugins: { 'jsx-a11y': jsxA11y },
     rules: jsxA11y.flatConfigs.recommended.rules,
   },
-  // Still a warning in one file whose owner hasn't fixed it yet: the calendar's day grid
-  // (role="group") handles the arrow keys for the day buttons inside it. Remove this block once
-  // that is fixed.
-  {
-    files: ['src/widgets/Calendar.tsx'],
-    rules: { 'jsx-a11y/no-noninteractive-element-interactions': 'warn' },
-  },
 );

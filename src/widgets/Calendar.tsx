@@ -331,7 +331,6 @@ export const Calendar = defineWidget({
                         ref={gridRef}
                         role="group"
                         aria-label={`${format(cursor, 'MMMM yyyy')}: arrow keys move between days`}
-                        onKeyDown={onGridKey}
                         className="grid flex-1 grid-cols-7 gap-px overflow-hidden rounded-md border border-border bg-border"
                         style={{ gridAutoRows: '1fr' }}
                       >
@@ -345,6 +344,7 @@ export const Calendar = defineWidget({
                               data-day={format(d, 'yyyy-MM-dd')}
                               tabIndex={isSameDay(d, tabDay) ? 0 : -1}
                               onFocus={() => setFocusDay(d)}
+                              onKeyDown={onGridKey}
                               onClick={() => setSelected(isSel ? null : d)}
                               aria-label={`${format(d, 'EEEE d MMMM')}, ${list.length} item${list.length === 1 ? '' : 's'}`}
                               aria-pressed={Boolean(isSel)}
