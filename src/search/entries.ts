@@ -7,7 +7,6 @@ import {
   ClipboardCheck,
   FileText,
   GraduationCap,
-  LayoutDashboard,
   ListChecks,
   ListTodo,
   Megaphone,
@@ -37,8 +36,6 @@ import type {
   PlannerItemData,
   TodoData,
 } from '../canvas/types';
-import { PAGE_ICONS } from '../dashboard/icons';
-import { useDashboard } from '../dashboard/store';
 import { formatDue, relative, toDate, useTimeFormat } from '../lib/dates';
 import {
   fromAnnouncement,
@@ -190,8 +187,6 @@ export function useSearchEntries(actions: EntryActions): { entries: SearchEntry[
   const todosCached = useCachedLists<TodoData>('todo');
   const missingCached = useCachedLists<AssignmentData>('missing');
 
-  const pages = useDashboard((s) => s.pages);
-  const activePageId = useDashboard((s) => s.activePageId);
   const commands = useQuickFind((s) => s.commands);
   const theme = useResolvedTheme();
 
@@ -384,33 +379,21 @@ export function useSearchEntries(actions: EntryActions): { entries: SearchEntry[
       });
     }
 
-    for (const p of pages) {
-      out.push({
-        id: `page:${p.id}`,
-        group: 'pages',
-        title: p.name,
-        keywords: ['Page', 'Dashboard'],
-        detail: p.id === activePageId ? 'Current page' : 'Switch to this page',
-        icon: PAGE_ICONS[p.icon] ?? LayoutDashboard,
-        kind: 'Page',
-        open: () => {
-          useDashboard.getState().setActivePage(p.id);
-          actions.onShowDashboard();
-        },
-      });
-    }
-
     // Actions: the ones the showing screen registered (Edit layout, Add widget), then the
     // app-wide ones, each calling the same code as its button elsewhere.
+    // Pages come the same way (registered by <QuickFind>, which owns the dashboard store), so
+    // this module stays free of the dashboard and the Search widget can live in the registry.
     for (const cmd of Object.values(commands).flat()) {
+      const group = cmd.group ?? 'actions';
+      const kind = group === 'pages' ? 'Page' : 'Action';
       out.push({
-        id: `action:${cmd.id}`,
-        group: 'actions',
+        id: `${group === 'pages' ? 'page' : 'action'}:${cmd.id}`,
+        group,
         title: cmd.title,
-        keywords: [...(cmd.keywords ?? []), 'Action'],
+        keywords: [...(cmd.keywords ?? []), kind],
         detail: cmd.detail ?? '',
         icon: cmd.icon,
-        kind: 'Action',
+        kind,
         open: cmd.run,
       });
     }
@@ -460,8 +443,6 @@ export function useSearchEntries(actions: EntryActions): { entries: SearchEntry[
     eventsCached,
     todosCached,
     missingCached,
-    pages,
-    activePageId,
     commands,
     theme,
     now,
