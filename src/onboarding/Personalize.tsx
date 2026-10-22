@@ -6,6 +6,7 @@ import { useDashboard } from '../dashboard/store';
 import { GRID_COLS } from '../dashboard/types';
 import { LookPicker, LookPreview } from '../theme/pickers';
 import { THEMES, type ThemeName } from '../theme/themes';
+import { Radio, RadioGroup } from '../ui';
 
 // First-launch step after connecting: pick a look, colour mode and a starting layout. Everything
 // defaults to the plain look following the system's light/dark mode, so "Continue" without
@@ -18,7 +19,11 @@ const MODES: Array<{ id: 'system' | ThemeName; name: string; hint: string }> = [
   { id: 'high-contrast', name: 'High contrast', hint: 'Maximum legibility' },
 ];
 
+const MODE_IDS = MODES.map((m) => m.id);
+
 const ACCENTS = ['', '#2563eb', '#0891b2', '#059669', '#d97706', '#dc2626', '#db2777', '#7c3aed'];
+
+const PRESET_IDS = PRESETS.map((p) => p.id);
 
 const rgb = (triple: string) => `rgb(${triple})`;
 
@@ -150,18 +155,19 @@ export function Personalize() {
           >
             Colour mode
           </h2>
-          <div
-            role="radiogroup"
-            aria-label="Theme"
+          <RadioGroup
+            label="Theme"
+            value={theme}
+            options={MODE_IDS}
+            onChange={(id) => update({ theme: id as (typeof MODE_IDS)[number] })}
             className="grid grid-cols-2 gap-3 sm:grid-cols-4"
           >
             {MODES.map((m) => (
-              <button
+              <Radio
                 key={m.id}
-                type="button"
-                role="radio"
-                aria-checked={theme === m.id}
-                onClick={() => update({ theme: m.id })}
+                value={m.id}
+                label={m.name}
+                describedBy={`mode-hint-${m.id}`}
                 className={tile(theme === m.id)}
               >
                 <ThemePreview mode={m.id} accent={accent} look={{ background, widgetStyle }} />
@@ -171,26 +177,29 @@ export function Personalize() {
                     <span className="chip bg-surface-2 text-muted">Default</span>
                   )}
                 </span>
-                <span className="-mt-1.5 text-xs text-muted">{m.hint}</span>
-              </button>
+                <span id={`mode-hint-${m.id}`} className="-mt-1.5 text-xs text-muted">
+                  {m.hint}
+                </span>
+              </Radio>
             ))}
-          </div>
-          <div
-            role="radiogroup"
-            aria-label="Accent colour"
+          </RadioGroup>
+          <RadioGroup
+            label="Accent colour"
+            value={accent}
+            options={ACCENTS}
+            onChange={(c) => update({ accent: c })}
             className="flex flex-wrap items-center gap-2"
           >
-            <span className="mr-1 text-sm text-muted">Accent</span>
+            <span aria-hidden className="mr-1 text-sm text-muted">
+              Accent
+            </span>
             {ACCENTS.map((c) => {
               const selected = accent === c;
               return (
-                <button
+                <Radio
                   key={c || 'default'}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  aria-label={c ? `Accent ${c}` : 'Theme default accent'}
-                  onClick={() => update({ accent: c })}
+                  value={c}
+                  label={c ? `Accent ${c}` : 'Theme default accent'}
                   className={`flex h-8 w-8 items-center justify-center rounded-full border-2 transition ${selected ? 'border-text' : 'border-transparent'}`}
                 >
                   <span
@@ -212,10 +221,10 @@ export function Personalize() {
                     )}
                     {!c && !selected && 'A'}
                   </span>
-                </button>
+                </Radio>
               );
             })}
-          </div>
+          </RadioGroup>
         </section>
 
         <section aria-labelledby="layout-heading" className="flex flex-col gap-3">
@@ -225,26 +234,29 @@ export function Personalize() {
           >
             Starting layout
           </h2>
-          <div
-            role="radiogroup"
-            aria-label="Starting layout"
+          <RadioGroup
+            label="Starting layout"
+            value={presetId}
+            options={PRESET_IDS}
+            onChange={setPresetId}
             className="grid grid-cols-1 gap-3 sm:grid-cols-3"
           >
             {PRESETS.map((p) => (
-              <button
+              <Radio
                 key={p.id}
-                type="button"
-                role="radio"
-                aria-checked={presetId === p.id}
-                onClick={() => setPresetId(p.id)}
+                value={p.id}
+                label={p.name}
+                describedBy={`layout-hint-${p.id}`}
                 className={tile(presetId === p.id)}
               >
                 <LayoutPreview presetId={p.id} />
                 <span className="text-sm font-medium">{p.name}</span>
-                <span className="-mt-1.5 text-xs text-muted">{p.description}</span>
-              </button>
+                <span id={`layout-hint-${p.id}`} className="-mt-1.5 text-xs text-muted">
+                  {p.description}
+                </span>
+              </Radio>
             ))}
-          </div>
+          </RadioGroup>
         </section>
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">

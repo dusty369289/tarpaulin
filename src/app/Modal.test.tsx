@@ -101,6 +101,26 @@ describe('Modal and Drawer', () => {
     expect(screen.getByRole('dialog', { name: 'Search' })).toBeInTheDocument();
   });
 
+  it('close on a press on the backdrop, not on one inside the panel', () => {
+    for (const Dialog of [Modal, Drawer]) {
+      let closed = 0;
+      const { unmount } = render(
+        <Dialog title="Hello" onClose={() => closed++}>
+          <p>Body</p>
+        </Dialog>,
+      );
+      const dialog = screen.getByRole('dialog', { name: 'Hello' });
+      fireEvent.mouseDown(screen.getByText('Body'));
+      fireEvent.mouseDown(dialog);
+      expect(closed).toBe(0);
+      const backdrop = dialog.parentElement!;
+      expect(backdrop).toHaveAttribute('role', 'presentation');
+      fireEvent.mouseDown(backdrop);
+      expect(closed).toBe(1);
+      unmount();
+    }
+  });
+
   it('pull focus back in when it lands outside', () => {
     render(
       <>

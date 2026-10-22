@@ -317,7 +317,10 @@ export function WidgetFrame({
               {title}
             </h2>
             {editMode && actions.length > 0 && (
+              // Layout only, so role="presentation": the mousedown handler just keeps a press on
+              // the actions (or the gaps between them) from starting a drag of the header.
               <div
+                role="presentation"
                 className="flex shrink-0 items-center animate-fade-in"
                 onMouseDown={(e) => e.stopPropagation()}
               >

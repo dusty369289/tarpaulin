@@ -9,12 +9,15 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Radio, RadioGroup } from '../ui';
 import { PAGE_ICONS, pageIcon } from './icons';
 import { PRESETS } from './presets';
 import { useDashboard } from './store';
 import { useDismiss } from './useDismiss';
 
 type Menu = 'add' | 'all' | 'options' | null;
+
+const ICON_KEYS = Object.keys(PAGE_ICONS);
 
 /**
  * The page tabs in the top bar. Tabs scroll sideways when there are many (edges fade, the
@@ -38,6 +41,7 @@ export function PageTabs({ onMenuChange }: { onMenuChange?: (open: boolean) => v
   const [renaming, setRenaming] = useState<string | null>(null);
   const active = pages.find((p) => p.id === activePageId);
   const list = useRef<HTMLDivElement>(null);
+  const renameInput = useRef<HTMLInputElement>(null);
   const [edges, setEdges] = useState({ left: false, right: false });
   const close = useCallback(() => setMenu(null), []);
 
@@ -47,6 +51,11 @@ export function PageTabs({ onMenuChange }: { onMenuChange?: (open: boolean) => v
   useEffect(() => {
     if (!editMode) setMenu((m) => (m === 'options' ? null : m));
   }, [editMode]);
+  // Renaming swaps the tab for a text box; focus moves into it (selecting the name) so typing
+  // replaces the name straight away.
+  useEffect(() => {
+    if (renaming) renameInput.current?.focus();
+  }, [renaming]);
 
   // Which edges have hidden tabs beyond them (drives the fades and the "All pages" menu).
   const measure = useCallback(() => {
@@ -118,8 +127,8 @@ export function PageTabs({ onMenuChange }: { onMenuChange?: (open: boolean) => v
           return renaming === p.id ? (
             <input
               key={p.id}
+              ref={renameInput}
               data-page-id={p.id}
-              autoFocus
               defaultValue={p.name}
               aria-label="Page name"
               className="input bar-rename"
@@ -271,29 +280,32 @@ export function PageTabs({ onMenuChange }: { onMenuChange?: (open: boolean) => v
             </button>
           </div>
           <div className="my-1 border-t border-border" />
-          <div className="px-2 pb-1 text-xs text-muted" id="page-icon-label">
+          <div className="px-2 pb-1 text-xs text-muted" aria-hidden>
             Icon
           </div>
-          <div
-            role="radiogroup"
-            aria-labelledby="page-icon-label"
+          <RadioGroup
+            label="Icon"
+            value={active.icon}
+            options={ICON_KEYS}
+            onChange={(key) => setPageIcon(active.id, key)}
             className="grid grid-cols-6 gap-1 px-1 pb-1"
           >
-            {Object.entries(PAGE_ICONS).map(([key, Icon]) => (
-              <button
-                key={key}
-                type="button"
-                role="radio"
-                aria-checked={active.icon === key}
-                aria-label={key.replace(/-/g, ' ')}
-                title={key.replace(/-/g, ' ')}
-                className={`flex h-8 items-center justify-center rounded-md transition ${active.icon === key ? 'bg-accent text-accent-fg' : 'text-muted hover:bg-surface-2 hover:text-text'}`}
-                onClick={() => setPageIcon(active.id, key)}
-              >
-                <Icon className="h-4 w-4" aria-hidden />
-              </button>
-            ))}
-          </div>
+            {ICON_KEYS.map((key) => {
+              const Icon = PAGE_ICONS[key];
+              const name = key.replace(/-/g, ' ');
+              return (
+                <Radio
+                  key={key}
+                  value={key}
+                  label={name}
+                  title={name}
+                  className={`flex h-8 items-center justify-center rounded-md transition ${active.icon === key ? 'bg-accent text-accent-fg' : 'text-muted hover:bg-surface-2 hover:text-text'}`}
+                >
+                  <Icon className="h-4 w-4" aria-hidden />
+                </Radio>
+              );
+            })}
+          </RadioGroup>
           <div className="my-1 border-t border-border" />
           <button
             type="button"
