@@ -3,7 +3,7 @@ import { ChevronDown, Plus, X } from 'lucide-react';
 import { useId, useState } from 'react';
 import { useNow } from '../canvas/hooks';
 import { toDate, useTimeFormat } from '../lib/dates';
-import { Radio, RadioGroup } from '../ui/RadioGroup';
+import { Segmented } from '../ui/Segmented';
 import { usePlanEditor } from './hooks';
 import { PlanStatusIcon } from './PlanStatusIcon';
 import { dayKey, planSummary, STATUS_LABEL } from './selectors';
@@ -72,27 +72,17 @@ export function PlanPanel({
       </button>
       {open && (
         <div id={id} className="flex flex-col gap-3 border-t border-border px-3 pb-3 pt-2.5">
-          <RadioGroup
+          <Segmented
+            compact
             label="Status in my plan"
             value={plan.status}
-            options={[...PLAN_STATUSES]}
-            onChange={(s) => editor.setStatus(s as (typeof PLAN_STATUSES)[number])}
-            className="inline-flex w-fit max-w-full flex-wrap gap-0.5 rounded-md border border-border p-0.5"
-          >
-            {PLAN_STATUSES.map((s) => (
-              <Radio
-                key={s}
-                value={s}
-                label={STATUS_LABEL[s]}
-                className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium ${
-                  plan.status === s ? 'bg-surface-2 text-text' : 'text-muted hover:text-text'
-                }`}
-              >
-                <PlanStatusIcon status={s} className="h-3.5 w-3.5" />
-                {STATUS_LABEL[s]}
-              </Radio>
-            ))}
-          </RadioGroup>
+            options={PLAN_STATUSES.map((s) => [
+              s,
+              STATUS_LABEL[s],
+              <PlanStatusIcon key={s} status={s} className="h-3.5 w-3.5" />,
+            ])}
+            onChange={editor.setStatus}
+          />
 
           <fieldset className="flex min-w-0 flex-col gap-1.5">
             <legend className="label">I’ll do it on</legend>

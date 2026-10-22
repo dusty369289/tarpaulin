@@ -37,12 +37,12 @@ import { BackgroundPicker, LookPicker, SkinPicker } from '../theme/pickers';
 import { TokenHelpDialog } from '../onboarding/TokenHelp';
 import {
   FoldedList,
-  Radio,
-  RadioGroup,
   Row,
   Section,
+  Segmented,
   Switch,
   useConfirm,
+  type SegmentedOption,
   useSettingsFilter,
 } from '../ui';
 import { NotificationsSettings, StartupSettings } from './DesktopSettings';
@@ -60,38 +60,13 @@ import { appVersion, useUpdater } from './updater';
 
 // ── Appearance ───────────────────────────────────────────────────────────────────────────────
 
-const MODES: Array<[Settings['theme'], string]> = [
+/** Light, Dark, Match system, High contrast, as one segmented control. */
+const MODES: Array<SegmentedOption<Settings['theme']>> = [
   ['light', 'Light'],
   ['dark', 'Dark'],
   ['system', 'Match system'],
   ['high-contrast', 'High contrast'],
 ];
-
-/** Light, Dark, Match system, High contrast, as one segmented control. */
-function ModePicker() {
-  const theme = useSettings((s) => s.theme);
-  const update = useSettings((s) => s.update);
-  return (
-    <RadioGroup
-      label="Mode"
-      value={theme}
-      options={MODES.map(([id]) => id)}
-      onChange={(id) => update({ theme: id as Settings['theme'] })}
-      className="flex flex-wrap gap-0.5 rounded-lg border border-border bg-surface-2 p-0.5"
-    >
-      {MODES.map(([id, name]) => (
-        <Radio
-          key={id}
-          value={id}
-          label={name}
-          className={`rounded-md px-2.5 py-1 text-sm font-medium transition ${theme === id ? 'bg-accent text-accent-fg shadow-sm' : 'text-muted hover:bg-surface hover:text-text'}`}
-        >
-          {name}
-        </Radio>
-      ))}
-    </RadioGroup>
-  );
-}
 
 /** Settings most people never need, folded away until asked for. Search looks inside anyway. */
 function MoreStyling({ children }: { children: ReactNode }) {
@@ -174,7 +149,12 @@ function AppearanceSettings() {
           help="Every look has a light and a dark version. High contrast swaps in maximum-contrast colours and keeps each style's shape and fonts."
           keywords="theme light dark system high contrast"
         >
-          <ModePicker />
+          <Segmented
+            label="Mode"
+            value={s.theme}
+            options={MODES}
+            onChange={(theme) => update({ theme })}
+          />
         </Row>
         <Row
           label="Accent colour"

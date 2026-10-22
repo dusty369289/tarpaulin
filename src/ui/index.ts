@@ -17,5 +17,6 @@ export { Kbd } from './Kbd';
 export { Row, Section, SettingsFilter, useNoRows, useSettingsFilter } from './layout';
 export { Radio, RadioGroup } from './RadioGroup';
 export { SearchInput } from './SearchInput';
+export { Segmented, type SegmentedOption } from './Segmented';
 export { Switch } from './Switch';
 export { tabbables, useDialog } from './useDialog';
