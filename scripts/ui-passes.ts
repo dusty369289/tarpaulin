@@ -252,14 +252,28 @@ if (passes.includes('keyboard')) {
     async () => {
       await page.getByRole('button', { name: 'Settings', exact: true }).click();
       await settled(page);
-      const input = page.locator('input.input, .input input, textarea.input').first();
+      const input = page.locator('input.input').first();
+      // A ring is a visible outline, or a box-shadow that appears on focus. (Tailwind gives
+      // every element a transparent zero-size shadow, so "has a box-shadow" proves nothing.)
+      const look = () =>
+        input.evaluate((el) => {
+          const cs = getComputedStyle(el);
+          const outline =
+            cs.outlineStyle !== 'none' &&
+            parseFloat(cs.outlineWidth) >= 1 &&
+            !/rgba\([^)]*,\s*0\)|transparent/.test(cs.outlineColor);
+          return { outline, shadow: cs.boxShadow };
+        });
+      const blurred = await look();
       await input.focus();
-      const ring = await input.evaluate((el) => {
-        const cs = getComputedStyle(el);
-        const outline = cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) >= 1;
-        return outline || (cs.boxShadow !== 'none' && cs.boxShadow !== '');
-      });
-      assert(ring, 'a focused input has no outline or ring');
+      await settled(page);
+      const focused = await look();
+      const shadowRing =
+        focused.shadow !== blurred.shadow && /rgb\(|rgba\((?![^)]*,\s*0\))/.test(focused.shadow);
+      assert(
+        focused.outline || shadowRing,
+        `a focused input has no outline or ring (box-shadow ${focused.shadow})`,
+      );
       await page.getByRole('button', { name: 'Dashboard' }).click();
       await settled(page);
     },
