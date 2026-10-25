@@ -13,6 +13,8 @@ fn main() {
             "app_version",
             "check_update",
             "install_update",
+            "download_update",
+            "forget_update",
             "notification_permission",
             "request_notification_permission",
             "notify",

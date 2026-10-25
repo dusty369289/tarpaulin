@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-forget-update"
+description = "Enables the forget_update command without any pre-configured scope."
+commands.allow = ["forget_update"]
+
+[[permission]]
+identifier = "deny-forget-update"
+description = "Denies the forget_update command without any pre-configured scope."
+commands.deny = ["forget_update"]
