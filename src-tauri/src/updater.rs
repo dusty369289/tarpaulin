@@ -105,7 +105,10 @@ pub async fn download_update(
             let _ = on_event.send(DownloadEvent::Finished);
             return Ok(());
         }
-        pending.update.clone().ok_or("no update to download; check first")?
+        pending
+            .update
+            .clone()
+            .ok_or("no update to download; check first")?
     };
     let bytes = update
         .download(progress(&on_event), || {
@@ -115,7 +118,11 @@ pub async fn download_update(
         .map_err(|e| e.to_string())?;
     let mut pending = pending.0.lock().unwrap();
     // Only keep it if a newer check hasn't replaced the update meanwhile.
-    if pending.update.as_ref().is_some_and(|u| u.version == update.version) {
+    if pending
+        .update
+        .as_ref()
+        .is_some_and(|u| u.version == update.version)
+    {
         pending.bytes = Some(bytes);
     }
     Ok(())
@@ -130,7 +137,10 @@ pub async fn install_update(
 ) -> Result<(), String> {
     let (update, bytes) = {
         let mut pending = pending.0.lock().unwrap();
-        let update = pending.update.take().ok_or("no update to install; check first")?;
+        let update = pending
+            .update
+            .take()
+            .ok_or("no update to install; check first")?;
         (update, pending.bytes.take())
     };
     match bytes {
