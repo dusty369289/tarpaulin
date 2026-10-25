@@ -355,8 +355,12 @@ export const Calendar = defineWidget({
       focusDay ?? selected ?? (isSameMonth(nowInZone(), cursor) ? nowInZone() : cursor);
     useEffect(() => {
       if (!refocus.current || !focusDay) return;
+      // Paging to a new month can render its grid a moment later (its data loads), so keep
+      // trying until the day is there.
+      const cell = gridRef.current?.querySelector<HTMLElement>(`[data-day="${dayKey(focusDay)}"]`);
+      if (!cell) return;
       refocus.current = false;
-      gridRef.current?.querySelector<HTMLElement>(`[data-day="${dayKey(focusDay)}"]`)?.focus();
+      cell.focus();
     });
     const onGridKey = (ev: KeyboardEvent) => {
       const move = DAY_KEYS[ev.key];

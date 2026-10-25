@@ -166,7 +166,7 @@ if (passes.includes('small')) {
       );
     assert(!cut.length, `truncated: ${cut.join(', ')}`);
   });
-  await page.getByRole('button', { name: 'Done' }).click();
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
   await settled(page);
   await openSettings(page, 'Appearance');
   await settled(page);

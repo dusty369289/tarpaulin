@@ -349,6 +349,8 @@ pub fn run() {
             updater::app_version,
             updater::check_update,
             updater::install_update,
+            updater::download_update,
+            updater::forget_update,
             desktop::notification_permission,
             desktop::request_notification_permission,
             desktop::notify,
@@ -367,6 +369,9 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             if let tauri::RunEvent::Reopen { .. } = event {
                 tray::show_main(app);
+            }
+            if let tauri::RunEvent::Exit = event {
+                updater::install_on_exit(&app.state::<updater::PendingUpdate>());
             }
             let _ = (app, event);
         });

@@ -26,6 +26,8 @@ export const SettingsSchema = z.object({
   timesIn: z.enum(['device', 'canvas']).default('device'),
   weekStartsOn: z.enum(['monday', 'sunday']).default('monday'),
   autoCheckUpdates: z.boolean().default(true),
+  /** A found update downloads in the background and installs when the app quits. */
+  autoInstallUpdates: z.boolean().default(true),
   /** Clicking an assignment, announcement or event: read it in Tarpaulin, or open Canvas. */
   openItemsIn: z.enum(['app', 'canvas']).default('app'),
   /** Images in Canvas content hosted on other sites: load them, or wait for a click. */

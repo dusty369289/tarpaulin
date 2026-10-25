@@ -34,6 +34,7 @@ export const Notes = defineWidget({
     const [mode, setMode] = useState<'preview' | 'edit'>(saved ? settings.startIn : 'edit');
     const [text, setText] = useState(saved);
     const area = useRef<HTMLTextAreaElement>(null);
+    const toggle = useRef<HTMLButtonElement>(null);
 
     // Debounce writes so typing doesn't serialise the whole store on every keystroke.
     useEffect(() => {
@@ -69,6 +70,7 @@ export const Notes = defineWidget({
     return (
       <div className={`relative flex h-full flex-col ${SIZES[settings.fontSize]}`}>
         <button
+          ref={toggle}
           type="button"
           className="btn-icon absolute right-0 top-0 z-10 bg-surface/80 backdrop-blur"
           onClick={() => {
@@ -86,7 +88,11 @@ export const Notes = defineWidget({
             ref={area}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            onBlur={() => setData({ text })}
+            onBlur={(e) => {
+              setData({ text });
+              // Clicking away shows the note formatted (the toggle button does its own switch).
+              if (text.trim() && e.relatedTarget !== toggle.current) setMode('preview');
+            }}
             placeholder={settings.placeholder}
             aria-label="Note"
             className={`h-full w-full flex-1 resize-none rounded bg-transparent pr-8 placeholder:text-muted focus-visible:bg-surface-2/40 focus-visible:outline-offset-0 ${settings.monospace ? 'font-mono' : ''}`}

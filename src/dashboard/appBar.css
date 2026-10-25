@@ -3,9 +3,11 @@
    - basic:   a quiet, solid, full-width strip with a hairline under it.
    Colours come from the theme tokens, so every look and mode gets a matching bar. Looks can
    also set the bar's own tokens (see "Looks" below): --bar-tint (an "r g b" fill), --bar-font
-   and --bar-font-scale for its text, and the two radii. */
+   and --bar-font-scale for its text, and the two radii.
+   The same glass (tokens and per-look edges) is shared as .glass-pane, for other floating
+   panels such as the Settings sidebar. */
 
-.app-bar {
+:is(.app-bar, .glass-pane) {
   --bar-glass: 0.72;
   --bar-highlight: 0.45;
   --bar-shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 12px 32px -16px rgb(0 0 0 / 0.32);
@@ -14,6 +16,8 @@
   --bar-font-scale: 1;
   --bar-radius: min(calc(var(--radius) + 4px), 1.25rem);
   --bar-control-radius: min(calc(var(--radius) * 0.75), 0.75rem);
+}
+.app-bar {
   position: sticky;
   top: 0;
   z-index: 30;
@@ -21,19 +25,19 @@
     transform 340ms cubic-bezier(0.2, 0.8, 0.2, 1),
     opacity 240ms ease;
 }
-html[data-mode='dark'] .app-bar,
-html[data-theme='dark'] .app-bar,
-html[data-background='crt'] .app-bar,
-html[data-background='blueprint'] .app-bar,
-html[data-background='night-sky'] .app-bar {
+html[data-mode='dark'] :is(.app-bar, .glass-pane),
+html[data-theme='dark'] :is(.app-bar, .glass-pane),
+html[data-background='crt'] :is(.app-bar, .glass-pane),
+html[data-background='blueprint'] :is(.app-bar, .glass-pane),
+html[data-background='night-sky'] :is(.app-bar, .glass-pane) {
   --bar-highlight: 0.07;
   --bar-shadow: 0 1px 2px rgb(0 0 0 / 0.25), 0 14px 36px -14px rgb(0 0 0 / 0.6);
 }
 /* Busier textures get a little more frost, so text stays crisp over them. */
-html[data-background]:not([data-background='plain']) .app-bar {
+html[data-background]:not([data-background='plain']) :is(.app-bar, .glass-pane) {
   --bar-glass: 0.8;
 }
-html[data-theme='high-contrast'] .app-bar {
+html[data-theme='high-contrast'] :is(.app-bar, .glass-pane) {
   --bar-glass: 1;
 }
 
@@ -52,7 +56,7 @@ html[data-theme='high-contrast'] .app-bar {
 .app-bar[data-bar-style='frosted'] {
   padding: 0.5rem 0.75rem 0;
 }
-.app-bar[data-bar-style='frosted'] .app-bar-surface {
+:is(.app-bar[data-bar-style='frosted'] .app-bar-surface, .glass-pane) {
   border-radius: var(--bar-radius);
   border: 1px solid rgb(var(--border) / 0.75);
   background: linear-gradient(
@@ -100,7 +104,8 @@ html[data-background='poster'] .app-bar[data-bar-style='basic'] .app-bar-surface
 html[data-background='poster'] .app-bar[data-bar-style='frosted'] {
   padding: 1.25rem 1.25rem 0;
 }
-html[data-background='poster'] .app-bar[data-bar-style='frosted'] .app-bar-surface {
+html[data-background='poster']
+  :is(.app-bar[data-bar-style='frosted'] .app-bar-surface, .glass-pane) {
   border: 2px solid var(--poster-frame, #111);
   border-radius: 0;
   box-shadow: 5px 5px 0 var(--poster-frame, #111);
@@ -115,7 +120,7 @@ html[data-background='poster'] .app-bar[data-bar-style='frosted'] .app-bar-surfa
 }
 
 /* Arcade: square 8-bit panel in the widgets' grape, with a chunky outline and a hard drop. */
-html[data-background='night-sky'] .app-bar {
+html[data-background='night-sky'] :is(.app-bar, .glass-pane) {
   --bar-tint: 241 233 255;
   --bar-font: VT323, ui-monospace, monospace;
   --bar-font-scale: 1.3;
@@ -123,7 +128,7 @@ html[data-background='night-sky'] .app-bar {
   --bar-control-radius: 0px;
   --bar-drop: rgb(20 40 110 / 0.25);
 }
-html[data-background='night-sky'][data-mode='dark'] .app-bar {
+html[data-background='night-sky'][data-mode='dark'] :is(.app-bar, .glass-pane) {
   --bar-tint: 59 35 128;
   --bar-drop: rgb(0 0 0 / 0.4);
 }
@@ -131,7 +136,8 @@ html[data-background='night-sky'] .bar-brand-name {
   font-family: 'Press Start 2P', VT323, monospace;
   font-size: 0.6875rem;
 }
-html[data-background='night-sky'] .app-bar[data-bar-style='frosted'] .app-bar-surface {
+html[data-background='night-sky']
+  :is(.app-bar[data-bar-style='frosted'] .app-bar-surface, .glass-pane) {
   border: 3px solid rgb(var(--text));
   box-shadow: 6px 6px 0 var(--bar-drop);
 }
@@ -145,15 +151,16 @@ html[data-background='night-sky']
 }
 
 /* Terminal and blueprint: monospaced type, square corners, no soft shadow. */
-html[data-background='crt'] .app-bar,
-html[data-background='blueprint'] .app-bar {
+html[data-background='crt'] :is(.app-bar, .glass-pane),
+html[data-background='blueprint'] :is(.app-bar, .glass-pane) {
   --bar-font: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
   --bar-font-scale: 0.95;
   --bar-radius: 0px;
   --bar-control-radius: 0px;
 }
-html[data-background='crt'] .app-bar[data-bar-style='frosted'] .app-bar-surface,
-html[data-background='blueprint'] .app-bar[data-bar-style='frosted'] .app-bar-surface {
+html[data-background='crt'] :is(.app-bar[data-bar-style='frosted'] .app-bar-surface, .glass-pane),
+html[data-background='blueprint']
+  :is(.app-bar[data-bar-style='frosted'] .app-bar-surface, .glass-pane) {
   border-color: rgb(var(--border));
   box-shadow: none;
 }
@@ -165,11 +172,13 @@ html[data-background='crt'] .bar-brand-name {
 html[data-background='crt'][data-mode='dark'] .app-bar-surface {
   text-shadow: 0 0 6px rgb(var(--text) / 0.45);
 }
-html[data-background='crt'][data-mode='light'] .app-bar[data-bar-style='frosted'] .app-bar-surface {
+html[data-background='crt'][data-mode='light']
+  :is(.app-bar[data-bar-style='frosted'] .app-bar-surface, .glass-pane) {
   border-style: dashed;
 }
 /* Blueprint: a lettered title block, like the panels' headings. */
-html[data-background='blueprint'] .app-bar[data-bar-style='frosted'] .app-bar-surface {
+html[data-background='blueprint']
+  :is(.app-bar[data-bar-style='frosted'] .app-bar-surface, .glass-pane) {
   border: 1.5px solid rgb(var(--text) / 0.85);
 }
 html[data-background='blueprint'] .bar-brand-name {

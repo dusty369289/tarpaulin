@@ -3,6 +3,8 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { SearchInput, SettingsFilter, useNoRows, useSettingsFilter } from '../../ui';
 import { isModShortcut, isTyping } from '../../ui/keys';
 import { CATEGORIES, type CategoryInfo } from './categories';
+// The sidebar is frosted like the top bar (.glass-pane).
+import '../../dashboard/appBar.css';
 import {
   categoryFromHash,
   lastCategory,
@@ -74,7 +76,7 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
         <h1 className="text-lg font-semibold">Settings</h1>
       </div>
       <div className="flex min-w-0 flex-col gap-4 min-[760px]:flex-row min-[760px]:items-start min-[760px]:gap-8">
-        <aside className="flex min-w-0 flex-col gap-3 min-[760px]:sticky min-[760px]:top-4 min-[760px]:w-56 min-[760px]:shrink-0">
+        <aside className="glass-pane flex min-w-0 flex-col gap-3 p-2.5 min-[760px]:sticky min-[760px]:top-4 min-[760px]:w-56 min-[760px]:shrink-0">
           <SearchInput
             inputRef={searchRef}
             value={query}
