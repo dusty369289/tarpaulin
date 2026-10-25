@@ -226,7 +226,7 @@ for (const [i, preset] of ['Deadline Focus', 'Weekly Planner', 'Minimal'].entrie
 
 await step('edit mode shows handles and controls', async () => {
   await page.getByRole('tab', { name: /Home/ }).click();
-  await page.getByRole('button', { name: 'Edit' }).click();
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
   await settled();
   assert((await page.locator('.widget-drag-handle').count()) >= 4, 'no drag handles');
   assert((await page.locator('.react-resizable-handle').count()) >= 4, 'no resize handles');
@@ -325,7 +325,7 @@ await step('change a widget setting from its panel', async () => {
 });
 
 await step('leave edit mode', async () => {
-  await page.getByRole('button', { name: 'Done' }).click();
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
   await settled();
   assert((await page.locator('.widget-drag-handle').count()) === 0, 'handles still visible');
 });
@@ -464,7 +464,7 @@ await step('high contrast overrides a textured look', async () => {
 });
 
 await step('page style: own background, one widget restyled, then applied to all', async () => {
-  await page.getByRole('button', { name: 'Edit' }).click();
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
   await page.getByRole('button', { name: 'Style' }).click();
   const drawer = page.getByRole('dialog', { name: /^Style/ });
   await drawer.waitFor();
@@ -505,7 +505,7 @@ await step('page style: own background, one widget restyled, then applied to all
     `not applied to all: ${skins}`,
   );
   await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: 'Done' }).click();
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
   await settled();
   await assertGridLayout();
   await shot('12-page-style');
@@ -716,7 +716,7 @@ await step('top bar: fold away hides, reveals on pointer, focus and edit mode', 
     'Add widget not reachable in edit mode',
   );
   await page.screenshot({ path: `${dir}/16-bar-editing.png`, clip: barClip });
-  await page.getByRole('button', { name: 'Done' }).click();
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
   await page.mouse.move(720, 600);
   await barFolded(true);
 
@@ -1045,11 +1045,11 @@ await step('reader: hostile Canvas HTML stays inert (edge data)', async () => {
 const undoToast = page.getByTestId('undo-toast');
 const enterEdit = async () => {
   await page.getByRole('tab', { name: /Home/ }).click();
-  await page.getByRole('button', { name: 'Edit' }).click();
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
   await settled();
 };
 const leaveEdit = async () => {
-  await page.getByRole('button', { name: 'Done' }).click();
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
   await settled();
 };
 
@@ -1201,6 +1201,14 @@ await step('calendar: arrow keys move between days in the month grid', async () 
   const day = () => page.evaluate(() => (document.activeElement as HTMLElement).dataset.day);
   const expected = new Date(`${start}T12:00:00Z`);
   expected.setUTCDate(expected.getUTCDate() + 8);
+  // Near a month's end the move pages the month, which renders a moment later.
+  await page
+    .waitForFunction(
+      (want) => (document.activeElement as HTMLElement | null)?.dataset.day === want,
+      expected.toISOString().slice(0, 10),
+      { timeout: 3_000 },
+    )
+    .catch(() => {});
   assert((await day()) === expected.toISOString().slice(0, 10), `landed on ${await day()}`);
   const month = await cal.getByText(/^\w+ \d{4}$/).textContent();
   await page.keyboard.press('PageDown');
