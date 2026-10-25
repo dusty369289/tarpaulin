@@ -76,7 +76,11 @@ export function UpdateBanner() {
   const [notesOpen, setNotesOpen] = useState(false);
   const notesId = useId();
   const update = 'update' in state ? state.update : null;
-  if (!update || dismissed === state || skippedVersion() === update.version) return <UpdatedNote />;
+  // A background download for installing on quit stays out of the way until it's ready.
+  const quiet = state.status === 'downloading' && state.background;
+  if (!update || quiet || dismissed === state || skippedVersion() === update.version)
+    return <UpdatedNote />;
+  const ready = state.status === 'ready';
   const busy = state.status === 'downloading' || state.status === 'installing';
   const pct =
     state.status === 'downloading' && state.total
@@ -122,14 +126,16 @@ export function UpdateBanner() {
               disabled={busy}
             >
               {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-              Update now
+              {ready ? 'Restart now' : 'Update now'}
             </button>
           </>
         }
         onDismiss={busy ? undefined : () => setDismissed(state)}
         dismissLabel="Remind me later"
       >
-        Tarpaulin {update.version} is available
+        {ready
+          ? `Tarpaulin ${update.version} is ready — it installs when you quit`
+          : `Tarpaulin ${update.version} is available`}
         {busy &&
           ` — ${state.status === 'installing' ? 'installing…' : pct !== null ? `downloading ${pct}%` : 'downloading…'}`}
       </Banner>

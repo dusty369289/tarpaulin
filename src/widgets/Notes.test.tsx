@@ -49,3 +49,21 @@ describe('Notes', () => {
     expect(setData).not.toHaveBeenCalled();
   });
 });
+
+describe('Notes formatting', () => {
+  it('shows the note formatted once you click away from the editor', () => {
+    renderNotes();
+    const box = screen.getByRole('textbox', { name: 'Note' });
+    fireEvent.change(box, { target: { value: '# Week plan\n**read** chapter 4' } });
+    fireEvent.blur(box);
+    expect(screen.queryByRole('textbox', { name: 'Note' })).toBeNull();
+    expect(screen.getByText('Week plan')).toHaveClass('font-semibold');
+    expect(screen.getByText('read').tagName).toBe('STRONG');
+  });
+
+  it('stays in the editor when the note is empty', () => {
+    renderNotes();
+    fireEvent.blur(screen.getByRole('textbox', { name: 'Note' }));
+    expect(screen.getByRole('textbox', { name: 'Note' })).toBeInTheDocument();
+  });
+});

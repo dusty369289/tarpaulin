@@ -18,12 +18,16 @@ function useAppVersion() {
 function UpdatesSection() {
   const { state, check, install } = useUpdater();
   const autoCheck = useSettings((s) => s.autoCheckUpdates);
+  const autoInstall = useSettings((s) => s.autoInstallUpdates);
   const update = useSettings((s) => s.update);
   const version = useAppVersion();
   const busy =
     state.status === 'checking' || state.status === 'downloading' || state.status === 'installing';
   const offered =
-    state.status === 'available' || state.status === 'downloading' || state.status === 'installing';
+    state.status === 'available' ||
+    state.status === 'ready' ||
+    state.status === 'downloading' ||
+    state.status === 'installing';
   return (
     <Section title="Updates">
       <Row
@@ -44,15 +48,24 @@ function UpdatesSection() {
             checked={autoCheck}
             onChange={(on) => update({ autoCheckUpdates: on })}
           />
+          <SwitchRow
+            label="Install updates automatically"
+            help="Downloads a new version in the background and installs it when you quit Tarpaulin."
+            keywords="auto update download install"
+            checked={autoInstall}
+            onChange={(on) => update({ autoInstallUpdates: on })}
+          />
           <Row
             label={
-              offered
-                ? `Version ${state.update.version} is available`
-                : state.status === 'current'
-                  ? 'You’re up to date'
-                  : state.status === 'error'
-                    ? 'Couldn’t check for updates'
-                    : 'Updates'
+              state.status === 'ready'
+                ? `Version ${state.update.version} is ready — it installs when you quit`
+                : offered
+                  ? `Version ${state.update.version} is available`
+                  : state.status === 'current'
+                    ? 'You’re up to date'
+                    : state.status === 'error'
+                      ? 'Couldn’t check for updates'
+                      : 'Updates'
             }
             help={state.status === 'error' ? state.message : undefined}
             keywords="check for updates what’s new"
@@ -81,7 +94,9 @@ function UpdatesSection() {
                   ? `Downloading${state.total ? ` ${Math.round((state.received / state.total) * 100)}%` : '…'}`
                   : state.status === 'installing'
                     ? 'Installing…'
-                    : 'Update now'}
+                    : state.status === 'ready'
+                      ? 'Restart now'
+                      : 'Update now'}
               </button>
             ) : (
               <button type="button" className="btn" onClick={() => void check()} disabled={busy}>

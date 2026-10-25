@@ -24,7 +24,16 @@ export type UpdateState =
   | { status: 'checking' }
   | { status: 'current'; checkedAt: number }
   | { status: 'available'; update: UpdateInfo }
-  | { status: 'downloading'; update: UpdateInfo; received: number; total: number | null }
+  | {
+      status: 'downloading';
+      update: UpdateInfo;
+      received: number;
+      total: number | null;
+      /** Fetched quietly for installing on quit (automatic updates), not on request. */
+      background?: boolean;
+    }
+  /** Downloaded and verified: installs when the app quits, or now on "Restart now". */
+  | { status: 'ready'; update: UpdateInfo }
   | { status: 'installing'; update: UpdateInfo }
   | { status: 'error'; message: string };
 
@@ -73,8 +82,15 @@ function write(key: string, value: string | null) {
 /** The version the user skipped, if any. */
 export const skippedVersion = () => read(SKIP_KEY);
 
-/** Keeps the banner quiet about this version, across restarts; a later one shows again. */
-export const skipVersion = (version: string) => write(SKIP_KEY, version);
+/** Keeps the banner quiet about this version, across restarts; a later one shows again. A
+ *  skipped version that was already downloaded is dropped, so quitting doesn't install it. */
+export function skipVersion(version: string) {
+  write(SKIP_KEY, version);
+  if ('update' in state && state.update.version === version && isTauri()) {
+    void invoke('forget_update').catch(() => {});
+    set({ status: 'idle' });
+  }
+}
 
 /**
  * Checks for an update. A check the user asked for (the default) also forgets a skipped
@@ -93,12 +109,17 @@ export async function checkForUpdates({
   } catch (e) {
     set({ status: 'error', message: e instanceof Error ? e.message : String(e) });
   }
+  if (
+    state.status === 'available' &&
+    useSettings.getState().autoInstallUpdates &&
+    skippedVersion() !== state.update.version
+  )
+    void downloadUpdate();
   return state;
 }
 
-export async function installUpdate(): Promise<void> {
-  if (state.status !== 'available') return;
-  const update = state.update;
+/** Streams download progress into the shared state. */
+async function progressChannel(update: UpdateInfo, background: boolean) {
   const { Channel } = await import('@tauri-apps/api/core');
   const channel = new Channel<DownloadEvent>();
   let received = 0;
@@ -106,13 +127,37 @@ export async function installUpdate(): Promise<void> {
   channel.onmessage = (msg) => {
     if (msg.event === 'started') total = msg.data.contentLength;
     if (msg.event === 'progress') received += msg.data.chunkLength;
-    set(
-      msg.event === 'finished'
-        ? { status: 'installing', update }
-        : { status: 'downloading', update, received, total },
-    );
+    if (msg.event === 'finished')
+      set(background ? { status: 'ready', update } : { status: 'installing', update });
+    else set({ status: 'downloading', update, received, total, background });
   };
-  set({ status: 'downloading', update, received: 0, total: null });
+  set({ status: 'downloading', update, received: 0, total: null, background });
+  return channel;
+}
+
+/**
+ * Automatic updates: fetches the update in the background, verified but not installed; it
+ * installs when the app quits. If the download fails it stays on offer for "Update now".
+ */
+export async function downloadUpdate(): Promise<void> {
+  if (state.status !== 'available') return;
+  const update = state.update;
+  try {
+    await invoke('download_update', { onEvent: await progressChannel(update, true) });
+    set({ status: 'ready', update });
+  } catch {
+    set({ status: 'available', update });
+  }
+}
+
+/** Installs the update now (downloading it first unless that's done), then restarts. */
+export async function installUpdate(): Promise<void> {
+  if (state.status !== 'available' && state.status !== 'ready') return;
+  const update = state.update;
+  const downloaded = state.status === 'ready';
+  const channel = await progressChannel(update, false);
+  // Already downloaded: straight to installing, no progress to show.
+  if (downloaded) set({ status: 'installing', update });
   try {
     localStorage.setItem(
       RESUME_KEY,

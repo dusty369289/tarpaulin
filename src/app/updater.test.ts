@@ -11,9 +11,11 @@ vi.mock('@tauri-apps/api/core', () => ({
   Channel: FakeChannel,
 }));
 
-async function load() {
+async function load({ autoInstall = false } = {}) {
   vi.resetModules();
   (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {};
+  const { useSettings } = await import('./settingsStore');
+  useSettings.setState({ autoInstallUpdates: autoInstall });
   return import('./updater');
 }
 
@@ -53,6 +55,64 @@ describe('updater', () => {
       { status: 'installing', update },
     ]);
     expect(result.current.state).toMatchObject({ status: 'installing', update });
+  });
+
+  /** Answers each Rust command by name, so the order of background calls doesn't matter. */
+  function commands(handlers: Record<string, (args: never) => unknown>) {
+    invoke.mockImplementation(async (cmd: string, args: never) => handlers[cmd]?.(args));
+  }
+  const update = { version: '0.2.0', currentVersion: '0.1.0', notes: null, date: null };
+
+  it('with automatic updates, downloads quietly, then installs on "Restart now"', async () => {
+    const u = await load({ autoInstall: true });
+    commands({
+      check_update: () => update,
+      download_update: ({ onEvent }: { onEvent: FakeChannel<unknown> }) => {
+        onEvent.onmessage({ event: 'started', data: { contentLength: 10 } });
+        onEvent.onmessage({ event: 'finished' });
+      },
+    });
+    const seen: unknown[] = [];
+    const stop = u.subscribeUpdates((st) => seen.push(st));
+    await u.checkForUpdates({ manual: false });
+    await vi.waitFor(() => expect(seen.at(-1)).toMatchObject({ status: 'ready', update }));
+    expect(seen).toContainEqual(
+      expect.objectContaining({ status: 'downloading', background: true }),
+    );
+
+    await u.installUpdate();
+    stop();
+    expect(invoke).toHaveBeenLastCalledWith('install_update', { onEvent: expect.any(FakeChannel) });
+    expect(seen.at(-1)).toMatchObject({ status: 'installing', update });
+  });
+
+  it('keeps the update on offer when the background download fails', async () => {
+    const u = await load({ autoInstall: true });
+    commands({
+      check_update: () => update,
+      download_update: () => {
+        throw new Error('offline');
+      },
+    });
+    const seen: unknown[] = [];
+    const stop = u.subscribeUpdates((st) => seen.push(st));
+    await u.checkForUpdates({ manual: false });
+    await vi.waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith('download_update', expect.anything()),
+    );
+    await vi.waitFor(() => expect(seen.at(-1)).toMatchObject({ status: 'available', update }));
+    stop();
+  });
+
+  it('skipping a downloaded version drops it, so quitting does not install it', async () => {
+    const u = await load({ autoInstall: true });
+    commands({ check_update: () => update });
+    await u.checkForUpdates({ manual: false });
+    const { result } = renderHook(() => u.useUpdater());
+    await vi.waitFor(() => expect(result.current.state).toMatchObject({ status: 'ready' }));
+    act(() => u.skipVersion('0.2.0'));
+    await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith('forget_update', undefined));
+    expect(result.current.state.status).toBe('idle');
   });
 
   it('surfaces errors', async () => {

@@ -50,4 +50,18 @@ describe('SettingsPage updates', () => {
     expect(notes.querySelector('strong')?.textContent).toBe('Calendar');
     expect(notes.textContent).not.toMatch(/\*\*|##/);
   });
+
+  it('turns automatic installs off', async () => {
+    renderWithCanvas(<SettingsPage onBack={() => {}} />);
+    await act(() => new Promise((r) => setTimeout(r, 50)));
+    fireEvent.click(
+      within(screen.getByRole('navigation', { name: 'Settings categories' })).getByRole('button', {
+        name: 'About',
+      }),
+    );
+    const auto = screen.getByRole('switch', { name: 'Install updates automatically' });
+    expect(auto).toBeChecked();
+    fireEvent.click(auto);
+    expect(useSettings.getState().autoInstallUpdates).toBe(false);
+  });
 });
